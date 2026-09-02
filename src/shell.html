@@ -1,0 +1,330 @@
+<title>Vision 360 Field App</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Icons&family=Material+Icons+Outlined&display=swap">
+<style>/*__CSS__*/</style>
+
+<div id="stage">
+
+  <div class="device">
+    <div class="phone" id="phone" data-tabs="off">
+
+      <div class="statusbar">
+        <span id="clock">9:30</span>
+        <span class="icons">
+          <span class="mif" style="font-size:16px">signal_cellular_alt</span>
+          <span class="mif" style="font-size:16px">wifi</span>
+          <span class="mif" style="font-size:17px">battery_full</span>
+        </span>
+      </div>
+
+      <div class="viewport" id="viewport">
+
+        <!-- ============ SPLASH ============ -->
+        <div class="screen" id="splash" data-tabs="off" style="background:#1C2B3A;align-items:center;justify-content:center">
+          <div style="width:82px;height:82px;border-radius:20px;background:#4A6FA5;display:flex;align-items:center;justify-content:center;font:700 34px/1 Geist;color:#fff;box-shadow:0 12px 34px rgba(0,0,0,.35)">V3</div>
+          <div style="font:600 24px/1 Geist;color:#fff;margin-top:20px;letter-spacing:-.01em">Vision&nbsp;360</div>
+          <div style="font:400 14px/1 Geist;color:#7E93B2;margin-top:9px">Field Service</div>
+          <div style="width:120px;height:3px;border-radius:2px;background:rgba(255,255,255,.14);margin-top:32px;overflow:hidden">
+            <div id="splashBar" style="width:0;height:100%;background:#4A6FA5;transition:width 1.25s ease"></div>
+          </div>
+          <div style="position:absolute;bottom:30px;font:400 12px/1 Geist;color:#546478">v2.4.1 · AND Services</div>
+        </div>
+
+        <!-- ============ LOGIN ============ -->
+        <div class="screen" id="login" data-tabs="off" style="background:#fff">
+          <div class="sc" style="flex:1;overflow-y:auto;padding:0">
+            <div style="padding:34px 24px 0">
+              <div style="width:52px;height:52px;border-radius:14px;background:#1C2B3A;display:flex;align-items:center;justify-content:center;font:700 21px/1 Geist;color:#fff">V3</div>
+              <div class="h1" style="margin:22px 0 8px">Sign in</div>
+              <div class="sub" style="margin-bottom:26px">Use the credentials issued by your dispatcher.</div>
+
+              <label class="fld">
+                <span class="lb">Company code</span>
+                <input class="inp" id="li-co" value="AND-SVC" autocomplete="off">
+              </label>
+              <label class="fld">
+                <span class="lb">Email</span>
+                <input class="inp" id="li-em" type="email" value="m.stroz@andservices.com" autocomplete="username">
+                <span class="err" id="li-em-e">Enter a valid work email.</span>
+              </label>
+              <label class="fld" style="margin-bottom:12px">
+                <span class="lb">Password</span>
+                <span style="position:relative;display:block">
+                  <input class="inp" id="li-pw" type="password" value="vision360" autocomplete="current-password" style="padding-right:46px">
+                  <span class="mi" id="li-eye" data-tap style="position:absolute;right:13px;top:16px;font-size:20px;color:#8A97A8">visibility_off</span>
+                </span>
+                <span class="err" id="li-pw-e">Password must be at least 6 characters.</span>
+              </label>
+
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px">
+                <span class="chk on" id="li-rm"><span class="box"><span class="mif">check</span></span>Keep me signed in</span>
+                <span class="lnk" data-go="forgot" data-mode="push">Forgot password?</span>
+              </div>
+
+              <button class="btn" id="li-go"><span class="mif" style="font-size:19px">login</span>Sign in</button>
+
+              <div class="divide"><span>or</span></div>
+              <button class="btn-o" id="li-bio"><span class="mi" style="font-size:21px">fingerprint</span>Sign in with Face&nbsp;ID</button>
+
+              <div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px;margin:24px 0 0">
+                <span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">info</span>
+                <div style="font:400 12.5px/1.45 Geist;color:#546478">Prototype — any password of 6+ characters signs you in as <b style="font-weight:600;color:#1A2332">Marek Stroz</b>.</div>
+              </div>
+            </div>
+            <div style="text-align:center;font:400 12px/1 Geist;color:#8A97A8;padding:26px 0 22px">v2.4.1 · Need help? <span class="lnk" style="font-size:12px" data-toast="Support: (813) 555-0142">Contact support</span></div>
+          </div>
+        </div>
+
+        <!-- ============ FORGOT ============ -->
+        <div class="screen" id="forgot" data-tabs="off" style="background:#fff">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Reset password</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:24px">
+            <div class="sub" style="margin-bottom:24px">We&rsquo;ll text a 6-digit code to the phone number on your technician profile.</div>
+            <label class="fld">
+              <span class="lb">Work email</span>
+              <input class="inp" id="fg-em" type="email" value="m.stroz@andservices.com">
+              <span class="err" id="fg-em-e">Enter a valid work email.</span>
+            </label>
+            <div style="display:flex;align-items:center;gap:11px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:13px;margin-bottom:22px">
+              <span class="mi" style="font-size:20px;color:#4A6FA5">sms</span>
+              <div style="font:400 13.5px/1.4 Geist;color:#546478">Code goes to <b style="font-weight:600;color:#1A2332">(813) &bull;&bull;&bull;&nbsp;4471</b></div>
+            </div>
+            <button class="btn" id="fg-go"><span class="mi" style="font-size:19px">send</span>Send code</button>
+          </div>
+        </div>
+
+        <!-- ============ OTP ============ -->
+        <div class="screen" id="otp" data-tabs="off" style="background:#fff">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Enter code</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:24px">
+            <div class="sub" style="margin-bottom:26px">Sent to <b style="font-weight:600;color:#1A2332">(813) &bull;&bull;&bull;&nbsp;4471</b>. The code expires in 10 minutes.</div>
+            <div id="otpBoxes" style="display:flex;gap:9px;margin-bottom:8px">
+              <input class="inp otp-d" maxlength="1" inputmode="numeric" style="text-align:center;font:600 22px/1 Geist;padding:0">
+              <input class="inp otp-d" maxlength="1" inputmode="numeric" style="text-align:center;font:600 22px/1 Geist;padding:0">
+              <input class="inp otp-d" maxlength="1" inputmode="numeric" style="text-align:center;font:600 22px/1 Geist;padding:0">
+              <input class="inp otp-d" maxlength="1" inputmode="numeric" style="text-align:center;font:600 22px/1 Geist;padding:0">
+              <input class="inp otp-d" maxlength="1" inputmode="numeric" style="text-align:center;font:600 22px/1 Geist;padding:0">
+              <input class="inp otp-d" maxlength="1" inputmode="numeric" style="text-align:center;font:600 22px/1 Geist;padding:0">
+            </div>
+            <span class="err" id="otp-e">Enter all six digits.</span>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin:20px 0 24px">
+              <span style="font:400 13.5px/1 Geist;color:#8A97A8">Didn&rsquo;t get it?</span>
+              <span class="lnk" id="otp-rs">Resend in <span id="otp-t">0:29</span></span>
+            </div>
+            <button class="btn" id="otp-go"><span class="mi" style="font-size:19px">check_circle</span>Verify</button>
+            <div style="text-align:center;margin-top:18px"><span class="lnk" data-toast="Demo code: 4 8 2 9 1 3" style="color:#8A97A8">Show demo code</span></div>
+          </div>
+        </div>
+
+        <!-- ============ NEW PASSWORD ============ -->
+        <div class="screen" id="newpass" data-tabs="off" style="background:#fff">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">New password</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:24px">
+            <div class="sub" style="margin-bottom:24px">At least 8 characters with one number.</div>
+            <label class="fld">
+              <span class="lb">New password</span>
+              <input class="inp" id="np-a" type="password" placeholder="••••••••">
+            </label>
+            <div style="display:flex;gap:5px;margin:-4px 0 8px">
+              <div class="np-seg" style="flex:1;height:4px;border-radius:2px;background:#EDF0F5"></div>
+              <div class="np-seg" style="flex:1;height:4px;border-radius:2px;background:#EDF0F5"></div>
+              <div class="np-seg" style="flex:1;height:4px;border-radius:2px;background:#EDF0F5"></div>
+            </div>
+            <div id="np-str" style="font:500 12.5px/1 Geist;color:#8A97A8;margin-bottom:18px">Strength &mdash; &nbsp;</div>
+            <label class="fld">
+              <span class="lb">Repeat password</span>
+              <input class="inp" id="np-b" type="password" placeholder="••••••••">
+              <span class="err" id="np-e">Passwords don&rsquo;t match yet.</span>
+            </label>
+            <button class="btn" id="np-go" style="margin-top:8px"><span class="mi" style="font-size:19px">lock_reset</span>Save password</button>
+          </div>
+        </div>
+
+        <!-- ============ CHAT LIST ============ -->
+        <div class="screen" id="chat" data-tabs="on">
+          <div class="hdr" style="padding:12px 16px">
+            <span class="ttl" style="font-size:21px">Chat</span>
+            <span class="mi" data-tap data-toast="New conversation" style="font-size:23px;color:#4A6FA5">add_comment</span>
+          </div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:12px 16px 20px">
+            <div style="display:flex;align-items:center;gap:9px;background:#fff;border:1px solid #DDE3EE;border-radius:10px;padding:11px 13px;margin-bottom:14px">
+              <span class="mi" style="font-size:19px;color:#8A97A8">search</span>
+              <span style="font:400 15px/1 Geist;color:#A9B4C2">Search conversations</span>
+            </div>
+            <div class="card" style="overflow:hidden">
+              <div class="rowi" data-go="chat-thread" data-mode="push" style="align-items:flex-start;gap:12px">
+                <div style="width:44px;height:44px;border-radius:22px;background:#1C2B3A;color:#fff;font:600 15px/44px Geist;text-align:center;flex:none">DS</div>
+                <div class="t">
+                  <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><span style="font:600 15.5px/1.2 Geist">Dispatch</span><span style="font:500 12px/1 Geist;color:#8A97A8;white-space:nowrap">9:22 AM</span></div>
+                  <small style="color:#1A2332;font-weight:500">Randy Johnson moved to 8:00 &mdash; can you confirm?</small>
+                </div>
+                <span class="badge-n" style="min-width:20px;height:20px;border-radius:10px;background:#DC2626;color:#fff;font:600 11px/20px Geist;text-align:center;padding:0 5px;flex:none">2</span>
+              </div>
+              <div class="rowi" data-go="chat-thread" data-mode="push" style="align-items:flex-start;gap:12px">
+                <div style="width:44px;height:44px;border-radius:22px;background:#4A6FA5;color:#fff;font:600 15px/44px Geist;text-align:center;flex:none">SM</div>
+                <div class="t">
+                  <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><span style="font:600 15.5px/1.2 Geist">Steve Marek &middot; Manager</span><span style="font:500 12px/1 Geist;color:#8A97A8;white-space:nowrap">8:41 AM</span></div>
+                  <small style="color:#1A2332;font-weight:500">Estimate for #13 approved. Present option C.</small>
+                </div>
+                <span style="min-width:20px;height:20px;border-radius:10px;background:#DC2626;color:#fff;font:600 11px/20px Geist;text-align:center;padding:0 5px;flex:none">1</span>
+              </div>
+              <div class="rowi" data-go="chat-thread" data-mode="push" style="align-items:flex-start;gap:12px">
+                <div style="width:44px;height:44px;border-radius:22px;background:#EBF0F8;color:#4A6FA5;font:600 15px/44px Geist;text-align:center;flex:none">WH</div>
+                <div class="t">
+                  <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><span style="font:600 15.5px/1.2 Geist">Warehouse</span><span style="font:500 12px/1 Geist;color:#8A97A8;white-space:nowrap">Yesterday</span></div>
+                  <small>Capacitor 45/5 is back in stock.</small>
+                </div>
+              </div>
+              <div class="rowi" data-go="chat-thread" data-mode="push" style="align-items:flex-start;gap:12px">
+                <div style="width:44px;height:44px;border-radius:22px;background:#EBF0F8;color:#4A6FA5;font:600 15px/44px Geist;text-align:center;flex:none">TC</div>
+                <div class="t">
+                  <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><span style="font:600 15.5px/1.2 Geist">Tampa crew</span><span style="font:500 12px/1 Geist;color:#8A97A8;white-space:nowrap">Mon</span></div>
+                  <small>Brent: covering Brandon this afternoon.</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ CHAT THREAD ============ -->
+        <div class="screen" id="chat-thread" data-tabs="off" style="background:#F5F7FA">
+          <div class="hdr" style="gap:11px">
+            <span class="back mi" data-back style="font-size:22px">arrow_back</span>
+            <div style="width:36px;height:36px;border-radius:18px;background:#1C2B3A;color:#fff;font:600 13px/36px Geist;text-align:center;flex:none">DS</div>
+            <div style="flex:1">
+              <div style="font:600 16px/1.2 Geist">Dispatch</div>
+              <div style="font:400 12px/1.3 Geist;color:#16A34A;margin-top:2px">Online</div>
+            </div>
+            <span class="mi" data-tap data-toast="Calling dispatch…" style="font-size:22px;color:#4A6FA5">call</span>
+          </div>
+          <div class="sc" id="thread" style="flex:1;overflow-y:auto;padding:16px 14px;display:flex;flex-direction:column;gap:10px">
+            <div style="text-align:center;font:500 11.5px/1 Geist;color:#8A97A8;padding:2px 0 6px">Today</div>
+            <div style="max-width:76%;align-self:flex-start;background:#fff;border:1px solid #DDE3EE;border-radius:14px 14px 14px 4px;padding:11px 13px">
+              <div style="font:400 14.5px/1.45 Geist">Randy Johnson moved to 8:00 &mdash; can you confirm you&rsquo;ll make it?</div>
+              <div style="font:400 11px/1 Geist;color:#8A97A8;margin-top:7px">9:20 AM</div>
+            </div>
+            <div style="max-width:76%;align-self:flex-end;background:#4A6FA5;border-radius:14px 14px 4px 14px;padding:11px 13px">
+              <div style="font:400 14.5px/1.45 Geist;color:#fff">On my way, 12 min out.</div>
+              <div style="font:400 11px/1 Geist;color:#C9D8EE;margin-top:7px">9:21 AM &middot; Read</div>
+            </div>
+            <div style="max-width:76%;align-self:flex-start;background:#fff;border:1px solid #DDE3EE;border-radius:14px 14px 14px 4px;padding:11px 13px">
+              <div style="font:400 14.5px/1.45 Geist">Perfect. Customer knows to expect you.</div>
+              <div style="font:400 11px/1 Geist;color:#8A97A8;margin-top:7px">9:22 AM</div>
+            </div>
+          </div>
+          <div style="flex:none;display:flex;align-items:center;gap:9px;padding:11px 12px;background:#fff;border-top:1px solid #DDE3EE">
+            <span class="mi" data-tap data-go="ov-media-source" data-mode="overlay" style="font-size:24px;color:#4A6FA5;flex:none">add_circle_outline</span>
+            <input class="inp" id="msg" placeholder="Message" style="height:44px;border-radius:22px;background:#F5F7FA;font-size:15px">
+            <span class="mif" data-tap id="msgSend" style="font-size:24px;color:#4A6FA5;flex:none">send</span>
+          </div>
+        </div>
+
+        <!-- ============ TIMESHEET ============ -->
+        <div class="screen" id="timesheet" data-tabs="on">
+          <div class="hdr" style="padding:12px 16px">
+            <span class="ttl" style="font-size:21px">Timesheet</span>
+            <span style="display:flex;align-items:center;gap:5px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:9px;padding:8px 11px;font:500 13px/1 Geist" data-tap data-go="ov-period" data-mode="overlay">This week<span class="mi" style="font-size:17px;color:#546478">expand_more</span></span>
+          </div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div style="background:#1C2B3A;border-radius:14px;padding:16px;margin-bottom:14px;color:#fff">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div>
+                  <div style="font:500 12.5px/1 Geist;color:#9DB4D6;letter-spacing:.05em;text-transform:uppercase">Clocked in</div>
+                  <div style="font:600 32px/1.1 Geist;letter-spacing:-.02em;margin-top:7px" id="tsClock">06:41:12</div>
+                  <div style="font:400 13px/1 Geist;color:#7E93B2;margin-top:6px">Since 8:02 AM &middot; Randy Johnson</div>
+                </div>
+                <div style="width:56px;height:56px;border-radius:28px;background:#16A34A;display:flex;align-items:center;justify-content:center" data-tap data-toast="Clocked out at 2:43 PM"><span class="mif" style="font-size:26px;color:#fff">stop</span></div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-bottom:18px">
+              <div class="card" style="padding:13px 14px"><div style="font:500 12px/1 Geist;color:#546478">Regular</div><div style="font:600 19px/1.1 Geist;margin-top:7px">32.5h</div></div>
+              <div class="card" style="padding:13px 14px"><div style="font:500 12px/1 Geist;color:#546478">Overtime</div><div style="font:600 19px/1.1 Geist;margin-top:7px;color:#D97706">4.0h</div></div>
+              <div class="card" style="padding:13px 14px"><div style="font:500 12px/1 Geist;color:#546478">Drive</div><div style="font:600 19px/1.1 Geist;margin-top:7px">6.2h</div></div>
+            </div>
+            <div style="font:600 16px/1 Geist;margin-bottom:10px">Week of Dec 8</div>
+            <div class="card" style="overflow:hidden">
+              <div class="rowi" data-toast="Mon &mdash; 3 jobs, 8.2h"><div style="width:42px;font:600 13px/1.3 Geist;color:#546478;flex:none">MON<small style="display:block;font:400 11px/1.3 Geist;color:#8A97A8">Dec 8</small></div><div class="t">3 jobs<small>7:55 AM &ndash; 4:10 PM</small></div><span style="font:600 15px/1 Geist">8.2h</span></div>
+              <div class="rowi" data-toast="Tue &mdash; 4 jobs, 9.0h"><div style="width:42px;font:600 13px/1.3 Geist;color:#546478;flex:none">TUE<small style="display:block;font:400 11px/1.3 Geist;color:#8A97A8">Dec 9</small></div><div class="t">4 jobs<small>7:48 AM &ndash; 5:02 PM</small></div><span style="font:600 15px/1 Geist;color:#D97706">9.0h</span></div>
+              <div class="rowi" data-toast="Wed &mdash; 2 jobs, 7.4h"><div style="width:42px;font:600 13px/1.3 Geist;color:#546478;flex:none">WED<small style="display:block;font:400 11px/1.3 Geist;color:#8A97A8">Dec 10</small></div><div class="t">2 jobs<small>8:10 AM &ndash; 3:36 PM</small></div><span style="font:600 15px/1 Geist">7.4h</span></div>
+              <div class="rowi" data-toast="Thu &mdash; 3 jobs, 8.0h"><div style="width:42px;font:600 13px/1.3 Geist;color:#546478;flex:none">THU<small style="display:block;font:400 11px/1.3 Geist;color:#8A97A8">Dec 11</small></div><div class="t">3 jobs<small>7:52 AM &ndash; 4:00 PM</small></div><span style="font:600 15px/1 Geist">8.0h</span></div>
+              <div class="rowi" style="background:#F8FAFD" data-toast="Today &mdash; in progress"><div style="width:42px;font:600 13px/1.3 Geist;color:#4A6FA5;flex:none">FRI<small style="display:block;font:400 11px/1.3 Geist;color:#8A97A8">Dec 12</small></div><div class="t">1 job &middot; running<small>8:02 AM &ndash; now</small></div><span style="font:600 15px/1 Geist;color:#4A6FA5">6.7h</span></div>
+            </div>
+            <div style="display:flex;gap:9px;margin-top:14px">
+              <button class="btn-o" data-toast="Timesheet submitted for approval"><span class="mi" style="font-size:19px">send</span>Submit week</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ MORE ============ -->
+        <div class="screen" id="more" data-tabs="on">
+          <div class="hdr" style="padding:12px 16px"><span class="ttl" style="font-size:21px">More</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div class="card" style="display:flex;align-items:center;gap:13px;padding:15px;margin-bottom:16px" data-tap data-toast="Profile &mdash; Marek Stroz">
+              <div style="width:52px;height:52px;border-radius:26px;background:#1C2B3A;color:#fff;font:600 18px/52px Geist;text-align:center;flex:none">MS</div>
+              <div style="flex:1">
+                <div style="font:600 17px/1.2 Geist">Marek Stroz</div>
+                <div style="font:400 13px/1.4 Geist;color:#546478;margin-top:3px">Senior Technician &middot; Tampa</div>
+              </div>
+              <span class="mi" style="font-size:20px;color:#A9B4C2">chevron_right</span>
+            </div>
+
+            <div style="display:flex;align-items:center;gap:10px;background:#EBF0F8;border:1px solid #C8D5E8;border-radius:11px;padding:12px 13px;margin-bottom:16px">
+              <span class="mi" style="font-size:20px;color:#4A6FA5">cloud_done</span>
+              <div style="flex:1;font:500 13.5px/1.35 Geist;color:#1A2332">All synced<div style="font:400 12px/1.3 Geist;color:#546478;margin-top:2px">Last sync 9:28 AM &middot; 0 pending</div></div>
+              <span class="lnk" style="font-size:13px" data-toast="Syncing…">Sync now</span>
+            </div>
+
+            <div class="card" style="overflow:hidden;margin-bottom:14px">
+              <div class="rowi" data-go="job-general" data-mode="push"><span class="mi">assignment</span><span class="t">Current job<small>Randy Johnson &middot; #13</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="history" data-mode="tab"><span class="mi">history</span><span class="t">Jobs history</span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="files" data-mode="push"><span class="mi">folder_open</span><span class="t">Files</span><span class="mi ch">chevron_right</span></div>
+            </div>
+
+            <div class="card" style="overflow:hidden;margin-bottom:14px">
+              <div class="rowi" data-toast="Equipment list"><span class="mi">hvac</span><span class="t">Equipment</span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Assets on truck: 42"><span class="mi">inventory_2</span><span class="t">Assets<small>42 items on truck 14</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="est-catalog" data-mode="push"><span class="mi">menu_book</span><span class="t">Price book</span><span class="mi ch">chevron_right</span></div>
+            </div>
+
+            <div class="card" style="overflow:hidden;margin-bottom:14px">
+              <div class="rowi" data-toast="Notifications settings"><span class="mi">notifications_none</span><span class="t">Notifications</span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Offline mode is on"><span class="mi">wifi_off</span><span class="t">Offline mode<small>Cache last 7 days of jobs</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Help centre"><span class="mi">help_outline</span><span class="t">Help &amp; support</span><span class="mi ch">chevron_right</span></div>
+            </div>
+
+            <div class="card" style="overflow:hidden">
+              <div class="rowi" id="logout"><span class="mi" style="color:#DC2626">logout</span><span class="t" style="color:#DC2626">Log out</span></div>
+            </div>
+            <div style="text-align:center;font:400 12px/1 Geist;color:#8A97A8;padding:20px 0 6px">Vision 360 v2.4.1 &middot; build 2411</div>
+          </div>
+        </div>
+
+<!--SCREENS-->
+
+        <div class="toast" id="toast"><span class="mi">check_circle</span><span id="toastMsg"></span></div>
+      </div>
+
+      <div class="tabbar" id="tabbar">
+        <div class="tab on" data-tab="home"><span class="mif ic">home</span><span class="lb">Home</span></div>
+        <div class="tab" data-tab="history"><span class="mi ic">history</span><span class="lb">History</span></div>
+        <div class="tab" data-tab="chat"><span class="mi ic">chat_bubble_outline</span><span class="lb">Chat</span><span class="badge">3</span></div>
+        <div class="tab" data-tab="timesheet"><span class="mi ic">schedule</span><span class="lb">Timesheet</span></div>
+        <div class="tab" data-tab="more"><span class="mi ic">menu</span><span class="lb">More</span></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<button id="indexBtn"><span class="mi">grid_view</span>All screens</button>
+<div id="sheet">
+  <div class="scrim" data-close></div>
+  <div class="panel">
+    <div class="ph"><span class="ttl">Screen index</span><span class="x mi" data-close style="font-size:20px">close</span></div>
+    <div class="pb" id="sheetBody"></div>
+  </div>
+</div>
+
+<script>/*__JS__*/</script>
