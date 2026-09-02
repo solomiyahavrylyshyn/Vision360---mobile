@@ -1,18 +1,27 @@
 /* Zero-dependency static server for the prototype.
-   node server.js [port]   →   http://localhost:5173 */
+   Serves dist/ — the installable build (manifest + icons + service worker) —
+   so a local run matches what gets deployed.
+   node server.js [port]   →   http://localhost:5173
+   Run `node build.js` first if dist/ doesn't exist yet. */
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const root = __dirname;
+const root = path.join(__dirname, 'dist');
 const port = Number(process.argv[2] || process.env.PORT || 5173);
-const INDEX = 'Vision360-Mobile-Prototype.html';
+const INDEX = 'index.html';
+
+if (!fs.existsSync(root)) {
+  console.error('dist/ not found — run `node build.js` first.');
+  process.exit(1);
+}
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.woff2': 'font/woff2'

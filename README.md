@@ -5,15 +5,23 @@ Every screen from the accepted design board (`Vision 360 Mobile - standalone.htm
 carried over verbatim and wired into a working app: real router, real navigation stack,
 real transitions, plus the auth flow and app shell that the design board didn't cover.
 
-**Live:** https://solomiyahavrylyshyn.github.io/Vision360---mobile/
+**Live:** https://vision360-mobile.vercel.app · https://solomiyahavrylyshyn.github.io/Vision360---mobile/
 
-**Deliverable:** [`Vision360-Mobile-Prototype.html`](Vision360-Mobile-Prototype.html) — open it in any
-browser, or drop it on any static host. No build step, no server, no dependencies
-(fonts come from Google Fonts; everything else is inline).
+It's an installable PWA — open the live link on a phone and use the browser's
+**Add to Home Screen** (iOS Safari) or **Install app** (Android Chrome). It then
+launches full-screen with its own icon, no browser chrome, and keeps working
+offline once opened.
 
-Run it locally:
+**Deliverable:** [`Vision360-Mobile-Prototype.html`](Vision360-Mobile-Prototype.html) — a single
+file, no install needed: open it in any browser, or drop it on any static host. No build
+step, no server, no dependencies (fonts come from Google Fonts; everything else is
+inline). This one is not the installable PWA — that's `dist/`, below — it's the
+"send the whole app as one file" version.
+
+Run the installable build locally:
 
 ```bash
+node build.js
 node server.js
 ```
 
@@ -73,9 +81,12 @@ The prototype tracks where the job actually is, so the tabs resolve to the right
 src/shell.html      page skeleton, tab bar, and the 9 screens added here
 src/app.css         app styling
 src/app.js          router, wiring tables, interactions
-src/screens.json    the 54 design screens, extracted from the design board
-build.js            inlines everything into the single deliverable
-server.js           zero-dependency static server for local runs
+src/screens.json         the 54 design screens, extracted from the design board
+src/manifest.webmanifest PWA manifest — name, icons, standalone display
+src/sw.js                service worker: precaches the shell, works offline
+tools/make-icons.js      draws the icon set as real PNGs (pure Node, no deps)
+build.js                 assembles everything into Vision360-Mobile-Prototype.html and dist/
+server.js                zero-dependency static server for local runs (serves dist/)
 ```
 
 Rebuild after editing anything under `src/`:
@@ -84,11 +95,15 @@ Rebuild after editing anything under `src/`:
 node build.js
 ```
 
-`build.js` writes three outputs: `Vision360-Mobile-Prototype.html` (the standalone file to
-hand around), `dist/index.html` (the same page, as the site root) and
-`dist/artifact.html` (no `<head>`, for hosts that supply their own). Pushing to `main`
-builds and publishes `dist/` to GitHub Pages via
-[`.github/workflows/pages.yml`](.github/workflows/pages.yml).
+That writes `Vision360-Mobile-Prototype.html` (the standalone file above) and a `dist/`
+folder — `dist/` is git-ignored and rebuilt on every deploy, both on GitHub Pages (via
+[`.github/workflows/pages.yml`](.github/workflows/pages.yml)) and on Vercel (via
+[`vercel.json`](vercel.json)'s build command: `node build.js`, output directory `dist`).
+`dist/` holds:
+
+* `index.html` — the installable PWA (manifest + icons + service worker registration)
+* `manifest.webmanifest`, `icons/*.png`, `sw.js`
+* `artifact.html` — the same page with no `<head>`, for hosts that supply their own
 
 ### How the design screens are wired
 

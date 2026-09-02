@@ -1,0 +1,10 @@
+{
+  "name": "vision360-mobile-prototype",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Clickable prototype of the Vision 360 field technician app",
+  "scripts": {
+    "build": "node build.js",
+    "start": "node server.js"
+  }
+}
