@@ -5,9 +5,17 @@ Every screen from the accepted design board (`Vision 360 Mobile - standalone.htm
 carried over verbatim and wired into a working app: real router, real navigation stack,
 real transitions, plus the auth flow and app shell that the design board didn't cover.
 
+**Live:** https://solomiyahavrylyshyn.github.io/Vision360---mobile/
+
 **Deliverable:** [`Vision360-Mobile-Prototype.html`](Vision360-Mobile-Prototype.html) — open it in any
 browser, or drop it on any static host. No build step, no server, no dependencies
 (fonts come from Google Fonts; everything else is inline).
+
+Run it locally:
+
+```bash
+node server.js
+```
 
 It renders as the app itself — full-bleed, no device mockup, no presentation chrome — so it
 reads the way the Flutter build should.
@@ -67,6 +75,7 @@ src/app.css         app styling
 src/app.js          router, wiring tables, interactions
 src/screens.json    the 54 design screens, extracted from the design board
 build.js            inlines everything into the single deliverable
+server.js           zero-dependency static server for local runs
 ```
 
 Rebuild after editing anything under `src/`:
@@ -74,6 +83,12 @@ Rebuild after editing anything under `src/`:
 ```bash
 node build.js
 ```
+
+`build.js` writes three outputs: `Vision360-Mobile-Prototype.html` (the standalone file to
+hand around), `dist/index.html` (the same page, as the site root) and
+`dist/artifact.html` (no `<head>`, for hosts that supply their own). Pushing to `main`
+builds and publishes `dist/` to GitHub Pages via
+[`.github/workflows/pages.yml`](.github/workflows/pages.yml).
 
 ### How the design screens are wired
 

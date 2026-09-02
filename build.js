@@ -81,9 +81,15 @@ fs.writeFileSync(out, doc);
 console.log('wrote', path.relative(root, out), (doc.length / 1024).toFixed(0) + ' KB',
   '·', meta.length, 'design screens');
 
+const dist = path.join(root, 'dist');
+fs.mkdirSync(dist, { recursive: true });
+
 /* Same page without the document wrapper, for hosts that supply their own
    <head> (e.g. publishing it as an Artifact). */
-const bare = path.join(root, 'dist', 'artifact.html');
-fs.mkdirSync(path.dirname(bare), { recursive: true });
-fs.writeFileSync(bare, shell);
-console.log('wrote', path.relative(root, bare));
+fs.writeFileSync(path.join(dist, 'artifact.html'), shell);
+console.log('wrote', path.join('dist', 'artifact.html'));
+
+/* Site root for static hosting (GitHub Pages). */
+fs.writeFileSync(path.join(dist, 'index.html'), doc);
+fs.writeFileSync(path.join(dist, '.nojekyll'), '');
+console.log('wrote', path.join('dist', 'index.html'));
