@@ -80,3 +80,10 @@ const out = path.join(root, 'Vision360-Mobile-Prototype.html');
 fs.writeFileSync(out, doc);
 console.log('wrote', path.relative(root, out), (doc.length / 1024).toFixed(0) + ' KB',
   '·', meta.length, 'design screens');
+
+/* Same page without the document wrapper, for hosts that supply their own
+   <head> (e.g. publishing it as an Artifact). */
+const bare = path.join(root, 'dist', 'artifact.html');
+fs.mkdirSync(path.dirname(bare), { recursive: true });
+fs.writeFileSync(bare, shell);
+console.log('wrote', path.relative(root, bare));
