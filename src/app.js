@@ -225,6 +225,15 @@
     });
   }
 
+  /* Hiding by writing style.display='none' and restoring with '' deletes the
+     element's own display, so a flex row comes back as a block and the layout
+     falls apart. Remember what it was. */
+  function toggleDisplay(el, show) {
+    if (!el) return;
+    if (el.dataset.disp === undefined) el.dataset.disp = el.style.display || '';
+    el.style.display = show ? el.dataset.disp : 'none';
+  }
+
   function mark(el, target, mode, act) {
     el.dataset.tap = '1';
     if (act) el.dataset.act = act; else el.dataset.go = target;
@@ -368,9 +377,9 @@
   function fmt(n) { return '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 
   function catalog(id) {
-    var root = byId(id); if (!root) return;
+    var root = byId(id); if (!root) return null;
     var addPills = sel(root, '@add^1'), donePills = sel(root, '@check^1');
-    if (!addPills.length || !donePills.length) { MISS.push(id + ' :: catalog pills'); return; }
+    if (!addPills.length || !donePills.length) { MISS.push(id + ' :: catalog pills'); return null; }
     var ADD = { html: addPills[0].innerHTML, style: addPills[0].getAttribute('style') };
     var DONE = { html: donePills[0].innerHTML, style: donePills[0].getAttribute('style') };
     var pills = donePills.concat(addPills);
@@ -411,6 +420,32 @@
         render();
       }, true);
     });
+
+    /* What the tech actually ticked, so it can be carried into the option. */
+    return {
+      selection: function () {
+        return pills.filter(function (p) { return p.dataset.on === '1'; }).map(function (p) {
+          var row = p.parentElement.parentElement;      // right column → the flex row
+          var left = row.firstElementChild;
+          var texts = $$('div', left).map(function (d) { return norm(d.textContent); });
+          return {
+            name: texts[0] || 'Item',
+            desc: texts[1] || '',
+            warranty: texts[2] || '',
+            price: priceOf(p)
+          };
+        });
+      },
+      clear: function () {
+        pills.forEach(function (p) {
+          if (p.dataset.on !== '1') return;
+          p.dataset.on = '0';
+          p.innerHTML = ADD.html;
+          p.setAttribute('style', ADD.style);
+        });
+        base.n = 0; base.sum = 0; render();
+      }
+    };
   }
 
   /* ---------- qty steppers ---------- */
@@ -515,12 +550,16 @@
         toast('Maximum ' + MAX_OPTIONS + ' options per job', 'block');
         return;
       }
+      optionItems = [];              // a new option starts empty
+      renderOptionItems();
       go('est-new-option', 'modal');
     },
     estSaveOption: function () {
       var first = state.est === 'none';
       state.est = 'draft';
       var added = first ? true : addOption();
+      optionItems = [];
+      renderOptionItems();
       go('est-draft', 'root');
       queued('Estimate');
       toast(added ? 'Option saved to draft estimate' : 'Maximum ' + MAX_OPTIONS + ' options per job');
@@ -528,7 +567,19 @@
     estSendReview: function () { state.est = 'review'; go('est-review', 'replace'); toast('Sent to your manager for review', 'send'); },
     estApprove: function () { state.est = 'ready'; go('est-ready', 'replace'); toast('Manager approved — ready to present', 'verified'); },
     estOrder: function () { state.est = 'approved'; closeOverlays(true); go('est-approved', 'root'); toast('Order confirmed · Option C signed'); },
-    estCatalogDone: function () { back(); toast('Items added to Option A'); },
+    estCatalogDone: function () {
+      var picked = estCatalog ? estCatalog.selection() : [];
+      picked.forEach(function (it) {
+        var seen = optionItems.filter(function (o) { return o.name === it.name; })[0];
+        if (seen) seen.qty++;                       // same item twice = quantity, not a duplicate row
+        else optionItems.push({ name: it.name, desc: it.desc, warranty: it.warranty, price: it.price, qty: 1 });
+      });
+      if (estCatalog) estCatalog.clear();
+      renderOptionItems();
+      back();
+      toast(picked.length ? picked.length + (picked.length === 1 ? ' item added' : ' items added') + ' to the option'
+        : 'Nothing selected', picked.length ? 'check_circle' : 'info');
+    },
 
     createInvoice: function () { state.inv = 'sent'; go('inv-sent', 'replace'); toast('Invoice INV-26-03-123 created & sent', 'receipt_long'); },
     payDone: function () { state.inv = 'paid'; closeOverlays(true); go('inv-paid', 'root'); toast('Payment received · $2,000.00'); },
@@ -948,8 +999,85 @@
   };
 
   /* catalogs + steppers */
-  catalog('est-catalog');
+  var estCatalog = catalog('est-catalog');
   catalog('add-catalog');
+
+  /* =========================================================
+     Items ticked in the catalog land in the option being built, with a
+     working qty and a summary that adds up. Done used to just navigate
+     back and the option stayed empty.
+     ========================================================= */
+  var MONTHLY_FACTOR = 0.0129;        // the plan card's own "Monthly factor 1.29%"
+  var optionItems = [];
+  var optItemsBox = null, optEmptyState = null, optSummary = null;
+  (function () {
+    var root = byId('est-new-option'); if (!root) return;
+    var heading = sel(root, 'Option items')[0];
+    optItemsBox = heading && heading.parentElement;
+    optEmptyState = heading && heading.nextElementSibling;
+    optSummary = {
+      count: valueNextTo(root, '# of items'),
+      monthly: valueNextTo(root, 'Monthly payment'),
+      total: valueNextTo(root, 'Total')
+    };
+    if (!optItemsBox || !optEmptyState || !optSummary.count) MISS.push('est-new-option :: items');
+  })();
+
+  function valueNextTo(root, label) {
+    var l = sel(root, label)[0];
+    return l && l.nextElementSibling;
+  }
+
+  function paintOptionSummary() {
+    var total = optionItems.reduce(function (a, it) { return a + it.price * it.qty; }, 0);
+    var n = optionItems.reduce(function (a, it) { return a + it.qty; }, 0);
+    if (optSummary.count) optSummary.count.textContent = String(n);
+    if (optSummary.monthly) optSummary.monthly.textContent = fmt(total * MONTHLY_FACTOR);
+    if (optSummary.total) optSummary.total.textContent = fmt(total);
+  }
+
+  function renderOptionItems() {
+    if (!optItemsBox) return;
+    $$('[data-optitem]', optItemsBox).forEach(function (e) { e.remove(); });
+    toggleDisplay(optEmptyState, !optionItems.length);
+
+    optionItems.forEach(function (it, i) {
+      var card = document.createElement('div');
+      card.setAttribute('data-optitem', '1');
+      card.setAttribute('style', 'background:#fff;border:1px solid #DDE3EE;border-radius:12px;padding:13px 14px;margin-bottom:9px');
+      card.innerHTML =
+        '<div style="font:600 15.5px/1.3 Geist"></div>' +
+        (it.desc ? '<div style="font:400 13px/1.45 Geist;color:#546478;margin:4px 0 7px"></div>' : '') +
+        (it.warranty ? '<div style="font:500 12px/1 Geist;color:#8A97A8"></div>' : '') +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid #EDF0F5">' +
+        '<div style="display:flex;align-items:center;border:1px solid #DDE3EE;border-radius:9px;overflow:hidden">' +
+        '<div data-minus style="width:42px;height:42px;display:flex;align-items:center;justify-content:center;color:#4A6FA5"><span class="mi" style="font-size:20px">remove</span></div>' +
+        '<div data-qty style="width:38px;text-align:center;font:600 15px/1 Geist;border-left:1px solid #DDE3EE;border-right:1px solid #DDE3EE;line-height:42px"></div>' +
+        '<div data-plus style="width:42px;height:42px;display:flex;align-items:center;justify-content:center;color:#4A6FA5"><span class="mi" style="font-size:20px">add</span></div>' +
+        '</div><span data-line style="font:600 15.5px/1 Geist"></span></div>';
+
+      var parts = card.children;
+      parts[0].textContent = it.name;
+      var k = 1;
+      if (it.desc) parts[k++].textContent = it.desc;
+      if (it.warranty) parts[k++].textContent = it.warranty;
+      var qtyEl = $('[data-qty]', card), lineEl = $('[data-line]', card);
+      function paintRow() { qtyEl.textContent = String(it.qty); lineEl.textContent = fmt(it.price * it.qty); }
+      paintRow();
+      [['[data-minus]', -1], ['[data-plus]', 1]].forEach(function (p) {
+        var b = $(p[0], card);
+        b.dataset.tap = '1';
+        b.addEventListener('click', function (ev) {
+          ev.stopPropagation();
+          it.qty = Math.max(1, it.qty + p[1]);
+          paintRow();
+          paintOptionSummary();
+        }, true);
+      });
+      optItemsBox.insertBefore(card, optEmptyState);
+    });
+    paintOptionSummary();
+  }
   steppers('est-option', ['Adjusted total', 'Total']);
   steppers('add-items', ['Section total']);
 
@@ -1127,8 +1255,8 @@
 
     var shut = remembered() === 'collapsed';
     function paint() {
-      segRow.style.display = shut ? 'none' : '';
-      grid.style.display = shut ? 'none' : 'grid';
+      toggleDisplay(segRow, !shut);
+      toggleDisplay(grid, !shut);
       chev.textContent = shut ? 'expand_more' : 'expand_less';
     }
     paint();
@@ -1213,15 +1341,15 @@
      ========================================================= */
   var RC_SCREENS = ['rc-section', 'rc-furnace', 'rc-condenser', 'rc-refrigerant', 'rc-tech'];
   var saveBars = {};
-  function hideSaveBar(id) { if (saveBars[id]) saveBars[id].style.display = 'none'; }
-  function showSaveBar(id) { if (saveBars[id]) saveBars[id].style.display = ''; }
+  function hideSaveBar(id) { toggleDisplay(saveBars[id], false); }
+  function showSaveBar(id) { toggleDisplay(saveBars[id], true); }
   RC_SCREENS.forEach(function (id) {
     var root = byId(id); if (!root) return;
     var label = sel(root, 'You made changes to Report Card')[0];
     if (!label) { MISS.push(id + ' :: save bar'); return; }
     var bar = label.parentElement;
     saveBars[id] = bar;
-    bar.style.display = 'none';
+    toggleDisplay(bar, false);
     // any edit inside the screen brings it back
     root.addEventListener('click', function (ev) {
       var t = ev.target;
@@ -1352,15 +1480,19 @@
      ========================================================= */
   var MAX_OPTIONS = 4;
   var optCount = 3;              // the accepted draft ships with A, B and C
-  var optList = null, optAddBtn = null, optCard = null, optFooter = null;
+  var optList = null, optAddBtn = null, optCard = null, optFooters = [];
   (function () {
     var root = byId('est-draft'); if (!root) return;
     var a = sel(root, 'Option A')[0];
     optCard = a && a.closest('div[style*="border-radius"]');
     optList = optCard && optCard.parentElement;
     optAddBtn = sel(root, '@add^1')[0];
-    optFooter = sel(root, 'Options: 3/6')[0];
-    if (!optCard || !optList || !optFooter) { MISS.push('est-draft :: options'); return; }
+    // the counter is repeated on draft / in review / ready to present
+    ['est-draft', 'est-review', 'est-ready'].forEach(function (id) {
+      var f = sel(byId(id), 'Options: 3/6')[0];
+      if (f) optFooters.push(f); else MISS.push(id + ' :: options counter');
+    });
+    if (!optCard || !optList || !optFooters.length) { MISS.push('est-draft :: options'); return; }
     paintOptions();
 
     // the empty state quotes the limit too
@@ -1370,7 +1502,7 @@
   })();
 
   function paintOptions() {
-    if (optFooter) optFooter.textContent = 'Options: ' + optCount + '/' + MAX_OPTIONS;
+    optFooters.forEach(function (f) { f.textContent = 'Options: ' + optCount + '/' + MAX_OPTIONS; });
     if (optAddBtn) optAddBtn.style.opacity = optCount >= MAX_OPTIONS ? '.45' : '';
   }
 
@@ -1423,12 +1555,12 @@
       '<div data-save style="flex:1;height:46px;display:flex;align-items:center;justify-content:center;' +
       'background:#4A6FA5;color:#fff;border-radius:10px;font:600 14.5px/1 Geist">Save note</div></div>';
 
-    function close() { composer.remove(); btn.style.display = ''; }
+    function close() { composer.remove(); toggleDisplay(btn, true); }
 
     btn.dataset.tap = '1';
     btn.addEventListener('click', function (ev) {
       ev.stopPropagation();
-      btn.style.display = 'none';
+      toggleDisplay(btn, false);
       slot.appendChild(composer);
       var ta = $('textarea', composer);
       ta.value = '';
