@@ -566,7 +566,26 @@
     },
     estSendReview: function () { state.est = 'review'; go('est-review', 'replace'); toast('Sent to your manager for review', 'send'); },
     estApprove: function () { state.est = 'ready'; go('est-ready', 'replace'); toast('Manager approved — ready to present', 'verified'); },
-    estOrder: function () { state.est = 'approved'; closeOverlays(true); go('est-approved', 'root'); toast('Order confirmed · Option C signed'); },
+    estOrder: function () {
+      state.est = 'approved';
+      closeOverlays(true);
+      go('est-approved', 'root');
+      queued('Estimate');
+      toast('Order confirmed · Option C signed');
+    },
+    estDecline: function () {
+      state.est = 'ready';                 // still presentable — that's the fix
+      markDeclined();
+      closeOverlays(true);
+      go('est-ready', 'root');
+      queued('Estimate');
+      toast('Declined — estimate stays open to present again', 'history_toggle_off');
+    },
+    reinvoice: function () {
+      state.inv = 'none';                  // a second invoice on the same job
+      go('fin-empty', 'root');
+      toast('Start a new invoice for this job', 'note_add');
+    },
     estCatalogDone: function () {
       var picked = estCatalog ? estCatalog.selection() : [];
       picked.forEach(function (it) {
@@ -582,7 +601,18 @@
     },
 
     createInvoice: function () { state.inv = 'sent'; go('inv-sent', 'replace'); toast('Invoice INV-26-03-123 created & sent', 'receipt_long'); },
-    payDone: function () { state.inv = 'paid'; closeOverlays(true); go('inv-paid', 'root'); toast('Payment received · $2,000.00'); },
+    payDone: function () {
+      if (curPage() === 'pay-card' && !net.online) {
+        toast('No signal — the card can’t be charged yet', 'cloud_off');
+        return;
+      }
+      state.inv = 'paid';
+      closeOverlays(true);
+      go('inv-paid', 'root');
+      queued('Payment');
+      toast(net.online ? 'Payment received · $2,000.00'
+        : 'Payment recorded offline · will post when you have signal');
+    },
     addItemsDone: function () { state.extra = true; go('add-items', 'replace'); toast('2 items added to the invoice'); },
 
     rcSave: function (el) {
@@ -600,6 +630,7 @@
     // until the twelve fields are in (US-M05-2)
     complete: function () {
       closeOverlays(true);
+      paintCloseoutBlocker();
       go('closeout', 'modal');
     },
     closeoutSave: function () {
@@ -608,6 +639,14 @@
       toast(net.online ? 'Closeout saved' : 'Closeout saved — will sync', 'save');
     },
     closeoutComplete: function () {
+      // The office is blind until the photos land, and once the next call is
+      // unlocked nobody comes back to this one. With signal, a stuck upload
+      // stops the close; with no signal it's queued and that's fine.
+      if (upPending > 0 && net.online) {
+        paintCloseoutBlocker();
+        toast(upPending + ' ' + plural(upPending) + ' still uploading — wait for it', 'sync');
+        return;
+      }
       state.onsite = false;
       state.enroute = false;
       state.est = 'none'; state.inv = 'none'; state.extra = false;  // next job starts clean
@@ -617,8 +656,10 @@
       closeOverlays(true);
       go('home', 'root');
       queued('Job status');
-      toast(JOBS[jobIdx] ? 'Job closed — next one unlocked'
-        : 'Job closed — nothing left today', 'task_alt');
+      toast(upPending
+        ? 'Job closed — ' + upPending + ' ' + plural(upPending) + ' will upload on signal'
+        : (JOBS[jobIdx] ? 'Job closed — next one unlocked' : 'Job closed — nothing left today'),
+        'task_alt');
     },
     logout: function () {
       state = { onsite: false, enroute: false, est: 'none', inv: 'none', extra: false };
@@ -1125,9 +1166,39 @@
       if (upPending) startUpload(upPending);   // photos held back go up too
     }, 1100);
   }
-  window.addEventListener('offline', goOffline);
-  window.addEventListener('online', goOnline);
+  /* Cash, check and app transfers are just recorded, so they work with no
+     signal. A card has to reach the processor — letting it "succeed" offline
+     tells the tech money was taken when it wasn't. */
+  var cardBtn = null, cardNote = null, cardRow = null;
+  (function () {
+    cardBtn = sel(byId('pay-card'), '@lock^1')[0];
+    cardRow = sel(byId('ov-pay-method'), 'Credit Card^1')[0];
+    if (!cardBtn) { MISS.push('pay-card :: pay button'); return; }
+    cardNote = document.createElement('div');
+    cardNote.setAttribute('style',
+      'display:flex;align-items:flex-start;gap:9px;background:#FEF3E2;border:1px solid #F3D9AE;' +
+      'border-radius:11px;padding:12px 13px;margin-bottom:10px');
+    cardNote.innerHTML = '<span class="mi" style="font-size:18px;color:#D97706;margin-top:1px">cloud_off</span>' +
+      '<div style="font:400 12.5px/1.45 Geist;color:#7A5B12">No connection, so the card can&rsquo;t be charged. ' +
+      'Take cash or a check now, or run the card once you have signal.</div>';
+    cardNote.hidden = true;
+    cardBtn.parentElement.insertBefore(cardNote, cardBtn);
+  })();
+
+  function paintCardAvailability() {
+    var blocked = !net.online;
+    if (cardNote) cardNote.hidden = !blocked;
+    if (cardBtn) {
+      cardBtn.style.opacity = blocked ? '.45' : '';
+      cardBtn.dataset.blocked = blocked ? '1' : '';
+    }
+    if (cardRow) cardRow.style.opacity = blocked ? '.45' : '';
+  }
+
+  window.addEventListener('offline', function () { goOffline(); paintCardAvailability(); });
+  window.addEventListener('online', function () { goOnline(); paintCardAvailability(); });
   if (!net.online) goOffline();
+  paintCardAvailability();
 
   /* =========================================================
      US-M06-4 — a photo upload is visible while it happens, says whether
@@ -1161,24 +1232,28 @@
 
   var upTray = byId('uptray'), upIcon = byId('upIcon'), upMsg = byId('upMsg'),
     upFill = byId('upFill'), upRetry = byId('upRetry');
-  var upTimer = null, upHide = null, upPending = 0;
+  var upTimer = null, upHide = null, upPending = 0, upToken = 0;
 
   function upState(cls, icon, msg, showRetry) {
     upTray.className = 'uptray on' + (cls ? ' ' + cls : '');
     upIcon.textContent = icon;
     upMsg.textContent = msg;
     upRetry.hidden = !showRetry;
+    paintCloseoutBlocker();     // the closeout warning tracks the same state
   }
   function plural(n) { return n === 1 ? 'photo' : 'photos'; }
 
   function startUpload(n) {
+    // Each run owns a token; a leftover interval from an earlier upload sees a
+    // stale token and stops itself instead of finishing this one with its own
+    // long-expired start time.
+    var my = ++upToken;
     clearTimeout(upHide); clearInterval(upTimer);
     upPending = n;
     if (!net.online) {
-      // nothing to show progress for — it waits for signal (US-M14-2)
-      upState('failed', 'cloud_off', n + ' ' + plural(n) + ' waiting for signal', false);
+      // not a failure — it goes up by itself on reconnect (US-M14-2)
+      upState('waiting', 'cloud_off', n + ' ' + plural(n) + ' waiting for signal', false);
       queued('Photo');
-      upHide = setTimeout(function () { upTray.classList.remove('on'); }, 3200);
       return;
     }
     // progress is driven off elapsed time, not tick count — a backgrounded tab
@@ -1186,28 +1261,60 @@
     var t0 = Date.now(), DUR = 2000;
     upFill.style.width = '0%';
     upState('', 'cloud_upload', 'Uploading ' + n + ' ' + plural(n) + '…', false);
-    upTimer = setInterval(function () {
-      // a dropped connection mid-upload is exactly the case that needs a retry
+    var iv = setInterval(function () {
+      if (my !== upToken) { clearInterval(iv); return; }
+      // losing signal mid-upload isn't a failure either — it resumes
       if (!net.online) {
-        clearInterval(upTimer);
-        upState('failed', 'error_outline', n + ' ' + plural(n) + ' failed — no connection', true);
+        clearInterval(iv);
+        upState('waiting', 'cloud_off', n + ' ' + plural(n) + ' waiting for signal', false);
+        queued('Photo');
         return;
       }
       var pct = Math.min(100, (Date.now() - t0) / DUR * 100);
       upFill.style.width = pct + '%';
       if (pct >= 100) {
-        clearInterval(upTimer);
+        clearInterval(iv);
         photoCount += upPending;
         upPending = 0;
         paintPhotoCount();
         upState('done', 'cloud_done', n + ' ' + plural(n) + ' uploaded', false);
         upHide = setTimeout(function () { upTray.classList.remove('on'); }, 2600);
       }
-    }, 220);
+    }, 120);
+    upTimer = iv;
   }
   upRetry.addEventListener('click', function () {
     if (upPending) startUpload(upPending);
   });
+
+  /* What's still outstanding, said on the closeout screen itself rather than
+     in a toast that's gone in two seconds. */
+  var closeoutBlocker = null;
+  function paintCloseoutBlocker() {
+    var root = byId('closeout'); if (!root) return;
+    var sc = $('.sc', root); if (!sc) return;
+    if (!closeoutBlocker) {
+      closeoutBlocker = document.createElement('div');
+      closeoutBlocker.setAttribute('style',
+        'display:flex;align-items:flex-start;gap:9px;background:#FDECEC;border:1px solid #F5C2C2;' +
+        'border-radius:11px;padding:12px 13px;margin-bottom:12px');
+      sc.insertBefore(closeoutBlocker, sc.firstElementChild);
+    }
+    closeoutBlocker.hidden = upPending === 0;
+    if (upPending === 0) return;
+
+    var offline = !net.online;
+    closeoutBlocker.style.background = offline ? '#FEF3E2' : '#FDECEC';
+    closeoutBlocker.style.borderColor = offline ? '#F3D9AE' : '#F5C2C2';
+    closeoutBlocker.innerHTML =
+      '<span class="mi" style="font-size:18px;color:' + (offline ? '#D97706' : '#DC2626') + ';margin-top:1px">' +
+      (offline ? 'cloud_off' : 'sync') + '</span>' +
+      '<div style="font:400 12.5px/1.45 Geist;color:' + (offline ? '#7A5B12' : '#8C2020') + '">' +
+      (offline
+        ? upPending + ' ' + plural(upPending) + ' still on the phone. You can close the job — they go up as soon as you have signal.'
+        : upPending + ' ' + plural(upPending) + ' still uploading. Give it a moment — closing now would leave the office without them.') +
+      '</div>';
+  }
 
   /* =========================================================
      US-M03-9 (policy) — a technician sees only the job in front of
@@ -1472,6 +1579,61 @@
       showSaveBar('rc-tech');
     });
   })();
+
+  /* =========================================================
+     A customer saying no is a state the app has to hold. Without it the
+     estimate is stuck "ready to present" forever and the tech has to
+     rebuild the call when they change their mind on the doorstep.
+     ========================================================= */
+  (function () {
+    var root = byId('est-customer'); if (!root) return;
+    var confirm = sel(root, '@check_circle^1')[0];
+    var footer = confirm && confirm.parentElement;
+    if (!footer) { MISS.push('est-customer :: footer'); return; }
+
+    var decline = document.createElement('div');
+    decline.setAttribute('data-act', 'estDecline');
+    decline.dataset.tap = '1';
+    decline.setAttribute('style',
+      'padding:11px 16px 2px;text-align:center;font:600 14px/1 Geist;color:#8A97A8;background:#fff;flex:none');
+    decline.textContent = 'Customer declined';
+    footer.parentElement.insertBefore(decline, footer);
+  })();
+
+  /* A paid invoice is not the end of the job — the customer can add work,
+     or the first invoice can be wrong. US-M11-5. */
+  (function () {
+    var root = byId('inv-paid'); if (!root) return;
+    var sc = $('.sc', root); if (!sc) { MISS.push('inv-paid :: body'); return; }
+    var btn = document.createElement('div');
+    btn.setAttribute('data-act', 'reinvoice');
+    btn.dataset.tap = '1';
+    btn.setAttribute('style',
+      'display:flex;align-items:center;justify-content:center;gap:9px;background:#fff;' +
+      'border:1px dashed #C8D5E8;border-radius:12px;padding:15px;margin-top:12px;' +
+      'font:600 14.5px/1 Geist;color:#4A6FA5');
+    btn.innerHTML = '<span class="mi" style="font-size:19px">note_add</span>New invoice for this job';
+    sc.appendChild(btn);
+  })();
+
+  /* A declined estimate stays presentable — that is the whole point. */
+  var declinedOnce = false;
+  function markDeclined() {
+    declinedOnce = true;
+    var root = byId('est-ready'); if (!root) return;
+    if (byId('declinedNote')) return;
+    var list = sel(root, 'Options list')[0];
+    if (!list) return;
+    var note = document.createElement('div');
+    note.id = 'declinedNote';
+    note.setAttribute('style',
+      'display:flex;align-items:flex-start;gap:9px;background:#FEF3E2;border:1px solid #F3D9AE;' +
+      'border-radius:11px;padding:12px 13px;margin-bottom:12px');
+    note.innerHTML = '<span class="mi" style="font-size:19px;color:#D97706;margin-top:1px">history_toggle_off</span>' +
+      '<div style="font:400 13px/1.45 Geist;color:#7A5B12">Customer declined earlier. The estimate is still open &mdash; ' +
+      'present it again whenever they are ready.</div>';
+    list.parentElement.insertBefore(note, list);
+  }
 
   /* =========================================================
      US-W11-1 / W-11 (decision) — four options, and the same four

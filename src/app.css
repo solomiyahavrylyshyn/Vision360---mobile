@@ -66,7 +66,8 @@ body{
 .uptray.done .fill{background:var(--ok)}
 .uptray.failed>.mi{color:var(--bad)}
 .uptray.failed .fill{background:var(--bad)}
-.uptray.done .track,.uptray.failed .track{display:none}
+.uptray.waiting>.mi{color:var(--warn)}
+.uptray.done .track,.uptray.failed .track,.uptray.waiting .track{display:none}
 .uptray .retry{
   flex:none;font:600 13px/1 Geist;color:var(--brand);background:var(--pale);
   border:1px solid var(--edge);border-radius:8px;padding:9px 13px;cursor:pointer;
