@@ -2934,6 +2934,7 @@ body.dev #indexBtn{display:flex}
     }
     else if (mode === 'modal') { stack.push({ id: id, mode: 'modal' }); animate(fromEl, el, 'up'); }
     else { stack.push({ id: id, mode: 'push' }); animate(fromEl, el, 'push'); }
+    if (id === 'image-desc') paintSlotBanner();
     chrome();
   }
 
@@ -2969,6 +2970,11 @@ body.dev #indexBtn{display:flex}
 
   function chrome() {
     var pid = curPage(); if (!pid) return;
+    // the stage the tech moved this job to belongs to the job, not the session
+    if (typeof JOBS !== 'undefined' && JOBS[jobIdx] && pid !== 'login') {
+      JOBS[jobIdx].est = state.est;
+      JOBS[jobIdx].inv = state.inv;
+    }
     var m = INFO[pid] || {};
     phone.setAttribute('data-tabs', m.tabs ? 'on' : 'off');
     phone.setAttribute('data-sb', m.sb ? 'dark' : 'light');
@@ -3430,8 +3436,13 @@ body.dev #indexBtn{display:flex}
       toast(net.online ? 'Report Card saved' : 'Report Card saved locally — will sync');
     },
     mediaSaved: function () {
+      var bound = pendingSlot;
+      if (bound) {
+        markSlotFilled(bound);
+        pendingSlot = null;
+      }
       back();
-      startUpload(1);
+      startUpload(1, bound);
     },
     // "Set to Completed" runs the SOP closeout first — the job isn't done
     // until the twelve fields are in (US-M05-2)
@@ -3456,9 +3467,10 @@ body.dev #indexBtn{display:flex}
       }
       state.onsite = false;
       state.enroute = false;
-      state.est = 'none'; state.inv = 'none'; state.extra = false;  // next job starts clean
+      state.extra = false;
       paintEnroute();
       jobIdx++;
+      loadJob();
       paintJob();
       closeOverlays(true);
       go('home', 'root');
@@ -3970,7 +3982,7 @@ body.dev #indexBtn{display:flex}
       netmsg.textContent = 'All changes synced';
       paintNet();
       setTimeout(function () { netbar.classList.remove('on', 'synced'); }, 2200);
-      if (upPending) startUpload(upPending);   // photos held back go up too
+      if (upPending) startUpload(upPending, upLastBound);   // photos held back go up too
     }, 1100);
   }
   /* Cash, check and app transfers are just recorded, so they work with no
@@ -4039,7 +4051,7 @@ body.dev #indexBtn{display:flex}
 
   var upTray = byId('uptray'), upIcon = byId('upIcon'), upMsg = byId('upMsg'),
     upFill = byId('upFill'), upRetry = byId('upRetry');
-  var upTimer = null, upHide = null, upPending = 0, upToken = 0;
+  var upTimer = null, upHide = null, upPending = 0, upToken = 0, upLastBound = null;
 
   function upState(cls, icon, msg, showRetry) {
     upTray.className = 'uptray on' + (cls ? ' ' + cls : '');
@@ -4050,16 +4062,18 @@ body.dev #indexBtn{display:flex}
   }
   function plural(n) { return n === 1 ? 'photo' : 'photos'; }
 
-  function startUpload(n) {
+  function startUpload(n, bound) {
     // Each run owns a token; a leftover interval from an earlier upload sees a
     // stale token and stops itself instead of finishing this one with its own
     // long-expired start time.
     var my = ++upToken;
+    var what = bound ? 'Slot ' + bound.slot : n + ' ' + plural(n);
+    upLastBound = bound || null;
     clearTimeout(upHide); clearInterval(upTimer);
     upPending = n;
     if (!net.online) {
       // not a failure — it goes up by itself on reconnect (US-M14-2)
-      upState('waiting', 'cloud_off', n + ' ' + plural(n) + ' waiting for signal', false);
+      upState('waiting', 'cloud_off', what + ' — waiting for signal', false);
       queued('Photo');
       return;
     }
@@ -4067,13 +4081,13 @@ body.dev #indexBtn{display:flex}
     // throttles timers, and a bar that crawls because of that is a lie
     var t0 = Date.now(), DUR = 2000;
     upFill.style.width = '0%';
-    upState('', 'cloud_upload', 'Uploading ' + n + ' ' + plural(n) + '…', false);
+    upState('', 'cloud_upload', bound ? 'Uploading ' + what + '…' : 'Uploading ' + what.toLowerCase() + '…', false);
     var iv = setInterval(function () {
       if (my !== upToken) { clearInterval(iv); return; }
       // losing signal mid-upload isn't a failure either — it resumes
       if (!net.online) {
         clearInterval(iv);
-        upState('waiting', 'cloud_off', n + ' ' + plural(n) + ' waiting for signal', false);
+        upState('waiting', 'cloud_off', what + ' — waiting for signal', false);
         queued('Photo');
         return;
       }
@@ -4084,14 +4098,14 @@ body.dev #indexBtn{display:flex}
         photoCount += upPending;
         upPending = 0;
         paintPhotoCount();
-        upState('done', 'cloud_done', n + ' ' + plural(n) + ' uploaded', false);
+        upState('done', 'cloud_done', bound ? what + ' uploaded · ' + slotCount() + ' of ' + TOTAL_SLOTS + ' slots' : what + ' uploaded', false);
         upHide = setTimeout(function () { upTray.classList.remove('on'); }, 2600);
       }
     }, 120);
     upTimer = iv;
   }
   upRetry.addEventListener('click', function () {
-    if (upPending) startUpload(upPending);
+    if (upPending) startUpload(upPending, upLastBound);
   });
 
   /* What's still outstanding, said on the closeout screen itself rather than
@@ -4124,25 +4138,116 @@ body.dev #indexBtn{display:flex}
   }
 
   /* =========================================================
+     US-M12-5 / W-13 — a Report Card photo is bound to its slot at the
+     moment it's taken. Unlabelled photos are why dispatch opens and tags
+     every single one before the tech can get their next call.
+     ========================================================= */
+  var RC_PHOTO_SCREENS = ['rc-section', 'rc-furnace', 'rc-condenser', 'rc-refrigerant', 'rc-tech'];
+  var TOTAL_SLOTS = 14;
+  var filledSlots = {};
+  var pendingSlot = null;
+
+  function readSlot(cam) {
+    var card = cam.closest('div[style*="border-radius:12px"]');
+    if (!card) return null;
+    var chip = $$('span', card).filter(function (e) {
+      return /^P\d+(\s*,\s*\d+)*$/.test(norm(e.textContent));
+    })[0];
+    if (!chip) return null;
+    var num = $$('span', card).filter(function (e) { return /^\d+$/.test(norm(e.textContent)); })[0];
+    var name = $$('span', card).filter(function (e) {
+      return /flex:1/.test(e.getAttribute('style') || '') && norm(e.textContent);
+    })[0];
+    return {
+      slot: norm(chip.textContent),
+      item: (num ? norm(num.textContent) + ' · ' : '') + (name ? norm(name.textContent) : 'Report Card'),
+      chip: chip, cam: cam
+    };
+  }
+
+  function markSlotFilled(binding) {
+    filledSlots[binding.slot] = true;
+    binding.chip.style.background = '#E8F6ED';
+    binding.chip.style.color = '#15803D';
+    binding.chip.textContent = binding.slot + ' ✓';
+    binding.cam.className = 'mif';
+    binding.cam.style.color = '#16A34A';
+  }
+
+  function slotCount() { return Object.keys(filledSlots).length; }
+
+  RC_PHOTO_SCREENS.forEach(function (id) {
+    var root = byId(id); if (!root) return;
+    byIcon(root, 'photo_camera').forEach(function (cam) {
+      var binding = readSlot(cam);
+      if (!binding) return;                     // no slot chip — an unbound photo
+      cam.addEventListener('click', function () { pendingSlot = binding; }, true);
+    });
+  });
+
+  /* Anything reached from outside the Report Card is an unbound photo. */
+  ['home-active', 'photos', 'job-general', 'chat-thread', 'pay-check'].forEach(function (id) {
+    var root = byId(id); if (!root) return;
+    $$('[data-go="ov-media-source"]', root).forEach(function (e) {
+      e.addEventListener('click', function () { pendingSlot = null; }, true);
+    });
+  });
+
+  /* The binding is stated on the description screen, so the tech sees what
+     the photo will be filed against before saving it. */
+  var slotBanner = null;
+  function paintSlotBanner() {
+    var root = byId('image-desc'); if (!root) return;
+    var sc = $('.sc', root) || root;
+    if (!slotBanner) {
+      slotBanner = document.createElement('div');
+      slotBanner.setAttribute('style',
+        'display:flex;align-items:flex-start;gap:9px;background:#EBF0F8;border:1px solid #C8D5E8;' +
+        'border-radius:11px;padding:12px 13px;margin-bottom:12px');
+      sc.insertBefore(slotBanner, sc.firstElementChild);
+    }
+    slotBanner.hidden = !pendingSlot;
+    if (!pendingSlot) return;
+    slotBanner.innerHTML =
+      '<span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">link</span>' +
+      '<div style="font:400 12.5px/1.45 Geist;color:#546478">Filed against <b style="font-weight:600;color:#1A2332">' +
+      'Report Card · item ' + pendingSlot.item + '</b>, slot <b style="font-weight:600;color:#1A2332">' +
+      pendingSlot.slot + '</b>. The office gets it labelled — no sorting at the other end.</div>';
+  }
+
+  /* =========================================================
      US-M03-9 (policy) — a technician sees only the job in front of
      them. The next one unlocks when the current one is closed out, so
      every call is treated as the only call and nobody cherry-picks.
      This is why the design's "2 of 3" pager is not wired as a pager.
      ========================================================= */
+  /* A job doesn't always start blank. An install visit arrives with the
+     estimate the sales advisor already sold, so the tech's job is the work
+     and the invoice, not building a quote. Each job carries its own state. */
   var JOBS = [
     {
       name: 'Randy Johnson', when: 'Today, 8:00 AM', brief: 'AC not cooling', type: 'Estimate',
-      addr: '5010 N Cortez Ave, Tampa, FL 33614', away: '3.92 miles away', phone: '(813) 456-7890'
+      addr: '5010 N Cortez Ave, Tampa, FL 33614', away: '3.92 miles away', phone: '(813) 456-7890',
+      est: 'none', inv: 'none'
     },
     {
-      name: 'Brent Kenzie', when: 'Today, 11:30 AM', brief: 'AC not cooling', type: 'Maintenance',
-      addr: '4407 Main St, Brandon, FL 33594', away: '11.4 miles away', phone: '(727) 415-3481'
+      name: 'Brent Kenzie', when: 'Today, 11:30 AM', brief: 'System replacement', type: 'Install',
+      addr: '4407 Main St, Brandon, FL 33594', away: '11.4 miles away', phone: '(727) 415-3481',
+      est: 'approved', inv: 'none'          // sold last week — go straight to the work
     },
     {
       name: 'Joseph Lane', when: 'Today, 2:15 PM', brief: 'AC not cooling', type: 'Demand Service',
-      addr: '255 Standish Drive, Tampa, FL 33615', away: '6.8 miles away', phone: '(352) 258-9710'
+      addr: '255 Standish Drive, Tampa, FL 33615', away: '6.8 miles away', phone: '(352) 258-9710',
+      est: 'ready', inv: 'none'             // advisor quoted it, still to present
     }
   ];
+
+  var EST_BADGE = {
+    draft: ['Draft estimate', '#546478', '#F5F7FA', '#DDE3EE'],
+    review: ['Estimate in review', '#B45309', '#FEF3E2', '#F3D9AE'],
+    ready: ['Estimate ready to present', '#15803D', '#E8F6ED', '#B6E3C6'],
+    approved: ['Estimate approved', '#15803D', '#E8F6ED', '#B6E3C6']
+  };
   /* Overview is the tech's own figures — useful in the morning, in the way
      for the rest of the day. Collapse it and the choice sticks. */
   (function () {
@@ -4202,6 +4307,14 @@ body.dev #indexBtn{display:flex}
 
   var jobIdx = 0;
   var paintJob = function () { };
+
+  /* The job's own estimate/invoice stage becomes the session state, so the
+     Estimate and Finance tabs open where this job actually is. */
+  function loadJob() {
+    var j = JOBS[jobIdx];
+    state.est = j ? j.est : 'none';
+    state.inv = j ? j.inv : 'none';
+  }
   function wireCurrentJob() {
     var root = byId('home'); if (!root) return;
     var counter = sel(root, '2 of 3')[0];
@@ -4231,11 +4344,24 @@ body.dev #indexBtn{display:flex}
     counter.style.display = 'none';
     heading.textContent = 'Current job';
 
+    // a chip so the tech knows there's already an estimate before opening it
+    var estBadge = document.createElement('span');
+    estBadge.hidden = true;
+    refs.type.parentElement.appendChild(estBadge);
+
     paintJob = function () {
       var j = JOBS[jobIdx];
       if (!j) {
         heading.textContent = 'Nothing left today';
         return;
+      }
+      var b = EST_BADGE[j.est];
+      estBadge.hidden = !b;
+      if (b) {
+        estBadge.setAttribute('style',
+          'font:600 11.5px/1 Geist;color:' + b[1] + ';background:' + b[2] +
+          ';border:1px solid ' + b[3] + ';border-radius:5px;padding:4px 7px');
+        estBadge.textContent = b[0];
       }
       refs.name.textContent = j.name;
       refs.when.textContent = j.when;
@@ -4247,6 +4373,7 @@ body.dev #indexBtn{display:flex}
     };
     paintJob();
   }
+  loadJob();
   wireCurrentJob();
 
   /* =========================================================
