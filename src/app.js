@@ -567,14 +567,26 @@
       }
       var first = state.est === 'none';
       state.est = 'draft';
-      var added = first ? true : addOption();
+      var total = optionItems.reduce(function (a, it) { return a + it.price * it.qty; }, 0);
+      var added = first ? true : addOption(total, optionItems);
       optionItems = [];
       renderOptionItems();
       go('est-draft', 'root');
       queued('Estimate');
       toast(added ? 'Option saved to draft estimate' : 'Maximum ' + MAX_OPTIONS + ' options per job');
     },
-    estSendReview: function () { state.est = 'review'; go('est-review', 'replace'); toast('Sent to your manager for review', 'send'); },
+    estSendReview: function () {
+      // SOP: all four options go up together — a partial sheet isn't reviewable
+      if (optCount < MAX_OPTIONS) {
+        toast('SOP needs all ' + MAX_OPTIONS + ' options — ' +
+          (MAX_OPTIONS - optCount) + ' still to build', 'rule');
+        return;
+      }
+      state.est = 'review';
+      go('est-review', 'replace');
+      queued('Estimate');
+      toast('Sent to your manager for review', 'send');
+    },
     estApprove: function () { state.est = 'ready'; go('est-ready', 'replace'); toast('Manager approved — ready to present', 'verified'); },
     estOrder: function () {
       state.est = 'approved';
@@ -1455,6 +1467,47 @@
     }
   ];
 
+  /* SOP: four options, every one of them, presented most expensive first.
+     Option A's card shows a monthly figure rather than its total, so its
+     total comes from the option screen's own adjusted total ($1,089) —
+     the design's number, not an invented one. */
+  var OPTION_TOTALS = { 'Option A': 1089, 'Option B': 929, 'Option C': 1109 };
+
+  // the name is a <span> on the draft screen and a <div> on Ready to present
+  function optionName(card) {
+    var n = $$('span,div', card).filter(function (e) {
+      return !e.children.length && /^Option [A-Z]$/.test(norm(e.textContent));
+    })[0];
+    return n ? norm(n.textContent) : '';
+  }
+  function optionTotal(card) {
+    var hint = $$('span', card).filter(function (e) { return /^Tap for (total|monthly)$/.test(norm(e.textContent)); })[0];
+    var priceEl = $$('span', card).filter(function (e) {
+      return /^\$[\d,]+\.\d\d/.test(norm(e.textContent)) && /font:700/.test(e.getAttribute('style') || '');
+    })[0];
+    // "Tap for total" means the card is currently showing the monthly figure
+    if (hint && /Tap for total/.test(norm(hint.textContent))) return OPTION_TOTALS[optionName(card)] || 0;
+    return priceEl ? money(priceEl.textContent) : 0;
+  }
+
+  function orderOptionsByPrice(screenId) {
+    var root = byId(screenId); if (!root) return 0;
+    var cards = $$('div', root).filter(function (e) {
+      return optionName(e) && /border-radius:12px/.test(e.getAttribute('style') || '');
+    });
+    // keep only the outermost card per option
+    cards = cards.filter(function (e) { return !cards.some(function (o) { return o !== e && o.contains(e); }); });
+    if (cards.length < 2) return cards.length;
+    var list = cards[0].parentElement;
+    cards.slice().sort(function (a, b) { return optionTotal(b) - optionTotal(a); })
+      .forEach(function (c) { list.appendChild(c); });
+    // anything that isn't an option card (the "add" button) goes back to the end
+    $$(':scope > div', list).forEach(function (e) {
+      if (!optionName(e)) list.appendChild(e);
+    });
+    return cards.length;
+  }
+
   var EST_BADGE = {
     draft: ['Draft estimate', '#546478', '#F5F7FA', '#DDE3EE'],
     review: ['Estimate in review', '#B45309', '#FEF3E2', '#F3D9AE'],
@@ -1789,6 +1842,13 @@
      ========================================================= */
   var MAX_OPTIONS = 4;
   var optCount = 3;              // the accepted draft ships with A, B and C
+  // declared before the block that calls paintOptions(), or they'd still be
+  // undefined on the first paint and blow the button's styling away
+  var optSendBtn = null;
+  var SEND_ON = 'height:52px;display:flex;align-items:center;justify-content:center;gap:8px;' +
+    'background:#4A6FA5;color:#fff;border-radius:11px;font:600 16px/1 Geist';
+  var SEND_OFF = 'height:52px;display:flex;align-items:center;justify-content:center;gap:8px;' +
+    'background:#EDF0F5;color:#A9B4C2;border-radius:11px;font:600 16px/1 Geist';
   var optList = null, optAddBtn = null, optCard = null, optFooters = [];
   (function () {
     var root = byId('est-draft'); if (!root) return;
@@ -1796,6 +1856,7 @@
     optCard = a && a.closest('div[style*="border-radius"]');
     optList = optCard && optCard.parentElement;
     optAddBtn = sel(root, '@add^1')[0];
+    optSendBtn = sel(root, '@send^1')[0];
     // the counter is repeated on draft / in review / ready to present
     ['est-draft', 'est-review', 'est-ready'].forEach(function (id) {
       var f = sel(byId(id), 'Options: 3/6')[0];
@@ -1811,16 +1872,73 @@
   })();
 
   function paintOptions() {
-    optFooters.forEach(function (f) { f.textContent = 'Options: ' + optCount + '/' + MAX_OPTIONS; });
+    var short = MAX_OPTIONS - optCount;
+    optFooters.forEach(function (f) {
+      f.textContent = 'Options: ' + optCount + '/' + MAX_OPTIONS + (short > 0 ? ' · ' + short + ' to go' : '');
+    });
     if (optAddBtn) optAddBtn.style.opacity = optCount >= MAX_OPTIONS ? '.45' : '';
+    if (optSendBtn) optSendBtn.setAttribute('style', short > 0 ? SEND_OFF : SEND_ON);
+    ['est-draft', 'est-review', 'est-ready'].forEach(orderOptionsByPrice);
+    paintPriceRange();
   }
 
-  function addOption() {
+  /* The footer range has to move when an option is added, or it quietly
+     misreports what the customer is being shown. */
+  function paintPriceRange() {
+    var live = Object.keys(OPTION_TOTALS)
+      .slice(0, optCount)
+      .map(function (k) { return OPTION_TOTALS[k]; })
+      .filter(function (v) { return v > 0; });
+    if (!live.length) return;
+    var lo = Math.min.apply(null, live), hi = Math.max.apply(null, live);
+    ['est-draft', 'est-review', 'est-ready'].forEach(function (id) {
+      var root = byId(id); if (!root) return;
+      $$('span', root).forEach(function (e) {
+        if (/^\$[\d,]+\.\d\d\s*–\s*\$[\d,]+\.\d\d$/.test(norm(e.textContent))) {
+          e.textContent = fmt(lo) + ' – ' + fmt(hi);
+        }
+      });
+    });
+  }
+
+  function addOption(total, items) {
     if (!optCard || !optList) return false;
     if (optCount >= MAX_OPTIONS) return false;
     var copy = optCard.cloneNode(true);
+    var name = 'Option ' + String.fromCharCode(65 + optCount);
     var title = $$('span', copy).filter(function (e) { return /^Option [A-Z]$/.test(norm(e.textContent)); })[0];
-    if (title) title.textContent = 'Option ' + String.fromCharCode(65 + optCount);
+    if (title) title.textContent = name;
+
+    // the clone arrives with Option A's line items — swap in the real ones
+    if (items && items.length) {
+      var rows = $$('div', copy).filter(function (e) {
+        return /^\d+$/.test(norm($('span', e) ? $('span', e).textContent : '')) &&
+          /font:400 14px/.test(e.getAttribute('style') || '');
+      });
+      var box = rows.length ? rows[0].parentElement : null;
+      if (box) {
+        box.innerHTML = '';
+        items.forEach(function (it) {
+          var row = document.createElement('div');
+          row.setAttribute('style', 'display:flex;gap:10px;font:400 14px/1.3 Geist');
+          row.innerHTML = '<span style="font-weight:600;color:#8A97A8;min-width:16px"></span>';
+          row.firstChild.textContent = String(it.qty);
+          row.appendChild(document.createTextNode(it.name));
+          box.appendChild(row);
+        });
+      }
+    }
+
+    // the new option carries the total the tech actually built
+    if (total) {
+      OPTION_TOTALS[name] = total;
+      var priceEl = $$('span', copy).filter(function (e) {
+        return /^\$[\d,]+\.\d\d/.test(norm(e.textContent)) && /font:700/.test(e.getAttribute('style') || '');
+      })[0];
+      var hint = $$('span', copy).filter(function (e) { return /^Tap for (total|monthly)$/.test(norm(e.textContent)); })[0];
+      if (priceEl) { priceEl.textContent = fmt(total); }
+      if (hint) hint.textContent = 'Tap for monthly';
+    }
     optList.insertBefore(copy, optAddBtn && optAddBtn.parentElement === optList ? optAddBtn : null);
     optCount++;
     paintOptions();
