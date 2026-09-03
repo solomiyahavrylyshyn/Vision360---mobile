@@ -4520,14 +4520,49 @@ body.dev #indexBtn{display:flex}
       refs.when.textContent = j.when;
       refs.brief.textContent = j.brief;
       refs.type.textContent = j.type;
-      refs.phone.textContent = j.phone;
+      setPhone(refs.phone, j.phone);
       addr.childNodes[0].nodeValue = j.addr;
       awaySpan.textContent = j.away;
     };
     paintJob();
   }
+
+  /* The in-progress screen is the same job — it can't keep showing the
+     customer from the design mockup once the tech has moved on. */
+  function wireActiveJobCard() {
+    var root = byId('home-active'); if (!root) return;
+    var refs = {
+      name: sel(root, 'Randy Johnson')[0],
+      when: sel(root, 'Today, 8:00 AM')[0],
+      brief: sel(root, 'AC not cooling')[0],
+      type: sel(root, 'Estimate')[0],
+      phone: sel(root, '(123) 456-7890')[0],
+      banner: sel(root, 'On site · Randy Johnson')[0]
+    };
+    var addrRow = sel(root, '@place^1')[0];
+    var addr = addrRow ? $('div', addrRow) : null;
+    var away = addr ? $('span', addr) : null;
+    if (!refs.name || !addr || !away) { MISS.push('home-active :: job card'); return; }
+
+    var prev = paintJob;
+    paintJob = function () {
+      prev();
+      var j = JOBS[jobIdx]; if (!j) return;
+      refs.name.textContent = j.name;
+      if (refs.banner) refs.banner.textContent = 'On site · ' + j.name;
+      if (refs.when) refs.when.textContent = j.when;
+      if (refs.brief) refs.brief.textContent = j.brief;
+      if (refs.type) refs.type.textContent = j.type;
+      if (refs.phone) setPhone(refs.phone, j.phone);
+      addr.childNodes[0].nodeValue = j.addr;
+      away.textContent = j.away;
+    };
+  }
+
   loadJob();
   wireCurrentJob();
+  wireActiveJobCard();
+  paintJob();
 
   /* =========================================================
      US-M12-9 — the unsaved-changes bar shows up only once
@@ -4904,6 +4939,56 @@ body.dev #indexBtn{display:flex}
     }, true);
   }
   ['ov-notes', 'ov-note-tech', 'ov-note-private'].forEach(noteComposer);
+
+  /* =========================================================
+     Calling the customer on the way is what techs did before it was taken
+     away from them. The number looked like a control and did nothing — and
+     on the job card it sat inside the card's own tap target, so pressing it
+     opened the job instead.
+     ========================================================= */
+  var PHONE_RE = /^\(\d{3}\)\s?\d{3}-\d{4}$/;
+
+  // the job card paints before the numbers are made callable, so handle both
+  function setPhone(el, num) {
+    var a = $('a[data-tel]', el);
+    if (!a) { el.textContent = num; return; }
+    a.textContent = num;
+    a.href = 'tel:+1' + num.replace(/\D/g, '');
+  }
+
+  function makeCallable(el) {
+    if ($('a[data-tel]', el)) return;
+    var num = norm(el.textContent);
+    var a = document.createElement('a');
+    a.dataset.tel = '1';
+    a.href = 'tel:+1' + num.replace(/\D/g, '');
+    a.textContent = num;
+    a.setAttribute('style', 'color:inherit;text-decoration:none');
+    el.textContent = '';
+    el.appendChild(a);
+    el.dataset.tap = '1';
+    // the number sits inside cards that navigate; dialling must not also
+    // open the job behind it
+    a.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      toast('Calling ' + norm(a.textContent), 'call');
+    });
+  }
+
+  $$('.screen,.overlay', phone).forEach(function (root) {
+    $$('span,div', root).forEach(function (e) {
+      if (e.children.length || !PHONE_RE.test(norm(e.textContent))) return;
+      makeCallable(e);
+    });
+    // the handset icon beside a number dials the same number
+    byIcon(root, 'call').forEach(function (ic) {
+      var row = ic.parentElement;
+      var a = row && $('a[data-tel]', row);
+      if (!a) return;
+      ic.dataset.tap = '1';
+      ic.addEventListener('click', function (ev) { ev.stopPropagation(); a.click(); }, true);
+    });
+  });
 
   /* =========================================================
      Auto-wiring: back arrows, close buttons, overlay scrims
