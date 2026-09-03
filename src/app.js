@@ -582,10 +582,13 @@
           (MAX_OPTIONS - optCount) + ' still to build', 'rule');
         return;
       }
+      var flagged = paintDraftWarranty() || [];
       state.est = 'review';
       go('est-review', 'replace');
       queued('Estimate');
-      toast('Sent to your manager for review', 'send');
+      toast(flagged.length
+        ? 'Sent for review · flagged: work on our own recent install'
+        : 'Sent to your manager for review', flagged.length ? 'gpp_maybe' : 'send');
     },
     estApprove: function () { state.est = 'ready'; go('est-ready', 'replace'); toast('Manager approved — ready to present', 'verified'); },
     estOrder: function () {
@@ -1162,6 +1165,23 @@
     });
     paintOptionSummary();
     paintOptionSave();
+    // flag it while the option is still being built, not after it's sent
+    warrantyBanner('est-new-option',
+      function () { return optItemsBox; },
+      flaggedItems(optionItems.map(function (it) { return it.name; })));
+  }
+
+  /* Anything already on the draft counts too — the design's own options
+     carry a blower motor repair. */
+  function paintDraftWarranty() {
+    var root = byId('est-draft'); if (!root) return;
+    var names = $$('div', root)
+      .filter(function (e) { return /font:400 14px/.test(e.getAttribute('style') || ''); })
+      .map(function (e) { return norm(e.textContent).replace(/^\d+\s*/, ''); });
+    var hits = [];
+    flaggedItems(names).forEach(function (n) { if (hits.indexOf(n) < 0) hits.push(n); });
+    warrantyBanner('est-draft', function () { return sel(root, 'Options list')[0]; }, hits);
+    return hits;
   }
   steppers('est-option', ['Adjusted total', 'Total']);
   steppers('add-items', ['Section total']);
@@ -1466,6 +1486,55 @@
       est: 'ready', inv: 'none'             // advisor quoted it, still to present
     }
   ];
+
+  /* =========================================================
+     Dispatch currently catches this by memory: a technician quoting a
+     repair on a unit we installed weeks ago for far more money. The data
+     for the check already sits on the Equipment screen, so the app can
+     raise it instead of one person having to notice.
+     ========================================================= */
+  var RECENT_INSTALL = {
+    unit: 'the air handler',
+    monthsAgo: 2,
+    paid: 12480,
+    invoice: 'INV-25-11-088',
+    // catalog work that lands on that unit
+    covers: ['Blower Motor Repair', 'Air Handler Replacement', 'Capacitor Replacement']
+  };
+  var RECENT_MONTHS = 12;
+
+  function flaggedItems(names) {
+    if (RECENT_INSTALL.monthsAgo >= RECENT_MONTHS) return [];
+    return names.filter(function (n) { return RECENT_INSTALL.covers.indexOf(n) > -1; });
+  }
+
+  function warrantyText(hits) {
+    return hits.join(' and ') + (hits.length > 1 ? ' are' : ' is') + ' work on ' +
+      RECENT_INSTALL.unit + ' we installed ' + RECENT_INSTALL.monthsAgo +
+      ' months ago for ' + fmt(RECENT_INSTALL.paid) + ' (' + RECENT_INSTALL.invoice +
+      '). Check it isn&rsquo;t covered before quoting — this goes to review flagged.';
+  }
+
+  /* One banner, reused on whichever estimate screen needs it. */
+  function warrantyBanner(screenId, anchorFn, hits) {
+    var root = byId(screenId); if (!root) return;
+    var id = 'warn-' + screenId;
+    var el = byId(id);
+    if (!hits.length) { if (el) el.hidden = true; return; }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = id;
+      el.setAttribute('style',
+        'display:flex;align-items:flex-start;gap:9px;background:#FEF3E2;border:1px solid #F3D9AE;' +
+        'border-radius:11px;padding:12px 13px;margin-bottom:12px');
+      var anchor = anchorFn();
+      if (!anchor) return;
+      anchor.parentElement.insertBefore(el, anchor);
+    }
+    el.hidden = false;
+    el.innerHTML = '<span class="mi" style="font-size:19px;color:#D97706;margin-top:1px">gpp_maybe</span>' +
+      '<div style="font:400 12.5px/1.45 Geist;color:#7A5B12">' + warrantyText(hits) + '</div>';
+  }
 
   /* SOP: four options, every one of them, presented most expensive first.
      Option A's card shows a monthly figure rather than its total, so its
@@ -1880,6 +1949,7 @@
     if (optSendBtn) optSendBtn.setAttribute('style', short > 0 ? SEND_OFF : SEND_ON);
     ['est-draft', 'est-review', 'est-ready'].forEach(orderOptionsByPrice);
     paintPriceRange();
+    paintDraftWarranty();
   }
 
   /* The footer range has to move when an option is added, or it quietly
