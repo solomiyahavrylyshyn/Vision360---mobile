@@ -332,7 +332,7 @@
   }
 
   /* ---------- iOS-style switches baked into the design ---------- */
-  function switches(id) {
+  function switches(id, onToggle) {
     var root = byId(id); if (!root) return null;
     var found = [];
     $$('div', root).forEach(function (e) {
@@ -353,6 +353,7 @@
       e.addEventListener('click', function (ev) {
         ev.stopPropagation();
         paint(e.dataset.on !== '1');
+        if (onToggle) onToggle(e, e.dataset.on === '1');
       }, true);
       found.push(function () { paint(startOn); });
     });
@@ -515,12 +516,27 @@
       toast(net.online ? 'Photo uploaded' : 'Photo saved — will upload on reconnect',
         net.online ? 'cloud_done' : 'cloud_off');
     },
+    // "Set to Completed" runs the SOP closeout first — the job isn't done
+    // until the twelve fields are in (US-M05-2)
     complete: function () {
+      closeOverlays(true);
+      go('closeout', 'modal');
+    },
+    closeoutSave: function () {
+      queued('Closeout');
+      back();
+      toast(net.online ? 'Closeout saved' : 'Closeout saved — will sync', 'save');
+    },
+    closeoutComplete: function () {
       state.onsite = false;
+      state.est = 'none'; state.inv = 'none'; state.extra = false;  // next job starts clean
+      jobIdx++;
+      paintJob();
       closeOverlays(true);
       go('home', 'root');
       queued('Job status');
-      toast('Job set to Completed — removed from active', 'task_alt');
+      toast(JOBS[jobIdx] ? 'Job closed — next one unlocked'
+        : 'Job closed — nothing left today', 'task_alt');
     },
     logout: function () {
       state = { onsite: false, est: 'none', inv: 'none', extra: false };
@@ -541,9 +557,10 @@
       ['@build^1', 'ov-note-tech'],
       ['@photo_library^1', 'photos'],
       ['@attach_file^1', 'files'],
-      ['@history^1', 'cust-jobs']
-      // the work-type chip and the job-slider arrows are wired in
-      // wireWorkType() / wireJobSlider() — they filter and page, they don't navigate
+      ['@history^1', 'cust-jobs'],
+      ['~Demand Service', 'ov-worktype'],
+      // US-M03-2: the notifications row leads to the work it's telling you about
+      ['@campaign^1', 'history']
     ],
     'home-active': [
       ['On site · Randy Johnson^1', 'job-general'],
@@ -862,6 +879,35 @@
   switches('rc-tech');
   var resetSwitches = switches('hist-filters');
 
+  /* US-M03-5 — work-type filter; picking one relabels the chip on Home */
+  (function () {
+    var chip = sel(byId('home'), '~Demand Service')[0];
+    var TYPES = ['All work types', 'Demand Service', 'Maintenance', 'Estimate', 'Install'];
+    seg('ov-worktype', TYPES.map(function (t) { return '~' + t; }), 1, function (i, label) {
+      if (chip) chip.childNodes[0].nodeValue = TYPES[i];
+      setTimeout(back, 240);
+      toast(i === 0 ? 'Showing every work type' : 'Filtered to ' + TYPES[i], 'filter_alt');
+    });
+  })();
+
+  /* US-M05-2 — the closeout's "need to go back" reveals which department */
+  switches('closeout', function (el, isOn) {
+    if (el.id !== 'ntgbSwitch') return;
+    var who = byId('ntgbWho');
+    if (who) who.hidden = !isOn;
+  });
+  (function () {
+    var chips = $$('[data-ntgb]', byId('closeout'));
+    if (chips.length < 2) return;
+    var ON = chips[0].getAttribute('style'), OFF = chips[1].getAttribute('style');
+    chips.forEach(function (c) {
+      c.dataset.tap = '1';
+      c.addEventListener('click', function () {
+        chips.forEach(function (o) { o.setAttribute('style', o === c ? ON : OFF); });
+      });
+    });
+  })();
+
   /* US-M13-2 — Reset puts the filter sheet back to its defaults */
   ACT.filtersReset = function () {
     if (resetChips) resetChips();
@@ -923,7 +969,10 @@
   if (!net.online) goOffline();
 
   /* =========================================================
-     US-M03-6 — the active-jobs slider actually pages
+     US-M03-9 (policy) — a technician sees only the job in front of
+     them. The next one unlocks when the current one is closed out, so
+     every call is treated as the only call and nobody cherry-picks.
+     This is why the design's "2 of 3" pager is not wired as a pager.
      ========================================================= */
   var JOBS = [
     {
@@ -939,10 +988,13 @@
       addr: '255 Standish Drive, Tampa, FL 33615', away: '6.8 miles away', phone: '(352) 258-9710'
     }
   ];
-  function wireJobSlider() {
+  var jobIdx = 0;
+  var paintJob = function () { };
+  function wireCurrentJob() {
     var root = byId('home'); if (!root) return;
     var counter = sel(root, '2 of 3')[0];
     var prev = byIcon(root, 'chevron_left')[0], next = byIcon(root, 'chevron_right')[0];
+    var heading = sel(root, 'Next jobs')[0];
     var refs = {
       name: sel(root, 'Randy Johnson')[0],
       when: sel(root, 'Today, 8:00 AM')[0],
@@ -954,14 +1006,25 @@
     var addrRow = sel(root, '@place^1')[0];
     var addr = addrRow ? $('div', addrRow) : null;
     var awaySpan = addr ? $('span', addr) : null;
-    if (!counter || !prev || !next || !addr || !awaySpan ||
+    if (!counter || !prev || !next || !heading || !addr || !awaySpan ||
       Object.keys(refs).some(function (k) { return !refs[k]; })) {
-      MISS.push('home :: job slider'); return;
+      MISS.push('home :: current job'); return;
     }
-    var i = 0;
-    function paint() {
-      var j = JOBS[i];
-      counter.textContent = (i + 1) + ' of ' + JOBS.length;
+
+    // The whole pager goes: the arrows let a tech look ahead, and even a bare
+    // "2 of 3" says more work is queued. Neither survives the policy — the
+    // screen shows one job and says nothing about what comes after it.
+    prev.style.display = 'none';
+    next.style.display = 'none';
+    counter.style.display = 'none';
+    heading.textContent = 'Current job';
+
+    paintJob = function () {
+      var j = JOBS[jobIdx];
+      if (!j) {
+        heading.textContent = 'Nothing left today';
+        return;
+      }
       refs.name.textContent = j.name;
       refs.when.textContent = j.when;
       refs.brief.textContent = j.brief;
@@ -969,22 +1032,10 @@
       refs.phone.textContent = j.phone;
       addr.childNodes[0].nodeValue = j.addr;
       awaySpan.textContent = j.away;
-      // the arrows dim at the ends, as the design shows for the first card
-      prev.style.color = i === 0 ? '#A9B4C2' : '#4A6FA5';
-      next.style.color = i === JOBS.length - 1 ? '#A9B4C2' : '#4A6FA5';
-    }
-    function step(d) {
-      var n = Math.min(JOBS.length - 1, Math.max(0, i + d));
-      if (n === i) return;
-      i = n; paint();
-    }
-    [[prev, -1], [next, 1]].forEach(function (p) {
-      p[0].dataset.tap = '1';
-      p[0].addEventListener('click', function (ev) { ev.stopPropagation(); step(p[1]); }, true);
-    });
-    paint();
+    };
+    paintJob();
   }
-  wireJobSlider();
+  wireCurrentJob();
 
   /* =========================================================
      US-M12-9 — the unsaved-changes bar shows up only once
@@ -1127,9 +1178,8 @@
   /* =========================================================
      Auto-wiring: back arrows, close buttons, overlay scrims
      ========================================================= */
-  META.forEach(function (m) {
-    var root = byId(m.id); if (!root) return;
-    if (m.overlay) {
+  $$('.screen,.overlay', phone).forEach(function (root) {
+    if (root.classList.contains('overlay')) {
       // first child of an overlay is the dimmed scrim
       var scrim = root.firstElementChild;
       if (scrim && /position:absolute;inset:0/.test(scrim.getAttribute('style') || '')) {
@@ -1147,8 +1197,7 @@
 
   /* everything on a page that still has no handler stays inert but tappable
      where it clearly reads as a control */
-  META.forEach(function (m) {
-    var root = byId(m.id); if (!root) return;
+  $$('.screen,.overlay', phone).forEach(function (root) {
     $$('.mi,.mif', root).forEach(function (e) {
       var n = norm(e.textContent);
       if (/^(call|place|expand_more|expand_less|chevron_right|chevron_left|more_vert|more_horiz|search|refresh|edit|download|event|info|photo_camera|add|remove)$/.test(n)) {
