@@ -494,7 +494,7 @@ body.dev #indexBtn{display:flex}
         <div class="screen" id="more" data-tabs="on">
           <div class="hdr" style="padding:12px 16px"><span class="ttl" style="font-size:21px">More</span></div>
           <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
-            <div class="card" style="display:flex;align-items:center;gap:13px;padding:15px;margin-bottom:16px" data-tap data-toast="Profile &mdash; Marek Stroz">
+            <div class="card" style="display:flex;align-items:center;gap:13px;padding:15px;margin-bottom:16px" data-tap data-go="more-profile" data-mode="push">
               <div style="width:52px;height:52px;border-radius:26px;background:#1C2B3A;color:#fff;font:600 18px/52px Geist;text-align:center;flex:none">MS</div>
               <div style="flex:1">
                 <div style="font:600 17px/1.2 Geist">Marek Stroz</div>
@@ -516,21 +516,207 @@ body.dev #indexBtn{display:flex}
             </div>
 
             <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <div class="rowi" data-toast="Equipment list"><span class="mi">hvac</span><span class="t">Equipment</span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-toast="Assets on truck: 42"><span class="mi">inventory_2</span><span class="t">Assets<small>42 items on truck 14</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-equipment" data-mode="push"><span class="mi">hvac</span><span class="t">Equipment</span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-assets" data-mode="push"><span class="mi">inventory_2</span><span class="t">Assets<small>42 items on truck 14</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-go="est-catalog" data-mode="push"><span class="mi">menu_book</span><span class="t">Price book</span><span class="mi ch">chevron_right</span></div>
             </div>
 
             <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <div class="rowi" data-toast="Notifications settings"><span class="mi">notifications_none</span><span class="t">Notifications</span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-toast="Offline mode is on"><span class="mi">wifi_off</span><span class="t">Offline mode<small>Cache last 7 days of jobs</small></span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-toast="Help centre"><span class="mi">help_outline</span><span class="t">Help &amp; support</span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-notifications" data-mode="push"><span class="mi">notifications_none</span><span class="t">Notifications</span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-offline" data-mode="push"><span class="mi">wifi_off</span><span class="t">Offline mode<small>Cache last 7 days of jobs</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-help" data-mode="push"><span class="mi">help_outline</span><span class="t">Help &amp; support</span><span class="mi ch">chevron_right</span></div>
             </div>
 
             <div class="card" style="overflow:hidden">
               <div class="rowi" id="logout"><span class="mi" style="color:#DC2626">logout</span><span class="t" style="color:#DC2626">Log out</span></div>
             </div>
             <div style="text-align:center;font:400 12px/1 Geist;color:#8A97A8;padding:20px 0 6px">Vision 360 v2.4.1 &middot; build 2411</div>
+          </div>
+        </div>
+
+        <!-- ============ PROFILE ============ -->
+        <div class="screen" id="more-profile" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Profile</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div class="card" style="display:flex;align-items:center;gap:14px;padding:16px;margin-bottom:14px">
+              <div style="width:60px;height:60px;border-radius:30px;background:#1C2B3A;color:#fff;font:600 21px/60px Geist;text-align:center;flex:none">MS</div>
+              <div style="flex:1">
+                <div style="font:600 19px/1.2 Geist;letter-spacing:-.01em">Marek Stroz</div>
+                <div style="font:400 13.5px/1.4 Geist;color:#546478;margin-top:4px">Senior Technician &middot; Employee #4471</div>
+                <div style="display:flex;gap:6px;margin-top:8px">
+                  <span style="font:600 11px/1 Geist;color:#4A6FA5;background:#EBF0F8;border:1px solid #C8D5E8;border-radius:5px;padding:4px 7px">NATE certified</span>
+                  <span style="font:600 11px/1 Geist;color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6;border-radius:5px;padding:4px 7px">EPA 608</span>
+                </div>
+              </div>
+            </div>
+            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:4px 0 9px">Contact</div>
+            <div class="card" style="overflow:hidden;margin-bottom:16px">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1 Geist;color:#546478">Phone</span><span style="font:500 14.5px/1 Geist;color:#4A6FA5">(813) 555-4471</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1 Geist;color:#546478">Email</span><span style="font:500 14.5px/1 Geist">m.stroz@andservices.com</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px"><span style="font:500 14px/1 Geist;color:#546478">Truck</span><span style="font:500 14.5px/1 Geist">Truck 14 &middot; Tampa</span></div>
+            </div>
+            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:4px 0 9px">My targets &middot; this month</div>
+            <div class="card" style="overflow:hidden">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1 Geist;color:#546478">Revenue</span><span style="font:600 14.5px/1 Geist">$300k</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1 Geist;color:#546478">Avg price per ticket</span><span style="font:600 14.5px/1 Geist">$2.0k</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px"><span style="font:500 14px/1 Geist;color:#546478">Closing percentage</span><span style="font:600 14.5px/1 Geist">45%</span></div>
+            </div>
+            <div style="font:400 12px/1.5 Geist;color:#8A97A8;margin-top:12px">Targets are set by your manager and drive the figures on Home.</div>
+          </div>
+        </div>
+
+        <!-- ============ EQUIPMENT ============ -->
+        <div class="screen" id="more-equipment" data-tabs="on">
+          <div class="hdr">
+            <span class="back mi" data-back style="font-size:22px">arrow_back</span>
+            <span class="ttl">Equipment</span>
+            <span style="font:500 13px/1 Geist;color:#546478">Randy Johnson</span>
+          </div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div style="font:400 12.5px/1.45 Geist;color:#546478;margin-bottom:12px">Installed at 5010 N Cortez Ave, Tampa, FL 33614.</div>
+
+            <div class="card" style="overflow:hidden;margin-bottom:12px">
+              <div style="display:flex;align-items:center;gap:11px;padding:14px 15px;border-bottom:1px solid #EDF0F5">
+                <span class="mi" style="font-size:22px;color:#4A6FA5">local_fire_department</span>
+                <div style="flex:1"><div style="font:600 15.5px/1.25 Geist">Furnace &middot; Daikin</div><div style="font:400 12.5px/1.35 Geist;color:#8A97A8;margin-top:3px">Garage &middot; installed 2017</div></div>
+                <span style="font:600 11px/1 Geist;color:#D97706;background:#FEF3E2;border:1px solid #F5D9A8;border-radius:5px;padding:4px 7px">Attention</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 13.5px/1 Geist;color:#546478">Model</span><span style="font:500 13.5px/1 Geist">DM96VC1005CN</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 13.5px/1 Geist;color:#546478">Serial</span><span style="font:500 13.5px/1 Geist">1710294471</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 15px"><span style="font:500 13.5px/1 Geist;color:#546478">Warranty</span><span style="font:500 13.5px/1 Geist">Parts to 2027</span></div>
+            </div>
+
+            <div class="card" style="overflow:hidden;margin-bottom:12px">
+              <div style="display:flex;align-items:center;gap:11px;padding:14px 15px;border-bottom:1px solid #EDF0F5">
+                <span class="mi" style="font-size:22px;color:#4A6FA5">ac_unit</span>
+                <div style="flex:1"><div style="font:600 15.5px/1.25 Geist">Condenser &middot; Rheem</div><div style="font:400 12.5px/1.35 Geist;color:#8A97A8;margin-top:3px">Side yard &middot; installed 2022 &middot; HP</div></div>
+                <span style="font:600 11px/1 Geist;color:#DC2626;background:#FDECEC;border:1px solid #F5C2C2;border-radius:5px;padding:4px 7px">Immediate</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 13.5px/1 Geist;color:#546478">Model</span><span style="font:500 13.5px/1 Geist">RP1524AJ1NA</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 13.5px/1 Geist;color:#546478">Serial</span><span style="font:500 13.5px/1 Geist">W222907213</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 15px"><span style="font:500 13.5px/1 Geist;color:#546478">Warranty</span><span style="font:500 13.5px/1 Geist">Parts to 2032</span></div>
+            </div>
+
+            <div data-tap data-go="rc-overview" data-mode="push" style="display:flex;align-items:center;gap:9px;background:#fff;border:1px dashed #C8D5E8;border-radius:12px;padding:15px;justify-content:center;font:600 14.5px/1 Geist;color:#4A6FA5">
+              <span class="mi" style="font-size:19px">fact_check</span>Open Report Card
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ ASSETS ============ -->
+        <div class="screen" id="more-assets" data-tabs="on">
+          <div class="hdr">
+            <span class="back mi" data-back style="font-size:22px">arrow_back</span>
+            <span class="ttl">Assets</span>
+            <span style="font:500 13px/1 Geist;color:#546478">Truck 14</span>
+          </div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:14px 16px 20px">
+            <div style="display:flex;align-items:center;gap:9px;background:#fff;border:1px solid #DDE3EE;border-radius:10px;padding:11px 13px;margin-bottom:12px">
+              <span class="mi" style="font-size:19px;color:#8A97A8">search</span>
+              <span style="font:400 15px/1 Geist;color:#A9B4C2">Search assets</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+              <span style="font:600 16px/1 Geist">42 items on truck</span>
+              <span style="font:600 12px/1 Geist;color:#D97706;background:#FEF3E2;border-radius:5px;padding:5px 8px">2 low</span>
+            </div>
+            <div class="card" style="overflow:hidden">
+              <div style="display:flex;align-items:center;gap:12px;padding:14px 15px;border-bottom:1px solid #EDF0F5"><div style="flex:1"><div style="font:600 14.5px/1.25 Geist">Capacitor 45/5 &micro;F</div><div style="font:400 12px/1.3 Geist;color:#8A97A8;margin-top:3px">SKU 3001</div></div><span style="font:600 14.5px/1 Geist">12</span></div>
+              <div style="display:flex;align-items:center;gap:12px;padding:14px 15px;border-bottom:1px solid #EDF0F5"><div style="flex:1"><div style="font:600 14.5px/1.25 Geist">HVAC filter 16&times;25&times;1</div><div style="font:400 12px/1.3 Geist;color:#8A97A8;margin-top:3px">SKU 3002</div></div><span style="font:600 14.5px/1 Geist">15</span></div>
+              <div style="display:flex;align-items:center;gap:12px;padding:14px 15px;border-bottom:1px solid #EDF0F5"><div style="flex:1"><div style="font:600 14.5px/1.25 Geist">Contactor 2-pole 30A</div><div style="font:400 12px/1.3 Geist;color:#8A97A8;margin-top:3px">SKU 3014</div></div><span style="font:600 14.5px/1 Geist;color:#D97706">2</span></div>
+              <div style="display:flex;align-items:center;gap:12px;padding:14px 15px;border-bottom:1px solid #EDF0F5"><div style="flex:1"><div style="font:600 14.5px/1.25 Geist">R-410A refrigerant</div><div style="font:400 12px/1.3 Geist;color:#8A97A8;margin-top:3px">SKU 3020 &middot; 25 lb</div></div><span style="font:600 14.5px/1 Geist;color:#D97706">1</span></div>
+              <div style="display:flex;align-items:center;gap:12px;padding:14px 15px"><div style="flex:1"><div style="font:600 14.5px/1.25 Geist">Smart thermostat</div><div style="font:400 12px/1.3 Geist;color:#8A97A8;margin-top:3px">SKU 3031</div></div><span style="font:600 14.5px/1 Geist">4</span></div>
+            </div>
+            <div data-tap data-toast="Restock request sent to the warehouse" style="display:flex;align-items:center;gap:9px;background:#fff;border:1px dashed #C8D5E8;border-radius:12px;padding:15px;justify-content:center;font:600 14.5px/1 Geist;color:#4A6FA5;margin-top:12px">
+              <span class="mi" style="font-size:19px">local_shipping</span>Request restock
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ NOTIFICATION SETTINGS (US-W15-2) ============ -->
+        <div class="screen" id="more-notifications" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Notifications</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">Push</div>
+            <div class="card" style="overflow:hidden;margin-bottom:16px">
+              <div style="display:flex;align-items:center;gap:12px;padding:15px"><span style="flex:1;font:500 14.5px/1.35 Geist">New work order assigned</span><div style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none"><div style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div></div></div>
+              <div style="display:flex;align-items:center;gap:12px;padding:15px;border-top:1px solid #EDF0F5"><span style="flex:1;font:500 14.5px/1.35 Geist">Estimate approved or rejected</span><div style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none"><div style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div></div></div>
+              <div style="display:flex;align-items:center;gap:12px;padding:15px;border-top:1px solid #EDF0F5"><span style="flex:1;font:500 14.5px/1.35 Geist">New chat message</span><div style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none"><div style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div></div></div>
+              <div style="display:flex;align-items:center;gap:12px;padding:15px;border-top:1px solid #EDF0F5"><span style="flex:1;font:500 14.5px/1.35 Geist">Invoice paid</span><div style="width:52px;height:31px;border-radius:16px;background:#DDE3EE;position:relative;flex:none"><div style="position:absolute;top:3px;left:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div></div></div>
+              <div style="display:flex;align-items:center;gap:12px;padding:15px;border-top:1px solid #EDF0F5"><span style="flex:1;font:500 14.5px/1.35 Geist">Schedule changed</span><div style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none"><div style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div></div></div>
+              <div style="display:flex;align-items:center;gap:12px;padding:15px;border-top:1px solid #EDF0F5"><span style="flex:1;font:500 14.5px/1.35 Geist">Company announcements</span><div style="width:52px;height:31px;border-radius:16px;background:#DDE3EE;position:relative;flex:none"><div style="position:absolute;top:3px;left:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div></div></div>
+            </div>
+            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">Email</div>
+            <div class="card" style="overflow:hidden;margin-bottom:16px">
+              <div style="display:flex;align-items:center;gap:12px;padding:15px"><span style="flex:1;font:500 14.5px/1.35 Geist">Daily summary</span><div style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none"><div style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div></div></div>
+              <div style="display:flex;align-items:center;gap:12px;padding:15px;border-top:1px solid #EDF0F5"><span style="flex:1;font:500 14.5px/1.35 Geist">Weekly figures vs targets</span><div style="width:52px;height:31px;border-radius:16px;background:#DDE3EE;position:relative;flex:none"><div style="position:absolute;top:3px;left:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div></div></div>
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px">
+              <span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">do_not_disturb_on</span>
+              <div style="font:400 12.5px/1.45 Geist;color:#546478">Quiet hours are set by your dispatcher &mdash; urgent assignments still come through.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ OFFLINE MODE ============ -->
+        <div class="screen" id="more-offline" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Offline mode</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div class="card" style="display:flex;align-items:center;gap:12px;padding:15px;margin-bottom:14px">
+              <span class="mi" style="font-size:22px;color:#4A6FA5">wifi_off</span>
+              <span style="flex:1;font:500 14.5px/1.35 Geist">Keep jobs available offline<div style="font:400 12.5px/1.35 Geist;color:#8A97A8;margin-top:3px">Work with no signal, sync when it returns</div></span>
+              <div style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none"><div style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div></div>
+            </div>
+
+            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:4px 0 9px">How much to cache</div>
+            <div style="display:flex;gap:6px;background:#E4E9F1;border-radius:10px;padding:4px;margin-bottom:16px">
+              <div style="flex:1;text-align:center;padding:9px 0;font:500 13.5px/1 Geist;color:#546478;border-radius:7px">3 days</div>
+              <div style="flex:1;text-align:center;padding:9px 0;font:600 13.5px/1 Geist;color:#1A2332;background:#fff;border-radius:7px;box-shadow:0 1px 2px rgba(26,35,50,.10)">7 days</div>
+              <div style="flex:1;text-align:center;padding:9px 0;font:500 13.5px/1 Geist;color:#546478;border-radius:7px">14 days</div>
+            </div>
+
+            <div class="card" style="overflow:hidden;margin-bottom:14px">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1 Geist;color:#546478">Cached jobs</span><span style="font:600 14.5px/1 Geist">18</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1 Geist;color:#546478">Photos held locally</span><span style="font:600 14.5px/1 Geist">126</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1 Geist;color:#546478">Storage used</span><span style="font:600 14.5px/1 Geist">248 MB</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px"><span style="font:500 14px/1 Geist;color:#546478">Waiting to sync</span><span style="font:600 14.5px/1 Geist;color:#16A34A">Nothing</span></div>
+            </div>
+
+            <div data-tap data-toast="Today&rsquo;s jobs downloaded for offline use" style="display:flex;align-items:center;gap:9px;background:#fff;border:1px solid #C8D5E8;border-radius:12px;padding:15px;justify-content:center;font:600 14.5px/1 Geist;color:#4A6FA5;margin-bottom:10px">
+              <span class="mi" style="font-size:19px">download_for_offline</span>Download today&rsquo;s jobs
+            </div>
+            <div data-tap data-toast="Local cache cleared" style="display:flex;align-items:center;gap:9px;padding:15px;justify-content:center;font:600 14.5px/1 Geist;color:#DC2626">
+              <span class="mi" style="font-size:19px">delete_outline</span>Clear cached data
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ HELP & SUPPORT ============ -->
+        <div class="screen" id="more-help" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Help &amp; support</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">Get a person</div>
+            <div class="card" style="overflow:hidden;margin-bottom:16px">
+              <div class="rowi" data-go="chat-thread" data-mode="push"><span class="mi">headset_mic</span><span class="t">Message dispatch<small>Usually replies in a couple of minutes</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Calling dispatch — (813) 555-0100"><span class="mi">call</span><span class="t">Call dispatch<small>(813) 555-0100</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Calling the support line — (813) 555-0142"><span class="mi">support_agent</span><span class="t">App support line<small>(813) 555-0142 &middot; 7am&ndash;7pm</small></span><span class="mi ch">chevron_right</span></div>
+            </div>
+
+            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">Look it up</div>
+            <div class="card" style="overflow:hidden;margin-bottom:16px">
+              <div class="rowi" data-toast="Opening the field SOP"><span class="mi">menu_book</span><span class="t">Field SOP<small>The 17-step job walkthrough</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Opening safety procedures"><span class="mi">health_and_safety</span><span class="t">Safety procedures</span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Opening warranty policy"><span class="mi">verified_user</span><span class="t">Warranty policy</span><span class="mi ch">chevron_right</span></div>
+            </div>
+
+            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">Something&rsquo;s wrong</div>
+            <div class="card" style="overflow:hidden;margin-bottom:16px">
+              <div class="rowi" data-toast="Problem report sent with your last 50 log lines"><span class="mi">bug_report</span><span class="t">Report a problem<small>Sends recent activity so support can see it</small></span><span class="mi ch">chevron_right</span></div>
+            </div>
+
+            <div class="card" style="padding:14px 15px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font:500 13.5px/1 Geist;color:#546478">App version</span><span style="font:500 13.5px/1 Geist">2.4.1 &middot; build 2411</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between"><span style="font:500 13.5px/1 Geist;color:#546478">Signed in as</span><span style="font:500 13.5px/1 Geist">m.stroz@andservices.com</span></div>
+            </div>
           </div>
         </div>
 
@@ -2629,6 +2815,7 @@ body.dev #indexBtn{display:flex}
   /* ---------- flow state ---------- */
   var state = {
     onsite: false,
+    enroute: false,     // driving to the job — a status the button holds
     est: 'none',        // none draft review ready approved
     inv: 'none',        // none sent paid
     extra: false        // additional items added
@@ -2741,7 +2928,9 @@ body.dev #indexBtn{display:flex}
 
   var TABOF = {
     home: 'home', 'home-active': 'home', photos: 'home', 'photo-detail': 'home', 'cust-jobs': 'home',
-    files: 'home', 'image-desc': 'home',
+    files: 'home', 'image-desc': 'home', closeout: 'home',
+    'more-profile': 'more', 'more-equipment': 'more', 'more-assets': 'more',
+    'more-notifications': 'more', 'more-offline': 'more', 'more-help': 'more',
     history: 'history', 'hist-filters': 'history', 'hist-search': 'history',
     'period-quarter': 'home', 'period-week': 'home',
     chat: 'chat', 'chat-thread': 'chat', timesheet: 'timesheet', more: 'more'
@@ -3074,8 +3263,22 @@ body.dev #indexBtn{display:flex}
     jobEst: function () { go(estScreen(), 'replace'); },
     jobFin: function () { go(finScreen(), 'replace'); },
 
-    start: function () { state.onsite = true; go('home-active', 'root'); toast('Job started · timer running', 'play_circle'); },
-    enroute: function () { toast('Marked en route · customer notified', 'navigation'); },
+    start: function () {
+      state.onsite = true;
+      state.enroute = false;          // you've arrived — the en route state is spent
+      paintEnroute();
+      go('home-active', 'root');
+      queued('Job status');
+      toast('Job started · timer running', 'play_circle');
+    },
+    enroute: function () {
+      state.enroute = !state.enroute;
+      paintEnroute();
+      closeOverlays(false);
+      queued('Job status');
+      toast(state.enroute ? 'Marked en route · customer notified' : 'No longer en route',
+        state.enroute ? 'navigation' : 'undo');
+    },
     dismissBanner: function (el) {
       var b = el.closest('div[style*="background:#1C2B3A"]') || el.parentElement;
       b.style.transition = 'opacity .2s,margin-top .22s,height .22s';
@@ -3119,7 +3322,9 @@ body.dev #indexBtn{display:flex}
     },
     closeoutComplete: function () {
       state.onsite = false;
+      state.enroute = false;
       state.est = 'none'; state.inv = 'none'; state.extra = false;  // next job starts clean
+      paintEnroute();
       jobIdx++;
       paintJob();
       closeOverlays(true);
@@ -3129,7 +3334,7 @@ body.dev #indexBtn{display:flex}
         : 'Job closed — nothing left today', 'task_alt');
     },
     logout: function () {
-      state = { onsite: false, est: 'none', inv: 'none', extra: false };
+      state = { onsite: false, enroute: false, est: 'none', inv: 'none', extra: false };
       go('login', 'root'); toast('Signed out', 'logout');
     }
   };
@@ -3578,6 +3783,63 @@ body.dev #indexBtn{display:flex}
       addr: '255 Standish Drive, Tampa, FL 33615', away: '6.8 miles away', phone: '(352) 258-9710'
     }
   ];
+  /* Overview is the tech's own figures — useful in the morning, in the way
+     for the rest of the day. Collapse it and the choice sticks. */
+  (function () {
+    var root = byId('home'); if (!root) return;
+    var head = sel(root, 'Overview')[0];
+    var period = sel(root, 'Week')[0];
+    var segRow = period && period.parentElement;
+    var grid = $$('div', root).filter(function (e) {
+      return /grid-template-columns:1fr 1fr/.test(e.getAttribute('style') || '');
+    })[0];
+    if (!head || !segRow || !grid) { MISS.push('home :: overview collapse'); return; }
+
+    head.style.display = 'flex';
+    head.style.alignItems = 'center';
+    head.style.gap = '3px';
+    var chev = document.createElement('span');
+    chev.className = 'mi';
+    chev.setAttribute('style', 'font-size:22px;color:#8A97A8');
+    head.appendChild(chev);
+
+    var KEY = 'v360.overview';
+    function remembered() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
+    function remember(v) { try { localStorage.setItem(KEY, v); } catch (e) { } }
+
+    var shut = remembered() === 'collapsed';
+    function paint() {
+      segRow.style.display = shut ? 'none' : '';
+      grid.style.display = shut ? 'none' : 'grid';
+      chev.textContent = shut ? 'expand_more' : 'expand_less';
+    }
+    paint();
+    head.dataset.tap = '1';
+    head.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      shut = !shut;
+      paint();
+      remember(shut ? 'collapsed' : 'open');
+    }, true);
+  })();
+
+  /* US-M04-4 — En route is a status, so the button holds the pressed state
+     and releases on a second tap. */
+  var paintEnroute = function () { };
+  (function () {
+    var btn = sel(byId('home'), '@navigation^1')[0];
+    if (!btn) { MISS.push('home :: en route'); return; }
+    var icon = $('.mi,.mif', btn);
+    var OFF = btn.getAttribute('style');
+    var ON = OFF.replace('background:#fff', 'background:#EBF0F8')
+      .replace('border:1px solid #C8D5E8', 'border:1.5px solid #4A6FA5');
+    paintEnroute = function () {
+      btn.setAttribute('style', state.enroute ? ON : OFF);
+      if (icon) icon.className = state.enroute ? 'mif' : 'mi';
+    };
+    paintEnroute();
+  })();
+
   var jobIdx = 0;
   var paintJob = function () { };
   function wireCurrentJob() {
@@ -4049,6 +4311,27 @@ body.dev #indexBtn{display:flex}
   boot();
 
   if (MISS.length) console.warn('[proto] unmatched selectors (' + MISS.length + '):\n' + MISS.join('\n'));
+
+  /* A misspelled icon name has no ligature, so the font renders the raw string
+     and blows the row's layout apart. Catch it once the font is in. */
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () {
+      var probe = document.createElement('span');
+      probe.style.cssText = 'position:absolute;visibility:hidden;font-size:24px;white-space:nowrap';
+      document.body.appendChild(probe);
+      var seen = {}, broken = [];
+      $$('.mi,.mif', phone).forEach(function (e) {
+        var n = norm(e.textContent), cls = e.className;
+        if (!/^[a-z0-9_]+$/.test(n) || seen[cls + n]) return;
+        seen[cls + n] = 1;
+        probe.className = cls;
+        probe.textContent = n;
+        if (probe.getBoundingClientRect().width > 34) broken.push(n + ' (' + cls + ')');
+      });
+      probe.remove();
+      if (broken.length) console.warn('[proto] icon names with no glyph:\n' + broken.join('\n'));
+    });
+  }
   window.__proto = { go: go, back: back, state: state, miss: MISS };
 })();
 </script>

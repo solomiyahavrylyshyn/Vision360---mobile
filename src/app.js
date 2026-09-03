@@ -39,6 +39,7 @@
   /* ---------- flow state ---------- */
   var state = {
     onsite: false,
+    enroute: false,     // driving to the job — a status the button holds
     est: 'none',        // none draft review ready approved
     inv: 'none',        // none sent paid
     extra: false        // additional items added
@@ -151,7 +152,9 @@
 
   var TABOF = {
     home: 'home', 'home-active': 'home', photos: 'home', 'photo-detail': 'home', 'cust-jobs': 'home',
-    files: 'home', 'image-desc': 'home',
+    files: 'home', 'image-desc': 'home', closeout: 'home',
+    'more-profile': 'more', 'more-equipment': 'more', 'more-assets': 'more',
+    'more-notifications': 'more', 'more-offline': 'more', 'more-help': 'more',
     history: 'history', 'hist-filters': 'history', 'hist-search': 'history',
     'period-quarter': 'home', 'period-week': 'home',
     chat: 'chat', 'chat-thread': 'chat', timesheet: 'timesheet', more: 'more'
@@ -484,8 +487,22 @@
     jobEst: function () { go(estScreen(), 'replace'); },
     jobFin: function () { go(finScreen(), 'replace'); },
 
-    start: function () { state.onsite = true; go('home-active', 'root'); toast('Job started · timer running', 'play_circle'); },
-    enroute: function () { toast('Marked en route · customer notified', 'navigation'); },
+    start: function () {
+      state.onsite = true;
+      state.enroute = false;          // you've arrived — the en route state is spent
+      paintEnroute();
+      go('home-active', 'root');
+      queued('Job status');
+      toast('Job started · timer running', 'play_circle');
+    },
+    enroute: function () {
+      state.enroute = !state.enroute;
+      paintEnroute();
+      closeOverlays(false);
+      queued('Job status');
+      toast(state.enroute ? 'Marked en route · customer notified' : 'No longer en route',
+        state.enroute ? 'navigation' : 'undo');
+    },
     dismissBanner: function (el) {
       var b = el.closest('div[style*="background:#1C2B3A"]') || el.parentElement;
       b.style.transition = 'opacity .2s,margin-top .22s,height .22s';
@@ -529,7 +546,9 @@
     },
     closeoutComplete: function () {
       state.onsite = false;
+      state.enroute = false;
       state.est = 'none'; state.inv = 'none'; state.extra = false;  // next job starts clean
+      paintEnroute();
       jobIdx++;
       paintJob();
       closeOverlays(true);
@@ -539,7 +558,7 @@
         : 'Job closed — nothing left today', 'task_alt');
     },
     logout: function () {
-      state = { onsite: false, est: 'none', inv: 'none', extra: false };
+      state = { onsite: false, enroute: false, est: 'none', inv: 'none', extra: false };
       go('login', 'root'); toast('Signed out', 'logout');
     }
   };
@@ -988,6 +1007,63 @@
       addr: '255 Standish Drive, Tampa, FL 33615', away: '6.8 miles away', phone: '(352) 258-9710'
     }
   ];
+  /* Overview is the tech's own figures — useful in the morning, in the way
+     for the rest of the day. Collapse it and the choice sticks. */
+  (function () {
+    var root = byId('home'); if (!root) return;
+    var head = sel(root, 'Overview')[0];
+    var period = sel(root, 'Week')[0];
+    var segRow = period && period.parentElement;
+    var grid = $$('div', root).filter(function (e) {
+      return /grid-template-columns:1fr 1fr/.test(e.getAttribute('style') || '');
+    })[0];
+    if (!head || !segRow || !grid) { MISS.push('home :: overview collapse'); return; }
+
+    head.style.display = 'flex';
+    head.style.alignItems = 'center';
+    head.style.gap = '3px';
+    var chev = document.createElement('span');
+    chev.className = 'mi';
+    chev.setAttribute('style', 'font-size:22px;color:#8A97A8');
+    head.appendChild(chev);
+
+    var KEY = 'v360.overview';
+    function remembered() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
+    function remember(v) { try { localStorage.setItem(KEY, v); } catch (e) { } }
+
+    var shut = remembered() === 'collapsed';
+    function paint() {
+      segRow.style.display = shut ? 'none' : '';
+      grid.style.display = shut ? 'none' : 'grid';
+      chev.textContent = shut ? 'expand_more' : 'expand_less';
+    }
+    paint();
+    head.dataset.tap = '1';
+    head.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      shut = !shut;
+      paint();
+      remember(shut ? 'collapsed' : 'open');
+    }, true);
+  })();
+
+  /* US-M04-4 — En route is a status, so the button holds the pressed state
+     and releases on a second tap. */
+  var paintEnroute = function () { };
+  (function () {
+    var btn = sel(byId('home'), '@navigation^1')[0];
+    if (!btn) { MISS.push('home :: en route'); return; }
+    var icon = $('.mi,.mif', btn);
+    var OFF = btn.getAttribute('style');
+    var ON = OFF.replace('background:#fff', 'background:#EBF0F8')
+      .replace('border:1px solid #C8D5E8', 'border:1.5px solid #4A6FA5');
+    paintEnroute = function () {
+      btn.setAttribute('style', state.enroute ? ON : OFF);
+      if (icon) icon.className = state.enroute ? 'mif' : 'mi';
+    };
+    paintEnroute();
+  })();
+
   var jobIdx = 0;
   var paintJob = function () { };
   function wireCurrentJob() {
@@ -1459,5 +1535,26 @@
   boot();
 
   if (MISS.length) console.warn('[proto] unmatched selectors (' + MISS.length + '):\n' + MISS.join('\n'));
+
+  /* A misspelled icon name has no ligature, so the font renders the raw string
+     and blows the row's layout apart. Catch it once the font is in. */
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () {
+      var probe = document.createElement('span');
+      probe.style.cssText = 'position:absolute;visibility:hidden;font-size:24px;white-space:nowrap';
+      document.body.appendChild(probe);
+      var seen = {}, broken = [];
+      $$('.mi,.mif', phone).forEach(function (e) {
+        var n = norm(e.textContent), cls = e.className;
+        if (!/^[a-z0-9_]+$/.test(n) || seen[cls + n]) return;
+        seen[cls + n] = 1;
+        probe.className = cls;
+        probe.textContent = n;
+        if (probe.getBoundingClientRect().width > 34) broken.push(n + ' (' + cls + ')');
+      });
+      probe.remove();
+      if (broken.length) console.warn('[proto] icon names with no glyph:\n' + broken.join('\n'));
+    });
+  }
   window.__proto = { go: go, back: back, state: state, miss: MISS };
 })();
