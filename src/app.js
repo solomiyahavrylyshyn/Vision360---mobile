@@ -561,6 +561,10 @@
       go('est-new-option', 'modal');
     },
     estSaveOption: function () {
+      if (!optionItems.length) {
+        toast('Add at least one item before saving the option', 'info');
+        return;
+      }
       var first = state.est === 'none';
       state.est = 'draft';
       var added = first ? true : addOption();
@@ -1062,7 +1066,20 @@
      ========================================================= */
   var MONTHLY_FACTOR = 0.0129;        // the plan card's own "Monthly factor 1.29%"
   var optionItems = [];
-  var optItemsBox = null, optEmptyState = null, optSummary = null;
+  var optItemsBox = null, optEmptyState = null, optSummary = null, optSaveBtn = null;
+
+  /* The design draws this Save greyed out — that's the empty-option state,
+     not decoration. It stays off until the option has something in it. */
+  var SAVE_OFF = 'height:42px;padding:0 20px;display:flex;align-items:center;' +
+    'background:#EDF0F5;color:#A9B4C2;border-radius:9px;font:600 14.5px/1 Geist';
+  var SAVE_ON = 'height:42px;padding:0 20px;display:flex;align-items:center;' +
+    'background:#4A6FA5;color:#fff;border-radius:9px;font:600 14.5px/1 Geist';
+  function paintOptionSave() {
+    if (!optSaveBtn) return;
+    var ready = optionItems.length > 0;
+    optSaveBtn.setAttribute('style', ready ? SAVE_ON : SAVE_OFF);
+    optSaveBtn.dataset.ready = ready ? '1' : '';
+  }
   (function () {
     var root = byId('est-new-option'); if (!root) return;
     var heading = sel(root, 'Option items')[0];
@@ -1073,7 +1090,9 @@
       monthly: valueNextTo(root, 'Monthly payment'),
       total: valueNextTo(root, 'Total')
     };
-    if (!optItemsBox || !optEmptyState || !optSummary.count) MISS.push('est-new-option :: items');
+    optSaveBtn = sel(root, 'Save')[0];
+    if (!optItemsBox || !optEmptyState || !optSummary.count || !optSaveBtn) MISS.push('est-new-option :: items');
+    paintOptionSave();
   })();
 
   function valueNextTo(root, label) {
@@ -1130,6 +1149,7 @@
       optItemsBox.insertBefore(card, optEmptyState);
     });
     paintOptionSummary();
+    paintOptionSave();
   }
   steppers('est-option', ['Adjusted total', 'Total']);
   steppers('add-items', ['Section total']);
