@@ -67,6 +67,27 @@ body{
   background:rgba(255,255,255,.22);padding:5px 8px;border-radius:6px;
 }
 
+/* upload state — US-M06-4 (success/failure per upload, retry only what failed) */
+.uptray{
+  flex:none;display:none;align-items:center;gap:11px;padding:10px 16px;
+  background:#fff;border-bottom:1px solid var(--line);position:relative;z-index:54;
+}
+.uptray.on{display:flex}
+.uptray>.mi{font-size:20px;color:var(--brand);flex:none}
+.uptray .body{flex:1;min-width:0}
+.uptray .msg{font:600 13px/1.3 Geist;color:var(--ink)}
+.uptray .track{height:4px;border-radius:2px;background:var(--line2);margin-top:7px;overflow:hidden}
+.uptray .fill{height:100%;width:0;border-radius:2px;background:var(--brand);transition:width .25s linear}
+.uptray.done>.mi{color:var(--ok)}
+.uptray.done .fill{background:var(--ok)}
+.uptray.failed>.mi{color:var(--bad)}
+.uptray.failed .fill{background:var(--bad)}
+.uptray.done .track,.uptray.failed .track{display:none}
+.uptray .retry{
+  flex:none;font:600 13px/1 Geist;color:var(--brand);background:var(--pale);
+  border:1px solid var(--edge);border-radius:8px;padding:9px 13px;cursor:pointer;
+}
+
 /* signature capture — US-M10-2, US-M12-6, US-M12-7 */
 .sigwrap{position:relative}
 .sigwrap canvas{
@@ -250,6 +271,15 @@ body.dev #indexBtn{display:flex}
         <span class="mi">cloud_off</span>
         <span id="netmsg">Offline — working from saved data</span>
         <span class="q" id="netq" hidden>0 queued</span>
+      </div>
+
+      <div class="uptray" id="uptray">
+        <span class="mi" id="upIcon">cloud_upload</span>
+        <div class="body">
+          <div class="msg" id="upMsg">Uploading</div>
+          <div class="track"><div class="fill" id="upFill"></div></div>
+        </div>
+        <span class="retry" id="upRetry" hidden>Retry</span>
       </div>
 
       <div class="viewport" id="viewport">
@@ -3286,7 +3316,21 @@ body.dev #indexBtn{display:flex}
       requestAnimationFrame(function () { b.style.opacity = '0'; b.style.height = '0'; b.style.padding = '0 16px'; });
     },
 
-    estSaveOption: function () { state.est = 'draft'; go('est-draft', 'root'); toast('Option saved to draft estimate'); },
+    newOption: function () {
+      if (optCount >= MAX_OPTIONS) {
+        toast('Maximum ' + MAX_OPTIONS + ' options per job', 'block');
+        return;
+      }
+      go('est-new-option', 'modal');
+    },
+    estSaveOption: function () {
+      var first = state.est === 'none';
+      state.est = 'draft';
+      var added = first ? true : addOption();
+      go('est-draft', 'root');
+      queued('Estimate');
+      toast(added ? 'Option saved to draft estimate' : 'Maximum ' + MAX_OPTIONS + ' options per job');
+    },
     estSendReview: function () { state.est = 'review'; go('est-review', 'replace'); toast('Sent to your manager for review', 'send'); },
     estApprove: function () { state.est = 'ready'; go('est-ready', 'replace'); toast('Manager approved — ready to present', 'verified'); },
     estOrder: function () { state.est = 'approved'; closeOverlays(true); go('est-approved', 'root'); toast('Order confirmed · Option C signed'); },
@@ -3304,10 +3348,8 @@ body.dev #indexBtn{display:flex}
       toast(net.online ? 'Report Card saved' : 'Report Card saved locally — will sync');
     },
     mediaSaved: function () {
-      queued('Photo');
       back();
-      toast(net.online ? 'Photo uploaded' : 'Photo saved — will upload on reconnect',
-        net.online ? 'cloud_done' : 'cloud_off');
+      startUpload(1);
     },
     // "Set to Completed" runs the SOP closeout first — the job isn't done
     // until the twelve fields are in (US-M05-2)
@@ -3369,7 +3411,7 @@ body.dev #indexBtn{display:flex}
       ['@photo_camera^1', 'ov-media-source'],
       ['@edit_note^1', 'ov-note-tech'],
       ['@fact_check^1', 'rc-overview'],
-      ['@request_quote^1', null, null]
+      ['@request_quote^1', 'act:jobEst']
     ],
     'ov-notes': [],
     'photos': [
@@ -3419,7 +3461,7 @@ body.dev #indexBtn{display:flex}
     'rc-changes': [],
     'est-empty': [
       ['@play_arrow^1', 'act:start'],
-      ['@add^1', 'est-new-option', 'modal']
+      ['@add^1', 'act:newOption']
     ],
     'est-new-option': [
       ['Save', 'act:estSaveOption'],
@@ -3444,7 +3486,8 @@ body.dev #indexBtn{display:flex}
       ['@more_vert', 'ov-option-menu'],
       ['@send^1', 'act:estSendReview'],
       ['Option A^1', 'est-option', 'modal'],
-      ['@Add down payment', null]
+      ['~Add new option', 'act:newOption'],
+      ['~Add down payment', null]
     ],
     'ov-option-menu': [
       ['@edit^1', 'est-option', 'modal'],
@@ -3757,11 +3800,92 @@ body.dev #indexBtn{display:flex}
       netmsg.textContent = 'All changes synced';
       paintNet();
       setTimeout(function () { netbar.classList.remove('on', 'synced'); }, 2200);
+      if (upPending) startUpload(upPending);   // photos held back go up too
     }, 1100);
   }
   window.addEventListener('offline', goOffline);
   window.addEventListener('online', goOnline);
   if (!net.online) goOffline();
+
+  /* =========================================================
+     US-M06-4 — a photo upload is visible while it happens, says whether
+     it landed, and offers a retry for the ones that didn't. The counts
+     around the app move only once the upload actually succeeds, so a
+     failure can't quietly inflate them.
+     ========================================================= */
+  var photoCount = 24;
+  var countRefs = [];
+  (function () {
+    ['home', 'home-active'].forEach(function (id) {
+      var pill = sel(byId(id), '@photo_library^1')[0];
+      if (!pill) return;
+      var t = pill.childNodes[pill.childNodes.length - 1];
+      if (t && t.nodeType === 3) countRefs.push(function (n) { t.nodeValue = n + ' Photos'; });
+    });
+    var ph = byId('photos');
+    if (ph) {
+      var title = sel(ph, 'Photos')[0];
+      var badge = title && title.nextElementSibling;
+      if (badge && /^\d+$/.test(norm(badge.textContent))) {
+        countRefs.push(function (n) { badge.textContent = String(n); });
+      }
+      var all = sel(ph, 'All 24')[0];
+      if (all) countRefs.push(function (n) { all.textContent = 'All ' + n; });
+    }
+  })();
+  function paintPhotoCount() {
+    countRefs.forEach(function (f) { f(photoCount); });
+  }
+
+  var upTray = byId('uptray'), upIcon = byId('upIcon'), upMsg = byId('upMsg'),
+    upFill = byId('upFill'), upRetry = byId('upRetry');
+  var upTimer = null, upHide = null, upPending = 0;
+
+  function upState(cls, icon, msg, showRetry) {
+    upTray.className = 'uptray on' + (cls ? ' ' + cls : '');
+    upIcon.textContent = icon;
+    upMsg.textContent = msg;
+    upRetry.hidden = !showRetry;
+  }
+  function plural(n) { return n === 1 ? 'photo' : 'photos'; }
+
+  function startUpload(n) {
+    clearTimeout(upHide); clearInterval(upTimer);
+    upPending = n;
+    if (!net.online) {
+      // nothing to show progress for — it waits for signal (US-M14-2)
+      upState('failed', 'cloud_off', n + ' ' + plural(n) + ' waiting for signal', false);
+      queued('Photo');
+      upHide = setTimeout(function () { upTray.classList.remove('on'); }, 3200);
+      return;
+    }
+    // progress is driven off elapsed time, not tick count — a backgrounded tab
+    // throttles timers, and a bar that crawls because of that is a lie
+    var t0 = Date.now(), DUR = 2000;
+    upFill.style.width = '0%';
+    upState('', 'cloud_upload', 'Uploading ' + n + ' ' + plural(n) + '…', false);
+    upTimer = setInterval(function () {
+      // a dropped connection mid-upload is exactly the case that needs a retry
+      if (!net.online) {
+        clearInterval(upTimer);
+        upState('failed', 'error_outline', n + ' ' + plural(n) + ' failed — no connection', true);
+        return;
+      }
+      var pct = Math.min(100, (Date.now() - t0) / DUR * 100);
+      upFill.style.width = pct + '%';
+      if (pct >= 100) {
+        clearInterval(upTimer);
+        photoCount += upPending;
+        upPending = 0;
+        paintPhotoCount();
+        upState('done', 'cloud_done', n + ' ' + plural(n) + ' uploaded', false);
+        upHide = setTimeout(function () { upTray.classList.remove('on'); }, 2600);
+      }
+    }, 220);
+  }
+  upRetry.addEventListener('click', function () {
+    if (upPending) startUpload(upPending);
+  });
 
   /* =========================================================
      US-M03-9 (policy) — a technician sees only the job in front of
@@ -4026,6 +4150,119 @@ body.dev #indexBtn{display:flex}
       showSaveBar('rc-tech');
     });
   })();
+
+  /* =========================================================
+     US-W11-1 / W-11 (decision) — four options, and the same four
+     everywhere. The mockup's "3/6" was the outlier: FR-5.12 says up to 4
+     and the SOP presents exactly 4.
+     ========================================================= */
+  var MAX_OPTIONS = 4;
+  var optCount = 3;              // the accepted draft ships with A, B and C
+  var optList = null, optAddBtn = null, optCard = null, optFooter = null;
+  (function () {
+    var root = byId('est-draft'); if (!root) return;
+    var a = sel(root, 'Option A')[0];
+    optCard = a && a.closest('div[style*="border-radius"]');
+    optList = optCard && optCard.parentElement;
+    optAddBtn = sel(root, '@add^1')[0];
+    optFooter = sel(root, 'Options: 3/6')[0];
+    if (!optCard || !optList || !optFooter) { MISS.push('est-draft :: options'); return; }
+    paintOptions();
+
+    // the empty state quotes the limit too
+    var empty = sel(byId('est-empty'), 'Start by adding a new option. You can create up to 6 options for this job.')[0];
+    if (empty) empty.textContent = 'Start by adding a new option. You can create up to ' +
+      MAX_OPTIONS + ' options for this job.';
+  })();
+
+  function paintOptions() {
+    if (optFooter) optFooter.textContent = 'Options: ' + optCount + '/' + MAX_OPTIONS;
+    if (optAddBtn) optAddBtn.style.opacity = optCount >= MAX_OPTIONS ? '.45' : '';
+  }
+
+  function addOption() {
+    if (!optCard || !optList) return false;
+    if (optCount >= MAX_OPTIONS) return false;
+    var copy = optCard.cloneNode(true);
+    var title = $$('span', copy).filter(function (e) { return /^Option [A-Z]$/.test(norm(e.textContent)); })[0];
+    if (title) title.textContent = 'Option ' + String.fromCharCode(65 + optCount);
+    optList.insertBefore(copy, optAddBtn && optAddBtn.parentElement === optList ? optAddBtn : null);
+    optCount++;
+    paintOptions();
+    return true;
+  }
+
+  /* =========================================================
+     US-M05-1 — "Add note" actually adds one, stamped with the author
+     and the time, into the same card the sheet already uses.
+     ========================================================= */
+  function noteStamp() {
+    var d = new Date();
+    var m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    var h = d.getHours() % 12 || 12;
+    return m[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear() + ' – ' +
+      h + ':' + String(d.getMinutes()).padStart(2, '0') + ' ' + (d.getHours() < 12 ? 'AM' : 'PM');
+  }
+
+  function noteComposer(screenId) {
+    var root = byId(screenId); if (!root) return;
+    var btn = sel(root, '@add^1')[0];
+    if (!btn) { MISS.push(screenId + ' :: add note'); return; }
+    var slot = btn.parentElement;
+    var list = slot.previousElementSibling;
+    var card = list && list.firstElementChild;
+    if (!card) { MISS.push(screenId + ' :: note list'); return; }
+
+    var template = card.cloneNode(true);
+    var badge = null;
+    $$('span', root).forEach(function (e) {
+      if (!badge && /^\d+$/.test(norm(e.textContent)) && /border-radius:5px/.test(e.getAttribute('style') || '')) badge = e;
+    });
+
+    var composer = document.createElement('div');
+    composer.innerHTML =
+      '<textarea class="inp" rows="3" placeholder="Write the note" ' +
+      'style="height:auto;padding:11px 12px;font:400 15px/1.5 Geist;resize:none"></textarea>' +
+      '<div style="display:flex;gap:9px;margin-top:9px">' +
+      '<div data-cancel style="flex:1;height:46px;display:flex;align-items:center;justify-content:center;' +
+      'background:#fff;border:1px solid #C8D5E8;color:#546478;border-radius:10px;font:600 14.5px/1 Geist">Cancel</div>' +
+      '<div data-save style="flex:1;height:46px;display:flex;align-items:center;justify-content:center;' +
+      'background:#4A6FA5;color:#fff;border-radius:10px;font:600 14.5px/1 Geist">Save note</div></div>';
+
+    function close() { composer.remove(); btn.style.display = ''; }
+
+    btn.dataset.tap = '1';
+    btn.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      btn.style.display = 'none';
+      slot.appendChild(composer);
+      var ta = $('textarea', composer);
+      ta.value = '';
+      setTimeout(function () { ta.focus(); }, 30);
+    }, true);
+
+    composer.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      var ta = $('textarea', composer);
+      if (ev.target.closest('[data-cancel]')) return close();
+      if (!ev.target.closest('[data-save]')) return;
+      var text = ta.value.trim();
+      if (!text) { ta.focus(); return; }
+
+      var note = template.cloneNode(true);
+      var body = note.firstElementChild;
+      body.textContent = text;
+      var meta = $$('span', note);
+      if (meta[0]) meta[0].textContent = noteStamp();
+      if (meta[1]) meta[1].textContent = 'Marek Stroz';
+      list.insertBefore(note, list.firstElementChild);
+      if (badge) badge.textContent = String((parseInt(badge.textContent, 10) || 0) + 1);
+      close();
+      queued('Note');
+      toast(net.online ? 'Note added' : 'Note saved — will sync', 'edit_note');
+    }, true);
+  }
+  ['ov-notes', 'ov-note-tech', 'ov-note-private'].forEach(noteComposer);
 
   /* =========================================================
      Auto-wiring: back arrows, close buttons, overlay scrims
