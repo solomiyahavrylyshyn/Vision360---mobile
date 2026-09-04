@@ -244,19 +244,46 @@
           </div>
           <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
             <div style="background:#1C2B3A;border-radius:14px;padding:16px;margin-bottom:14px;color:#fff">
-              <div style="display:flex;justify-content:space-between;align-items:center">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start">
                 <div>
-                  <div style="font:500 12.5px/1 Geist;color:#9DB4D6;letter-spacing:.05em;text-transform:uppercase">Clocked in</div>
-                  <div style="font:600 32px/1.1 Geist;letter-spacing:-.02em;margin-top:7px" id="tsClock">06:41:12</div>
-                  <div style="font:400 13px/1 Geist;color:#7E93B2;margin-top:6px">Since 8:02 AM &middot; Randy Johnson</div>
+                  <div style="font:500 12.5px/1 Geist;color:#9DB4D6;letter-spacing:.05em;text-transform:uppercase" id="tsMode">Off the clock</div>
+                  <div style="font:600 32px/1.1 Geist;letter-spacing:-.02em;margin-top:7px" id="tsClock">00:00:00</div>
+                  <div style="font:400 13px/1 Geist;color:#7E93B2;margin-top:6px" id="tsSince">Not started</div>
                 </div>
-                <div style="width:56px;height:56px;border-radius:28px;background:#16A34A;display:flex;align-items:center;justify-content:center" data-tap data-toast="Clocked out at 2:43 PM"><span class="mif" style="font-size:26px;color:#fff">stop</span></div>
+                <div style="width:10px;height:10px;border-radius:5px;background:#7E93B2;margin-top:5px" id="tsDot"></div>
+              </div>
+              <!-- US-M15-1: drive and work are clocked separately -->
+              <div style="display:flex;gap:6px;background:rgba(255,255,255,.10);border-radius:10px;padding:4px;margin-top:15px">
+                <div data-tsmode="drive" style="flex:1;text-align:center;padding:10px 0;font:500 13.5px/1 Geist;color:#9DB4D6;border-radius:7px">Driving</div>
+                <div data-tsmode="work" style="flex:1;text-align:center;padding:10px 0;font:500 13.5px/1 Geist;color:#9DB4D6;border-radius:7px">On site</div>
+                <div data-tsmode="off" style="flex:1;text-align:center;padding:10px 0;font:600 13.5px/1 Geist;color:#1C2B3A;background:#fff;border-radius:7px">Stop</div>
               </div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-bottom:18px">
-              <div class="card" style="padding:13px 14px"><div style="font:500 12px/1 Geist;color:#546478">Regular</div><div style="font:600 19px/1.1 Geist;margin-top:7px">32.5h</div></div>
-              <div class="card" style="padding:13px 14px"><div style="font:500 12px/1 Geist;color:#546478">Overtime</div><div style="font:600 19px/1.1 Geist;margin-top:7px;color:#D97706">4.0h</div></div>
-              <div class="card" style="padding:13px 14px"><div style="font:500 12px/1 Geist;color:#546478">Drive</div><div style="font:600 19px/1.1 Geist;margin-top:7px">6.2h</div></div>
+              <div class="card" style="padding:13px 14px"><div style="font:500 12px/1 Geist;color:#546478">Regular</div><div style="font:600 19px/1.1 Geist;margin-top:7px" id="tsRegular">32.5h</div></div>
+              <div class="card" style="padding:13px 14px"><div style="font:500 12px/1 Geist;color:#546478">Overtime</div><div style="font:600 19px/1.1 Geist;margin-top:7px;color:#D97706" id="tsOvertime">4.0h</div></div>
+              <div class="card" style="padding:13px 14px"><div style="font:500 12px/1 Geist;color:#546478">Drive</div><div style="font:600 19px/1.1 Geist;margin-top:7px" id="tsDrive">6.2h</div></div>
+            </div>
+
+            <!-- what the app has recorded is what payroll pays on -->
+            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">Recorded today</div>
+            <div class="card" style="overflow:hidden;margin-bottom:14px">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5">
+                <span style="font:500 14px/1 Geist;color:#546478">Visits completed</span>
+                <span style="font:600 14.5px/1 Geist" id="tsVisits">0 &middot; $0.00 base</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5">
+                <span style="font:500 14px/1 Geist;color:#546478">Sold today</span>
+                <span style="font:600 14.5px/1 Geist" id="tsSold">$0.00</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px">
+                <span style="font:500 14px/1 Geist;color:#546478">On the clock today</span>
+                <span style="font:600 14.5px/1 Geist" id="tsToday">0h 00m</span>
+              </div>
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px;margin-bottom:18px">
+              <span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">info</span>
+              <div style="font:400 12.5px/1.45 Geist;color:#546478">$15 base per visit. Commission is worked out by payroll from what&rsquo;s recorded here &mdash; check it before the week is submitted.</div>
             </div>
             <div style="font:600 16px/1 Geist;margin-bottom:10px">Week of Dec 8</div>
             <div class="card" style="overflow:hidden">

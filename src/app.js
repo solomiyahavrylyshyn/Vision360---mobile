@@ -532,6 +532,7 @@
       state.onsite = true;
       state.enroute = false;          // you've arrived — the en route state is spent
       paintEnroute();
+      setClock('work');
       go('home-active', 'root');
       queued('Job status');
       toast('Job started · timer running', 'play_circle');
@@ -539,6 +540,7 @@
     enroute: function () {
       state.enroute = !state.enroute;
       paintEnroute();
+      setClock(state.enroute ? 'drive' : (state.onsite ? 'work' : 'off'));
       closeOverlays(false);
       queued('Job status');
       toast(state.enroute ? 'Marked en route · customer notified' : 'No longer en route',
@@ -677,6 +679,10 @@
         toast(upPending + ' ' + plural(upPending) + ' still uploading — wait for it', 'sync');
         return;
       }
+      setClock('off');
+      clock.visits++;
+      if (state.est === 'approved') clock.sold += OPTION_TOTALS['Option C'] || 0;
+      paintClock();
       state.onsite = false;
       state.enroute = false;
       state.extra = false;
@@ -1265,6 +1271,87 @@
   window.addEventListener('online', function () { goOnline(); paintCardAvailability(); });
   if (!net.online) goOffline();
   paintCardAvailability();
+
+  /* =========================================================
+     US-M15-1 — drive and work are clocked apart. The timesheet already
+     had a Drive bucket with nothing feeding it; the job statuses feed it
+     now. What the app records here is what payroll pays on, so the tech
+     has to be able to see it.
+     ========================================================= */
+  var jobTimerEl = sel(byId('home-active'), '43:45')[0] || null;
+  var VISIT_BASE = 15;
+  var WEEK = { regular: 32.5, overtime: 4.0, drive: 6.2 };   // Mon–Thu, already banked
+  var clock = { drive: 0, work: 0, mode: 'off', since: 0, visits: 0, sold: 0 };
+
+  function clockFlush() {
+    if (clock.mode === 'off' || !clock.since) return;
+    var secs = (Date.now() - clock.since) / 1000;
+    clock[clock.mode] += secs;
+    clock.since = Date.now();
+  }
+  function setClock(mode) {
+    clockFlush();
+    clock.mode = mode;
+    clock.since = mode === 'off' ? 0 : Date.now();
+    paintClock();
+  }
+  function hm(secs) {
+    var h = Math.floor(secs / 3600), m = Math.floor(secs % 3600 / 60);
+    return h + 'h ' + String(m).padStart(2, '0') + 'm';
+  }
+  function hhmmss(secs) {
+    var h = Math.floor(secs / 3600), m = Math.floor(secs % 3600 / 60), s = Math.floor(secs % 60);
+    return [h, m, s].map(function (n) { return String(n).padStart(2, '0'); }).join(':');
+  }
+
+  var MODE_LABEL = { drive: ['Driving', '#F59E0B'], work: ['On site', '#16A34A'], off: ['Off the clock', '#7E93B2'] };
+  function paintClock() {
+    var running = clock.mode === 'off' ? 0 : (Date.now() - clock.since) / 1000;
+    var lbl = MODE_LABEL[clock.mode];
+    var set = function (id, v) { var e = byId(id); if (e) e.textContent = v; };
+
+    set('tsMode', lbl[0]);
+    var dot = byId('tsDot'); if (dot) dot.style.background = lbl[1];
+    set('tsClock', hhmmss(clock.mode === 'off' ? clock.drive + clock.work : running));
+    set('tsSince', clock.mode === 'off'
+      ? (clock.drive + clock.work ? 'Total on the clock today' : 'Not started')
+      : 'Since ' + new Date(clock.since).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) +
+      (JOBS[jobIdx] ? ' · ' + JOBS[jobIdx].name : ''));
+
+    var drive = clock.drive + (clock.mode === 'drive' ? running : 0);
+    var work = clock.work + (clock.mode === 'work' ? running : 0);
+    set('tsDrive', (WEEK.drive + drive / 3600).toFixed(1) + 'h');
+    set('tsRegular', (WEEK.regular + work / 3600).toFixed(1) + 'h');
+    set('tsToday', hm(drive + work));
+    set('tsVisits', clock.visits + ' · ' + fmt(clock.visits * VISIT_BASE) + ' base');
+    set('tsSold', fmt(clock.sold));
+
+    // the header timer on the in-progress screen is the same work clock
+    if (jobTimerEl) {
+      var t = Math.floor(work);
+      jobTimerEl.textContent = Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+    }
+
+    $$('[data-tsmode]').forEach(function (b) {
+      var on = b.dataset.tsmode === clock.mode || (b.dataset.tsmode === 'off' && clock.mode === 'off');
+      b.setAttribute('style', 'flex:1;text-align:center;padding:10px 0;border-radius:7px;' +
+        (on ? 'font:600 13.5px/1 Geist;color:#1C2B3A;background:#fff'
+            : 'font:500 13.5px/1 Geist;color:#9DB4D6'));
+    });
+  }
+
+  $$('[data-tsmode]').forEach(function (b) {
+    b.dataset.tap = '1';
+    b.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      var m = b.dataset.tsmode;
+      setClock(m);
+      toast(m === 'off' ? 'Clocked out' : 'Clocked in — ' + MODE_LABEL[m][0].toLowerCase(),
+        m === 'drive' ? 'navigation' : m === 'work' ? 'play_circle' : 'stop_circle');
+    }, true);
+  });
+  setInterval(function () { if (clock.mode !== 'off') paintClock(); }, 1000);
+  paintClock();
 
   /* =========================================================
      US-M06-4 — a photo upload is visible while it happens, says whether
@@ -2437,14 +2524,6 @@
   }
   tick(); setInterval(tick, 15000);
 
-  /* timesheet running clock */
-  var tsSec = 6 * 3600 + 41 * 60 + 12;
-  setInterval(function () {
-    tsSec++;
-    var el = byId('tsClock'); if (!el) return;
-    var h = Math.floor(tsSec / 3600), m = Math.floor(tsSec % 3600 / 60), s = tsSec % 60;
-    el.textContent = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
-  }, 1000);
 
   /* ---------- boot ---------- */
   function boot() {

@@ -493,19 +493,46 @@ body.dev #indexBtn{display:flex}
           </div>
           <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
             <div style="background:#1C2B3A;border-radius:14px;padding:16px;margin-bottom:14px;color:#fff">
-              <div style="display:flex;justify-content:space-between;align-items:center">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start">
                 <div>
-                  <div style="font:500 12.5px/1 Geist;color:#9DB4D6;letter-spacing:.05em;text-transform:uppercase">Clocked in</div>
-                  <div style="font:600 32px/1.1 Geist;letter-spacing:-.02em;margin-top:7px" id="tsClock">06:41:12</div>
-                  <div style="font:400 13px/1 Geist;color:#7E93B2;margin-top:6px">Since 8:02 AM &middot; Randy Johnson</div>
+                  <div style="font:500 12.5px/1 Geist;color:#9DB4D6;letter-spacing:.05em;text-transform:uppercase" id="tsMode">Off the clock</div>
+                  <div style="font:600 32px/1.1 Geist;letter-spacing:-.02em;margin-top:7px" id="tsClock">00:00:00</div>
+                  <div style="font:400 13px/1 Geist;color:#7E93B2;margin-top:6px" id="tsSince">Not started</div>
                 </div>
-                <div style="width:56px;height:56px;border-radius:28px;background:#16A34A;display:flex;align-items:center;justify-content:center" data-tap data-toast="Clocked out at 2:43 PM"><span class="mif" style="font-size:26px;color:#fff">stop</span></div>
+                <div style="width:10px;height:10px;border-radius:5px;background:#7E93B2;margin-top:5px" id="tsDot"></div>
+              </div>
+              <!-- US-M15-1: drive and work are clocked separately -->
+              <div style="display:flex;gap:6px;background:rgba(255,255,255,.10);border-radius:10px;padding:4px;margin-top:15px">
+                <div data-tsmode="drive" style="flex:1;text-align:center;padding:10px 0;font:500 13.5px/1 Geist;color:#9DB4D6;border-radius:7px">Driving</div>
+                <div data-tsmode="work" style="flex:1;text-align:center;padding:10px 0;font:500 13.5px/1 Geist;color:#9DB4D6;border-radius:7px">On site</div>
+                <div data-tsmode="off" style="flex:1;text-align:center;padding:10px 0;font:600 13.5px/1 Geist;color:#1C2B3A;background:#fff;border-radius:7px">Stop</div>
               </div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-bottom:18px">
-              <div class="card" style="padding:13px 14px"><div style="font:500 12px/1 Geist;color:#546478">Regular</div><div style="font:600 19px/1.1 Geist;margin-top:7px">32.5h</div></div>
-              <div class="card" style="padding:13px 14px"><div style="font:500 12px/1 Geist;color:#546478">Overtime</div><div style="font:600 19px/1.1 Geist;margin-top:7px;color:#D97706">4.0h</div></div>
-              <div class="card" style="padding:13px 14px"><div style="font:500 12px/1 Geist;color:#546478">Drive</div><div style="font:600 19px/1.1 Geist;margin-top:7px">6.2h</div></div>
+              <div class="card" style="padding:13px 14px"><div style="font:500 12px/1 Geist;color:#546478">Regular</div><div style="font:600 19px/1.1 Geist;margin-top:7px" id="tsRegular">32.5h</div></div>
+              <div class="card" style="padding:13px 14px"><div style="font:500 12px/1 Geist;color:#546478">Overtime</div><div style="font:600 19px/1.1 Geist;margin-top:7px;color:#D97706" id="tsOvertime">4.0h</div></div>
+              <div class="card" style="padding:13px 14px"><div style="font:500 12px/1 Geist;color:#546478">Drive</div><div style="font:600 19px/1.1 Geist;margin-top:7px" id="tsDrive">6.2h</div></div>
+            </div>
+
+            <!-- what the app has recorded is what payroll pays on -->
+            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">Recorded today</div>
+            <div class="card" style="overflow:hidden;margin-bottom:14px">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5">
+                <span style="font:500 14px/1 Geist;color:#546478">Visits completed</span>
+                <span style="font:600 14.5px/1 Geist" id="tsVisits">0 &middot; $0.00 base</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5">
+                <span style="font:500 14px/1 Geist;color:#546478">Sold today</span>
+                <span style="font:600 14.5px/1 Geist" id="tsSold">$0.00</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px">
+                <span style="font:500 14px/1 Geist;color:#546478">On the clock today</span>
+                <span style="font:600 14.5px/1 Geist" id="tsToday">0h 00m</span>
+              </div>
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px;margin-bottom:18px">
+              <span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">info</span>
+              <div style="font:400 12.5px/1.45 Geist;color:#546478">$15 base per visit. Commission is worked out by payroll from what&rsquo;s recorded here &mdash; check it before the week is submitted.</div>
             </div>
             <div style="font:600 16px/1 Geist;margin-bottom:10px">Week of Dec 8</div>
             <div class="card" style="overflow:hidden">
@@ -3350,6 +3377,7 @@ body.dev #indexBtn{display:flex}
       state.onsite = true;
       state.enroute = false;          // you've arrived — the en route state is spent
       paintEnroute();
+      setClock('work');
       go('home-active', 'root');
       queued('Job status');
       toast('Job started · timer running', 'play_circle');
@@ -3357,6 +3385,7 @@ body.dev #indexBtn{display:flex}
     enroute: function () {
       state.enroute = !state.enroute;
       paintEnroute();
+      setClock(state.enroute ? 'drive' : (state.onsite ? 'work' : 'off'));
       closeOverlays(false);
       queued('Job status');
       toast(state.enroute ? 'Marked en route · customer notified' : 'No longer en route',
@@ -3495,6 +3524,10 @@ body.dev #indexBtn{display:flex}
         toast(upPending + ' ' + plural(upPending) + ' still uploading — wait for it', 'sync');
         return;
       }
+      setClock('off');
+      clock.visits++;
+      if (state.est === 'approved') clock.sold += OPTION_TOTALS['Option C'] || 0;
+      paintClock();
       state.onsite = false;
       state.enroute = false;
       state.extra = false;
@@ -4083,6 +4116,87 @@ body.dev #indexBtn{display:flex}
   window.addEventListener('online', function () { goOnline(); paintCardAvailability(); });
   if (!net.online) goOffline();
   paintCardAvailability();
+
+  /* =========================================================
+     US-M15-1 — drive and work are clocked apart. The timesheet already
+     had a Drive bucket with nothing feeding it; the job statuses feed it
+     now. What the app records here is what payroll pays on, so the tech
+     has to be able to see it.
+     ========================================================= */
+  var jobTimerEl = sel(byId('home-active'), '43:45')[0] || null;
+  var VISIT_BASE = 15;
+  var WEEK = { regular: 32.5, overtime: 4.0, drive: 6.2 };   // Mon–Thu, already banked
+  var clock = { drive: 0, work: 0, mode: 'off', since: 0, visits: 0, sold: 0 };
+
+  function clockFlush() {
+    if (clock.mode === 'off' || !clock.since) return;
+    var secs = (Date.now() - clock.since) / 1000;
+    clock[clock.mode] += secs;
+    clock.since = Date.now();
+  }
+  function setClock(mode) {
+    clockFlush();
+    clock.mode = mode;
+    clock.since = mode === 'off' ? 0 : Date.now();
+    paintClock();
+  }
+  function hm(secs) {
+    var h = Math.floor(secs / 3600), m = Math.floor(secs % 3600 / 60);
+    return h + 'h ' + String(m).padStart(2, '0') + 'm';
+  }
+  function hhmmss(secs) {
+    var h = Math.floor(secs / 3600), m = Math.floor(secs % 3600 / 60), s = Math.floor(secs % 60);
+    return [h, m, s].map(function (n) { return String(n).padStart(2, '0'); }).join(':');
+  }
+
+  var MODE_LABEL = { drive: ['Driving', '#F59E0B'], work: ['On site', '#16A34A'], off: ['Off the clock', '#7E93B2'] };
+  function paintClock() {
+    var running = clock.mode === 'off' ? 0 : (Date.now() - clock.since) / 1000;
+    var lbl = MODE_LABEL[clock.mode];
+    var set = function (id, v) { var e = byId(id); if (e) e.textContent = v; };
+
+    set('tsMode', lbl[0]);
+    var dot = byId('tsDot'); if (dot) dot.style.background = lbl[1];
+    set('tsClock', hhmmss(clock.mode === 'off' ? clock.drive + clock.work : running));
+    set('tsSince', clock.mode === 'off'
+      ? (clock.drive + clock.work ? 'Total on the clock today' : 'Not started')
+      : 'Since ' + new Date(clock.since).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) +
+      (JOBS[jobIdx] ? ' · ' + JOBS[jobIdx].name : ''));
+
+    var drive = clock.drive + (clock.mode === 'drive' ? running : 0);
+    var work = clock.work + (clock.mode === 'work' ? running : 0);
+    set('tsDrive', (WEEK.drive + drive / 3600).toFixed(1) + 'h');
+    set('tsRegular', (WEEK.regular + work / 3600).toFixed(1) + 'h');
+    set('tsToday', hm(drive + work));
+    set('tsVisits', clock.visits + ' · ' + fmt(clock.visits * VISIT_BASE) + ' base');
+    set('tsSold', fmt(clock.sold));
+
+    // the header timer on the in-progress screen is the same work clock
+    if (jobTimerEl) {
+      var t = Math.floor(work);
+      jobTimerEl.textContent = Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+    }
+
+    $$('[data-tsmode]').forEach(function (b) {
+      var on = b.dataset.tsmode === clock.mode || (b.dataset.tsmode === 'off' && clock.mode === 'off');
+      b.setAttribute('style', 'flex:1;text-align:center;padding:10px 0;border-radius:7px;' +
+        (on ? 'font:600 13.5px/1 Geist;color:#1C2B3A;background:#fff'
+            : 'font:500 13.5px/1 Geist;color:#9DB4D6'));
+    });
+  }
+
+  $$('[data-tsmode]').forEach(function (b) {
+    b.dataset.tap = '1';
+    b.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      var m = b.dataset.tsmode;
+      setClock(m);
+      toast(m === 'off' ? 'Clocked out' : 'Clocked in — ' + MODE_LABEL[m][0].toLowerCase(),
+        m === 'drive' ? 'navigation' : m === 'work' ? 'play_circle' : 'stop_circle');
+    }, true);
+  });
+  setInterval(function () { if (clock.mode !== 'off') paintClock(); }, 1000);
+  paintClock();
 
   /* =========================================================
      US-M06-4 — a photo upload is visible while it happens, says whether
@@ -5255,14 +5369,6 @@ body.dev #indexBtn{display:flex}
   }
   tick(); setInterval(tick, 15000);
 
-  /* timesheet running clock */
-  var tsSec = 6 * 3600 + 41 * 60 + 12;
-  setInterval(function () {
-    tsSec++;
-    var el = byId('tsClock'); if (!el) return;
-    var h = Math.floor(tsSec / 3600), m = Math.floor(tsSec % 3600 / 60), s = tsSec % 60;
-    el.textContent = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
-  }, 1000);
 
   /* ---------- boot ---------- */
   function boot() {
