@@ -43,6 +43,12 @@
   };
   var RECENT_MONTHS = 12;       // repairs inside this window get flagged
 
+  var RATING = ['Good', 'Attention', 'Immediate'];   // the Report Card's three-state control
+  var RC_GROUPS = {                                   // overview badges: design baseline + what the tech changes
+    'Household Analysis': { base: 4, screens: ['rc-section'] },
+    'System Analysis': { base: 4, screens: ['rc-furnace', 'rc-condenser', 'rc-refrigerant'] }
+  };
+
   /* Lift overlays out of the scrolling viewport into the phone itself, so a
      bottom sheet dims and covers the status bar and tab bar too. */
   var ovLayer = document.createElement('div');
@@ -628,6 +634,7 @@
     estApprove: function () { state.est = 'ready'; go('est-ready', 'replace'); toast('Manager approved — ready to present', 'verified'); },
     estOrder: function () {
       state.est = 'approved';
+      kpiSale(OPTION_TOTALS['Option C'] || 0);     // the dashboard on Home moves
       closeOverlays(true);
       go('est-approved', 'root');
       queued('Estimate');
@@ -667,6 +674,7 @@
         return;
       }
       state.inv = 'paid';
+      kpiPaid(2000);                                // the "To be paid" figure lands in Revenue
       closeOverlays(true);
       go('inv-paid', 'root');
       queued('Payment');
@@ -1072,7 +1080,10 @@
   seg('period-quarter', ['2025', '2024', '2023', '2022', '2021', '2020', '2019', '2018'], 1);
   seg('period-week', ['Week 11^1', 'Week 12^1', 'Week 13^1', 'Week 14^1', 'Week 15^1', 'Week 16^1',
     'Week 17^1', 'Week 18^1', 'Week 19^1', 'Week 20^1', 'Week 21^1', 'Week 22^1'], 2);
-  seg('rc-section', ['Good', 'Attention', 'Immediate'], 0);
+  // every Good / Attention / Immediate row on every Report Card screen — the
+  // System Analysis rows had never been wired; only their sub-tabs were
+  ['rc-section', 'rc-furnace', 'rc-condenser', 'rc-refrigerant'].forEach(ratingRows);
+  paintRcBadges();
   ['rc-furnace', 'rc-condenser', 'rc-refrigerant'].forEach(function (id) {
     seg(id, ['Furnace', 'Condenser', 'Refrigerant'], ['rc-furnace', 'rc-condenser', 'rc-refrigerant'].indexOf(id),
       function (i) { go(['rc-furnace', 'rc-condenser', 'rc-refrigerant'][i], 'replace'); });
@@ -1605,6 +1616,74 @@
       '<div style="font:400 13px/1.4 Geist;color:#546478">Report Card · <b style="font-weight:600;color:#1A2332">' +
       pendingSlot.item + '</b> · slot <b style="font-weight:600;color:#1A2332">' + pendingSlot.slot + '</b></div>';
   }
+
+  /* =========================================================
+     A dashboard that moves. Sign an estimate and Conversions and Closing
+     tick up; take a payment and Revenue does. The seeds are the design's
+     own figures (22.5% of 14, 27% of 14), kept as fractions so the first
+     paint shows exactly what the mockup shows.
+     ========================================================= */
+  var kpi = Object.assign({
+    revenue: 65200, target: 300000,
+    estValue: 420000, estimates: 14, conv: 0.225 * 14,
+    closed: 0.27 * 14, closeTarget: 45,
+    avgTicket: 1200, avgTarget: 2000
+  }, recall('kpi', {}));
+
+  function kfmt(n) {                      // the mockup writes $65,2k — comma decimal
+    return '$' + (n / 1000).toFixed(1).replace('.', ',') + 'k';
+  }
+  var kpiRefs = null;
+  function kpiRefsGet() {
+    if (kpiRefs) return kpiRefs;
+    var home = byId('home'); if (!home) return null;
+    function card(text) {
+      var v = sel(home, text)[0]; if (!v) return null;
+      var c = v.closest('div[style*="border-radius:12px"]');
+      return { value: v, bar: c ? $('div[style*="height:5px"] > div', c) : null, card: c };
+    }
+    kpiRefs = {
+      rev: card('$65,2k / $300k'),
+      est: card('$420k'),
+      avg: card('$1,2k / $2,0k'),
+      close: card('27% / 45%'),
+      convPct: sel(home, '22.5%')[0],
+      estCount: sel(home, 'Of 14 estimates')[0]
+    };
+    return kpiRefs;
+  }
+  function setLead(el, lead) {            // "$65,2k <span>/ $300k</span>" — only the lead changes
+    if (!el) return;
+    var t = el.firstChild;
+    if (t && t.nodeType === 3) t.nodeValue = lead + ' '; else el.textContent = lead;
+  }
+  function paintKPI() {
+    var r = kpiRefsGet(); if (!r) return;
+    var pct = function (a, b) { return Math.max(0, Math.min(100, a / b * 100)); };
+    if (r.rev) { setLead(r.rev.value, kfmt(kpi.revenue)); if (r.rev.bar) r.rev.bar.style.width = pct(kpi.revenue, kpi.target) + '%'; }
+    if (r.est) {
+      r.est.value.textContent = '$' + Math.round(kpi.estValue / 1000) + 'k';
+      var cp = kpi.conv / kpi.estimates * 100;
+      if (r.convPct) r.convPct.textContent = cp.toFixed(1) + '%';
+      if (r.est.bar) r.est.bar.style.width = pct(cp, 100) + '%';
+    }
+    if (r.avg) { setLead(r.avg.value, kfmt(kpi.avgTicket)); if (r.avg.bar) r.avg.bar.style.width = pct(kpi.avgTicket, kpi.avgTarget) + '%'; }
+    if (r.close) {
+      var cl = kpi.closed / kpi.estimates * 100;
+      setLead(r.close.value, Math.round(cl) + '%');
+      if (r.close.bar) r.close.bar.style.width = pct(cl, kpi.closeTarget) + '%';
+      if (r.estCount) r.estCount.textContent = 'Of ' + kpi.estimates + ' estimates';
+    }
+    remember('kpi', kpi);
+  }
+  function kpiSale(total) {
+    kpi.conv += 1; kpi.closed += 1;
+    kpi.estValue += total;
+    kpi.avgTicket = (kpi.avgTicket * (kpi.closed - 1) + total) / kpi.closed;
+    paintKPI();
+  }
+  function kpiPaid(amount) { kpi.revenue += amount; paintKPI(); }
+  paintKPI();
 
   /* =========================================================
      US-M03-9 (policy) — a technician sees only the job in front of
@@ -2334,6 +2413,93 @@
       ic.addEventListener('click', function (ev) { ev.stopPropagation(); a.click(); }, true);
     });
   });
+
+  /* =========================================================
+     Report Card ratings that count. Each Good / Attention / Immediate row is
+     its own three-way control, the pick is kept, and the section badges on
+     the overview move with them — so a tech sees where the red is before
+     opening anything, which is what the badges were drawn for.
+     ========================================================= */
+  function rcPicks() {
+    var p = recall('rcPicks', null);
+    if (!p) { p = {}; remember('rcPicks', p); }
+    return p;
+  }
+  function ratingRows(screenId) {
+    var root = byId(screenId); if (!root) return;
+    // the first three children are the control; a slot camera may follow them
+    // in the same row (Household's Wi-Fi item does exactly that)
+    var rows = $$('div', root).filter(function (e) {
+      return e.children.length >= 3 && RATING.every(function (l, i) { return norm(e.children[i].textContent) === l; });
+    });
+    var picks = rcPicks();
+    // The two looks are fixed, not read off the DOM: reading them at wire time
+    // breaks the moment a row has already been painted (a second pass, or a
+    // restore) — the "inactive" sample is then an active cell, and every row
+    // comes out inverted.
+    var RATE_BASE = 'flex:1;height:44px;display:flex;align-items:center;justify-content:center;border-radius:8px;';
+    var RATE_OFF = RATE_BASE + 'background:#fff;border:1px solid #DDE3EE;color:#546478;font:500 13px/1 Geist';
+    var RATE_ON = { 0: '#16A34A', 1: '#D97706', 2: '#DC2626' };
+    rows.forEach(function (row, idx) {
+      if (row.dataset.rated) return;            // never wire the same row twice
+      row.dataset.rated = '1';
+      var key = screenId + ':' + idx;
+      var kids = Array.prototype.slice.call(row.children, 0, 3);
+      function paint(i) {
+        kids.forEach(function (k, j) {
+          k.setAttribute('style', j === i
+            ? RATE_BASE + 'background:' + RATE_ON[i] + ';color:#fff;font:600 13px/1 Geist'
+            : RATE_OFF);
+        });
+      }
+      kids.forEach(function (k, i) {
+        k.dataset.tap = '1'; k.dataset.seg = '1';
+        k.addEventListener('click', function (ev) {
+          ev.stopPropagation();
+          paint(i);
+          picks[key] = i;
+          remember('rcPicks', picks);
+          paintRcBadges();
+          if (typeof showSaveBar === 'function') showSaveBar(screenId);
+        }, true);
+      });
+      if (picks[key] !== undefined) paint(picks[key]);      // restored from the last session
+    });
+  }
+
+  /* Badges start from the design's own numbers and move by what the tech
+     changed; red if anything in the group is Immediate. */
+  function paintRcBadges() {
+    var root = byId('rc-overview'); if (!root) return;
+    var picks = rcPicks(), touched = false;
+    Object.keys(RC_GROUPS).forEach(function (title) {
+      var g = RC_GROUPS[title], extra = 0, red = false;
+      Object.keys(picks).forEach(function (k) {
+        var scr = k.split(':')[0];
+        if (g.screens.indexOf(scr) < 0) return;
+        touched = true;
+        if (picks[k] > 0) extra++;
+        if (picks[k] === 2) red = true;
+      });
+      // find the badge once and keep it: writing to .style re-serialises the
+      // attribute ("border-radius: 13px"), so matching it again would fail
+      if (!g.badge) {
+        var t = sel(root, title)[0]; if (!t) return;
+        g.badge = $$('span', t.parentElement).filter(function (s) {
+          return /border-radius:\s*13px/.test(s.getAttribute('style') || '');
+        })[0];
+      }
+      var badge = g.badge;
+      if (!badge) return;
+      badge.textContent = String(g.base + extra);
+      badge.style.background = red ? '#FDECEC' : '#FEF3E2';
+      badge.style.color = red ? '#DC2626' : '#D97706';
+    });
+    if (touched) {
+      var lc = $$('span', root).filter(function (s) { return /^Latest change:/.test(norm(s.textContent)); })[0];
+      if (lc) lc.textContent = 'Latest change: ' + stamp() + ' (Marek Stroz)';
+    }
+  }
 
   /* =========================================================
      Auto-wiring: back arrows, close buttons, overlay scrims
