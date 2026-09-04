@@ -67,6 +67,20 @@ The prototype tracks where the job actually is, so the tabs resolve to the right
 * Bottom sheets render over the real screen underneath — dimming the status bar and tab
   bar, as the artboards show — instead of being separate flat screens.
 
+### It keeps what you enter
+
+Everything the technician creates is stored on the device and survives a reload, a
+closed tab or a dead battery: the job they're on and each job's stage, the estimate
+options they built (with their real items and totals), a half-finished option, notes,
+Report Card photo slots, the closeout form keystroke by keystroke, the running clock, the
+photo count, a customer's earlier refusal — and the session itself, so "keep me signed
+in" means no login screen tomorrow.
+
+This is on-device storage (`localStorage`, one versioned key), not a shared server — the
+same offline-first shape the technicians asked for. Syncing between devices is the CORE
+API's job. **More → Reset demo data** wipes it and reloads clean, so a demo always starts
+from the top.
+
 ## Getting around
 
 * Tab bar, back arrows, close buttons and sheet scrims all work.
