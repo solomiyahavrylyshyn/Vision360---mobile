@@ -928,7 +928,8 @@
       ['@add^1', 'add-catalog'],
       ['Payments^1', 'ov-pay-method'],
       ['Invoice details^1', 'inv-details', 'modal'],
-      ['Invoices^1', null]
+      // without this the extras screen is a dead end: no invoice, no sale
+      ['Invoices^1', 'act:createInvoice']
     ],
     'add-catalog': [
       ['Add custom item^1', 'est-custom-item', 'modal'],
@@ -939,7 +940,8 @@
       ['@play_arrow^1', 'act:start'],
       ['@add^1', 'add-catalog'],
       ['Payments^1', 'ov-pay-method'],
-      ['Invoice details^1', 'inv-details', 'modal']
+      ['Invoice details^1', 'inv-details', 'modal'],
+      ['Invoices^1', 'act:createInvoice']
     ],
     'inv-details': [
       ['Save', 'BACK']
