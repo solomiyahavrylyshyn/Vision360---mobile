@@ -14,6 +14,35 @@
   var viewport = byId('viewport');
   var MISS = [];
 
+  /* =========================================================
+     Local store. This is a field app: what the tech enters has to survive
+     a dead battery, a closed tab and a day with no signal. Static hosting
+     has no server of ours, so the device is the store — the same
+     offline-first shape the technicians asked for. One versioned key;
+     every write is small and immediate.
+     ========================================================= */
+  var DB_KEY = 'v360.data.v1';
+  var db = (function () {
+    try { return JSON.parse(localStorage.getItem(DB_KEY) || '{}') || {}; } catch (e) { return {}; }
+  })();
+  function saveDb() { try { localStorage.setItem(DB_KEY, JSON.stringify(db)); } catch (e) { } }
+  function remember(key, val) { db[key] = val; saveDb(); }
+  function recall(key, dflt) { return Object.prototype.hasOwnProperty.call(db, key) ? db[key] : dflt; }
+  function forgetAll() { db = {}; try { localStorage.removeItem(DB_KEY); localStorage.removeItem('v360.overview'); } catch (e) { } }
+
+  /* App data that boot-time code reads. It sits up here, above every block
+     that could touch it, because `var` hoists the name and not the value —
+     declared any later, a restore that runs at boot would find `undefined`.
+     Two bugs in this file came from exactly that. */
+  var RECENT_INSTALL = {        // the unit dispatch keeps in their head today
+    unit: 'the air handler',
+    monthsAgo: 2,
+    paid: 12480,
+    invoice: 'INV-25-11-088',
+    covers: ['Blower Motor Repair', 'Air Handler Replacement', 'Capacitor Replacement']
+  };
+  var RECENT_MONTHS = 12;       // repairs inside this window get flagged
+
   /* Lift overlays out of the scrolling viewport into the phone itself, so a
      bottom sheet dims and covers the status bar and tab bar too. */
   var ovLayer = document.createElement('div');
@@ -167,6 +196,10 @@
     if (typeof JOBS !== 'undefined' && JOBS[jobIdx] && pid !== 'login') {
       JOBS[jobIdx].est = state.est;
       JOBS[jobIdx].inv = state.inv;
+      // every navigation is a checkpoint
+      remember('state', state);
+      remember('jobIdx', jobIdx);
+      remember('jobs', JOBS.map(function (j) { return { est: j.est, inv: j.inv }; }));
     }
     var m = INFO[pid] || {};
     phone.setAttribute('data-tabs', m.tabs ? 'on' : 'off');
@@ -683,6 +716,10 @@
       clock.visits++;
       if (state.est === 'approved') clock.sold += OPTION_TOTALS['Option C'] || 0;
       paintClock();
+      remember('clock', clock);
+      // the closeout form belongs to the visit that just ended
+      $$('#closeout .co-f').forEach(function (f) { f.value = f.tagName === 'TEXTAREA' ? '' : f.defaultValue; });
+      remember('closeout', []);
       state.onsite = false;
       state.enroute = false;
       state.extra = false;
@@ -698,8 +735,14 @@
         : (JOBS[jobIdx] ? 'Job closed — next one unlocked' : 'Job closed — nothing left today'),
         'task_alt');
     },
+    resetDemo: function () {
+      forgetAll();
+      toast('Demo reset — starting clean', 'restart_alt');
+      setTimeout(function () { location.reload(); }, 600);
+    },
     logout: function () {
       state = { onsite: false, enroute: false, est: 'none', inv: 'none', extra: false };
+      remember('signedIn', false);
       go('login', 'root'); toast('Signed out', 'logout');
     }
   };
@@ -1071,6 +1114,19 @@
     });
   })();
 
+  /* The closeout is typed on site, often with the app going in and out of the
+     pocket — every keystroke is kept. */
+  (function () {
+    var fields = $$('#closeout .co-f');
+    var saved = recall('closeout', []);
+    fields.forEach(function (f, i) {
+      if (saved[i] !== undefined && saved[i] !== null) f.value = saved[i];
+      f.addEventListener('input', function () {
+        remember('closeout', fields.map(function (x) { return x.value; }));
+      });
+    });
+  })();
+
   /* US-M13-2 — Reset puts the filter sheet back to its defaults */
   ACT.filtersReset = function () {
     if (resetChips) resetChips();
@@ -1088,7 +1144,8 @@
      back and the option stayed empty.
      ========================================================= */
   var MONTHLY_FACTOR = 0.0129;        // the plan card's own "Monthly factor 1.29%"
-  var optionItems = [];
+  var optionItems = recall('optionItems', []);       // a half-built option survives a reload
+  var addedOptions = recall('addedOptions', []);     // options the tech added beyond A/B/C
   var optItemsBox = null, optEmptyState = null, optSummary = null, optSaveBtn = null;
 
   /* The design draws this Save greyed out — that's the empty-option state,
@@ -1115,7 +1172,7 @@
     };
     optSaveBtn = sel(root, 'Save')[0];
     if (!optItemsBox || !optEmptyState || !optSummary.count || !optSaveBtn) MISS.push('est-new-option :: items');
-    paintOptionSave();
+    renderOptionItems();          // shows whatever was in progress before the reload
   })();
 
   function valueNextTo(root, label) {
@@ -1173,6 +1230,7 @@
     });
     paintOptionSummary();
     paintOptionSave();
+    remember('optionItems', optionItems);
     // flag it while the option is still being built, not after it's sent
     warrantyBanner('est-new-option',
       function () { return optItemsBox; },
@@ -1293,6 +1351,8 @@
   var VISIT_BASE = 15;
   var WEEK = { regular: 32.5, overtime: 4.0, drive: 6.2 };   // Mon–Thu, already banked
   var clock = { drive: 0, work: 0, mode: 'off', since: 0, visits: 0, sold: 0 };
+  // a running clock keeps running through a reload — `since` is a timestamp
+  Object.assign(clock, recall('clock', {}));
 
   function clockFlush() {
     if (clock.mode === 'off' || !clock.since) return;
@@ -1305,6 +1365,7 @@
     clock.mode = mode;
     clock.since = mode === 'off' ? 0 : Date.now();
     paintClock();
+    remember('clock', clock);
   }
   function hm(secs) {
     var h = Math.floor(secs / 3600), m = Math.floor(secs % 3600 / 60);
@@ -1327,7 +1388,8 @@
     set('tsSince', clock.mode === 'off'
       ? (clock.drive + clock.work ? 'Total on the clock today' : 'Not started')
       : 'Since ' + new Date(clock.since).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) +
-      (JOBS[jobIdx] ? ' · ' + JOBS[jobIdx].name : ''));
+      // JOBS is declared further down; a restored running clock paints before it exists
+      (typeof JOBS !== 'undefined' && JOBS[jobIdx] ? ' · ' + JOBS[jobIdx].name : ''));
 
     var drive = clock.drive + (clock.mode === 'drive' ? running : 0);
     var work = clock.work + (clock.mode === 'work' ? running : 0);
@@ -1370,7 +1432,7 @@
      around the app move only once the upload actually succeeds, so a
      failure can't quietly inflate them.
      ========================================================= */
-  var photoCount = 24;
+  var photoCount = recall('photoCount', 24);
   var countRefs = [];
   (function () {
     ['home', 'home-active'].forEach(function (id) {
@@ -1392,7 +1454,9 @@
   })();
   function paintPhotoCount() {
     countRefs.forEach(function (f) { f(photoCount); });
+    remember('photoCount', photoCount);
   }
+  paintPhotoCount();
 
   var upTimer = null, upPending = 0, upToken = 0, upLastBound = null;
 
@@ -1470,7 +1534,7 @@
      ========================================================= */
   var RC_PHOTO_SCREENS = ['rc-section', 'rc-furnace', 'rc-condenser', 'rc-refrigerant', 'rc-tech'];
   var TOTAL_SLOTS = 14;
-  var filledSlots = {};
+  var filledSlots = recall('slots', {});
   var pendingSlot = null;
 
   function readSlot(cam) {
@@ -1498,6 +1562,7 @@
     binding.chip.textContent = binding.slot + ' ✓';
     binding.cam.className = 'mif';
     binding.cam.style.color = '#16A34A';
+    remember('slots', filledSlots);
   }
 
   function slotCount() { return Object.keys(filledSlots).length; }
@@ -1507,6 +1572,7 @@
     byIcon(root, 'photo_camera').forEach(function (cam) {
       var binding = readSlot(cam);
       if (!binding) return;                     // no slot chip — an unbound photo
+      if (filledSlots[binding.slot]) markSlotFilled(binding);   // taken before the reload
       cam.addEventListener('click', function () { pendingSlot = binding; }, true);
     });
   });
@@ -1567,22 +1633,14 @@
     }
   ];
 
+  if (recall('declined', false)) markDeclined();
+
   /* =========================================================
      Dispatch currently catches this by memory: a technician quoting a
      repair on a unit we installed weeks ago for far more money. The data
      for the check already sits on the Equipment screen, so the app can
      raise it instead of one person having to notice.
      ========================================================= */
-  var RECENT_INSTALL = {
-    unit: 'the air handler',
-    monthsAgo: 2,
-    paid: 12480,
-    invoice: 'INV-25-11-088',
-    // catalog work that lands on that unit
-    covers: ['Blower Motor Repair', 'Air Handler Replacement', 'Capacitor Replacement']
-  };
-  var RECENT_MONTHS = 12;
-
   function flaggedItems(names) {
     if (RECENT_INSTALL.monthsAgo >= RECENT_MONTHS) return [];
     return names.filter(function (n) { return RECENT_INSTALL.covers.indexOf(n) > -1; });
@@ -1820,7 +1878,17 @@
     };
   }
 
+  // pick up where the tech left off: which job, each job's stage, and the
+  // session flags — before the cards are painted
+  jobIdx = recall('jobIdx', 0);
+  (recall('jobs', []) || []).forEach(function (s, i) {
+    if (JOBS[i] && s) { JOBS[i].est = s.est; JOBS[i].inv = s.inv; }
+  });
   loadJob();
+  (function () {
+    var s = recall('state', null);
+    if (s) { state.onsite = !!s.onsite; state.enroute = !!s.enroute; state.extra = !!s.extra; }
+  })();
   wireCurrentJob();
   wireActiveJobCard();
   paintJob();
@@ -2003,6 +2071,7 @@
   var declinedOnce = false;
   function markDeclined() {
     declinedOnce = true;
+    remember('declined', true);
     var root = byId('est-ready'); if (!root) return;
     if (byId('declinedNote')) return;
     var list = sel(root, 'Options list')[0];
@@ -2045,6 +2114,8 @@
       if (f) optFooters.push(f); else MISS.push(id + ' :: options counter');
     });
     if (!optCard || !optList || !optFooters.length) { MISS.push('est-draft :: options'); return; }
+    // rebuild the options the tech added before the reload
+    addedOptions.slice().forEach(function (o) { addOption(o.total, o.items, true); });
     paintOptions();
 
     // the empty state quotes the limit too
@@ -2082,7 +2153,7 @@
     });
   }
 
-  function addOption(total, items) {
+  function addOption(total, items, replay) {
     if (!optCard || !optList) return false;
     if (optCount >= MAX_OPTIONS) return false;
     var copy = optCard.cloneNode(true);
@@ -2121,6 +2192,10 @@
       if (hint) hint.textContent = 'Tap for monthly';
     }
     optList.insertBefore(copy, optAddBtn && optAddBtn.parentElement === optList ? optAddBtn : null);
+    if (!replay) {
+      addedOptions.push({ name: name, total: total, items: items || [] });
+      remember('addedOptions', addedOptions);
+    }
     optCount++;
     paintOptions();
     return true;
@@ -2183,18 +2258,30 @@
       var text = ta.value.trim();
       if (!text) { ta.focus(); return; }
 
-      var note = template.cloneNode(true);
-      var body = note.firstElementChild;
-      body.textContent = text;
-      var meta = $$('span', note);
-      if (meta[0]) meta[0].textContent = noteStamp();
-      if (meta[1]) meta[1].textContent = 'Marek Stroz';
-      list.insertBefore(note, list.firstElementChild);
-      if (badge) badge.textContent = String((parseInt(badge.textContent, 10) || 0) + 1);
+      var stamp = noteStamp();
+      file(text, stamp, 'Marek Stroz');
+      saved.push({ text: text, stamp: stamp, author: 'Marek Stroz' });
+      remember(key, saved);
       close();
       queued('Note');
       toast(net.online ? 'Note added' : 'Note saved — will sync', 'edit_note');
     }, true);
+
+    /* build the card the sheet already uses and put it at the top */
+    function file(text, stamp, author) {
+      var note = template.cloneNode(true);
+      note.firstElementChild.textContent = text;
+      var meta = $$('span', note);
+      if (meta[0]) meta[0].textContent = stamp;
+      if (meta[1]) meta[1].textContent = author;
+      list.insertBefore(note, list.firstElementChild);
+      if (badge) badge.textContent = String((parseInt(badge.textContent, 10) || 0) + 1);
+    }
+
+    // notes written before the reload come back in the same order
+    var key = 'notes:' + screenId;
+    var saved = recall(key, []);
+    saved.slice().reverse().forEach(function (n) { file(n.text, n.stamp, n.author); });
   }
   ['ov-notes', 'ov-note-tech', 'ov-note-private'].forEach(noteComposer);
 
@@ -2328,6 +2415,7 @@
     b.disabled = true; b.innerHTML = '<span class="mi" style="font-size:19px">sync</span>Signing in…';
     setTimeout(function () {
       b.disabled = false; b.innerHTML = '<span class="mif" style="font-size:19px">login</span>Sign in';
+      remember('signedIn', true);        // US-M02-2: stays signed in across days
       go(homeScreen(), 'root');
       toast('Welcome back, Marek', 'waving_hand');
     }, 620);
@@ -2336,6 +2424,7 @@
   byId('li-pw').addEventListener('keydown', function (e) { if (e.key === 'Enter') signIn(); });
   byId('li-bio').addEventListener('click', function () {
     toast('Face ID recognised', 'fingerprint');
+    remember('signedIn', true);
     setTimeout(function () { go(homeScreen(), 'root'); }, 500);
   });
 
@@ -2519,7 +2608,8 @@
     byId('splash').classList.add('on');
     chrome();
     setTimeout(function () { byId('splashBar').style.width = '100%'; }, 120);
-    setTimeout(function () { go('login', 'replace'); }, 1600);
+    // "keep me signed in" means exactly that — no login every morning
+    setTimeout(function () { go(recall('signedIn', false) ? homeScreen() : 'login', 'replace'); }, 1600);
   }
   boot();
 
