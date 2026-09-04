@@ -19,19 +19,11 @@
         </span>
       </div>
 
+      <!-- one line for everything about the connection: offline, uploading, synced -->
       <div class="netbar" id="netbar">
-        <span class="mi">cloud_off</span>
-        <span id="netmsg">Offline — working from saved data</span>
-        <span class="q" id="netq" hidden>0 queued</span>
-      </div>
-
-      <div class="uptray" id="uptray">
-        <span class="mi" id="upIcon">cloud_upload</span>
-        <div class="body">
-          <div class="msg" id="upMsg">Uploading</div>
-          <div class="track"><div class="fill" id="upFill"></div></div>
-        </div>
-        <span class="retry" id="upRetry" hidden>Retry</span>
+        <span class="mi" id="netIcon">cloud_off</span>
+        <span id="netmsg">Offline</span>
+        <div class="fill" id="netFill"></div>
       </div>
 
       <div class="viewport" id="viewport">
@@ -549,11 +541,6 @@
           </div>
 
           <div class="sc" style="flex:1;overflow-y:auto;padding:14px 16px 16px">
-            <div style="display:flex;align-items:flex-start;gap:9px;background:#EBF0F8;border:1px solid #C8D5E8;border-radius:11px;padding:12px 13px;margin-bottom:14px">
-              <span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">assignment_turned_in</span>
-              <div style="font:400 12.5px/1.45 Geist;color:#546478">Randy Johnson &middot; #13. Complete all twelve before the job closes.</div>
-            </div>
-
             <!-- 1–4 narrative -->
             <div class="card" style="overflow:hidden;margin-bottom:12px">
               <div style="display:flex;align-items:flex-start;gap:12px;padding:14px;border-bottom:1px solid #EDF0F5">

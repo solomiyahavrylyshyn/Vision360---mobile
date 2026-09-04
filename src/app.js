@@ -1195,16 +1195,41 @@
   steppers('add-items', ['Section total']);
 
   /* =========================================================
-     US-M02-3 / US-M14-2 — connection state and the sync queue
+     One line about the connection — US-M02-3 / US-M06-4 / US-M14-2.
+     Offline, uploading, sent. Never two bars stacked saying the same thing.
      ========================================================= */
-  var net = { online: navigator.onLine !== false, queue: 0 };
-  var netbar = byId('netbar'), netmsg = byId('netmsg'), netq = byId('netq');
+  var net = { online: navigator.onLine !== false, queue: 0, syncing: false, sentFlash: false };
+  var up = { phase: 'idle', text: '', pct: 0 };        // idle | uploading | done
+  var netbar = byId('netbar'), netmsg = byId('netmsg'), netIcon = byId('netIcon'), netFill = byId('netFill');
+  var netHide = null;
+
+  function plural(n) { return n === 1 ? 'photo' : 'photos'; }
 
   function paintNet() {
-    netbar.classList.toggle('on', !net.online || netbar.classList.contains('synced'));
-    netq.hidden = net.queue === 0;
-    netq.textContent = net.queue + (net.queue === 1 ? ' queued' : ' queued');
+    var cls = '', icon = '', text = '', show = true;
+    if (!net.online) {
+      var pend = [];
+      if (upPending) pend.push(upPending + ' ' + plural(upPending));
+      if (net.queue) pend.push(net.queue + (net.queue === 1 ? ' change' : ' changes'));
+      icon = 'cloud_off';
+      text = pend.length ? 'Offline · ' + pend.join(' and ') + ' will send when you’re back'
+        : 'Offline — working from saved data';
+    } else if (net.syncing) { cls = 'sync'; icon = 'cloud_sync'; text = 'Back online — sending…'; }
+    else if (up.phase === 'uploading') { cls = 'up'; icon = 'cloud_upload'; text = up.text; }
+    else if (up.phase === 'done') { cls = 'ok'; icon = 'cloud_done'; text = up.text; }
+    else if (net.sentFlash) { cls = 'ok'; icon = 'cloud_done'; text = 'All sent'; }
+    else show = false;
+    netbar.className = 'netbar' + (show ? ' on' : '') + (cls ? ' ' + cls : '');
+    netIcon.textContent = icon;
+    netmsg.textContent = text;
+    netFill.style.width = up.phase === 'uploading' ? up.pct + '%' : '0';
+    paintCloseoutBlocker();
   }
+  function flashThenHide(ms) {
+    clearTimeout(netHide);
+    netHide = setTimeout(function () { up.phase = 'idle'; net.sentFlash = false; paintNet(); }, ms);
+  }
+
   /* Anything the tech saves while offline joins the queue instead of failing. */
   function queued(what) {
     if (net.online) return;
@@ -1212,30 +1237,16 @@
     paintNet();
     return what;
   }
-  function goOffline() {
-    net.online = false;
-    netbar.classList.remove('synced');
-    $('.mi', netbar).textContent = 'cloud_off';
-    netmsg.textContent = 'Offline — working from saved data';
-    netbar.classList.add('on');
-    paintNet();
-  }
+  function goOffline() { net.online = false; net.syncing = false; paintNet(); }
   function goOnline() {
     net.online = true;
-    var had = net.queue;
-    if (!had) { netbar.classList.remove('on', 'synced'); paintNet(); return; }
-    // US-M14-2: queued work goes up by itself, no manual "Generate Report" step
-    $('.mi', netbar).textContent = 'cloud_sync';
-    netmsg.textContent = 'Back online — syncing ' + had + (had === 1 ? ' change…' : ' changes…');
-    netbar.classList.add('on');
+    if (!net.queue && !upPending) { paintNet(); return; }
+    // US-M14-2: queued work goes up by itself — no manual "Generate Report"
+    net.syncing = true; paintNet();
     setTimeout(function () {
-      net.queue = 0;
-      netbar.classList.add('synced');
-      $('.mi', netbar).textContent = 'cloud_done';
-      netmsg.textContent = 'All changes synced';
-      paintNet();
-      setTimeout(function () { netbar.classList.remove('on', 'synced'); }, 2200);
-      if (upPending) startUpload(upPending, upLastBound);   // photos held back go up too
+      net.queue = 0; net.syncing = false;
+      if (upPending) startUpload(upPending, upLastBound);
+      else { net.sentFlash = true; paintNet(); flashThenHide(2200); }
     }, 1100);
   }
   /* Cash, check and app transfers are just recorded, so they work with no
@@ -1383,64 +1394,45 @@
     countRefs.forEach(function (f) { f(photoCount); });
   }
 
-  var upTray = byId('uptray'), upIcon = byId('upIcon'), upMsg = byId('upMsg'),
-    upFill = byId('upFill'), upRetry = byId('upRetry');
-  var upTimer = null, upHide = null, upPending = 0, upToken = 0, upLastBound = null;
-
-  function upState(cls, icon, msg, showRetry) {
-    upTray.className = 'uptray on' + (cls ? ' ' + cls : '');
-    upIcon.textContent = icon;
-    upMsg.textContent = msg;
-    upRetry.hidden = !showRetry;
-    paintCloseoutBlocker();     // the closeout warning tracks the same state
-  }
-  function plural(n) { return n === 1 ? 'photo' : 'photos'; }
+  var upTimer = null, upPending = 0, upToken = 0, upLastBound = null;
 
   function startUpload(n, bound) {
     // Each run owns a token; a leftover interval from an earlier upload sees a
     // stale token and stops itself instead of finishing this one with its own
     // long-expired start time.
     var my = ++upToken;
-    var what = bound ? 'Slot ' + bound.slot : n + ' ' + plural(n);
+    var what = bound ? 'slot ' + bound.slot : n + ' ' + plural(n);
     upLastBound = bound || null;
-    clearTimeout(upHide); clearInterval(upTimer);
+    clearInterval(upTimer); clearTimeout(netHide);
     upPending = n;
-    if (!net.online) {
-      // not a failure — it goes up by itself on reconnect (US-M14-2)
-      upState('waiting', 'cloud_off', what + ' — waiting for signal', false);
-      queued('Photo');
-      return;
-    }
+    // no signal: the offline line already counts it, and it resumes on reconnect
+    if (!net.online) { up.phase = 'idle'; paintNet(); return; }
+
     // progress is driven off elapsed time, not tick count — a backgrounded tab
     // throttles timers, and a bar that crawls because of that is a lie
     var t0 = Date.now(), DUR = 2000;
-    upFill.style.width = '0%';
-    upState('', 'cloud_upload', bound ? 'Uploading ' + what + '…' : 'Uploading ' + what.toLowerCase() + '…', false);
+    up.phase = 'uploading'; up.pct = 0; up.text = 'Uploading ' + what + '…';
+    paintNet();
     var iv = setInterval(function () {
       if (my !== upToken) { clearInterval(iv); return; }
-      // losing signal mid-upload isn't a failure either — it resumes
-      if (!net.online) {
-        clearInterval(iv);
-        upState('waiting', 'cloud_off', what + ' — waiting for signal', false);
-        queued('Photo');
-        return;
-      }
-      var pct = Math.min(100, (Date.now() - t0) / DUR * 100);
-      upFill.style.width = pct + '%';
-      if (pct >= 100) {
+      if (!net.online) { clearInterval(iv); up.phase = 'idle'; paintNet(); return; }
+      up.pct = Math.min(100, (Date.now() - t0) / DUR * 100);
+      if (up.pct >= 100) {
         clearInterval(iv);
         photoCount += upPending;
         upPending = 0;
         paintPhotoCount();
-        upState('done', 'cloud_done', bound ? what + ' uploaded · ' + slotCount() + ' of ' + TOTAL_SLOTS + ' slots' : what + ' uploaded', false);
-        upHide = setTimeout(function () { upTray.classList.remove('on'); }, 2600);
+        up.phase = 'done';
+        up.text = bound ? 'Slot ' + bound.slot + ' uploaded · ' + slotCount() + ' of ' + TOTAL_SLOTS + ' slots'
+          : n + ' ' + plural(n) + ' uploaded';
+        paintNet();
+        flashThenHide(2400);
+        return;
       }
+      paintNet();
     }, 120);
     upTimer = iv;
   }
-  upRetry.addEventListener('click', function () {
-    if (upPending) startUpload(upPending, upLastBound);
-  });
 
   /* What's still outstanding, said on the closeout screen itself rather than
      in a toast that's gone in two seconds. */
@@ -1466,8 +1458,8 @@
       (offline ? 'cloud_off' : 'sync') + '</span>' +
       '<div style="font:400 12.5px/1.45 Geist;color:' + (offline ? '#7A5B12' : '#8C2020') + '">' +
       (offline
-        ? upPending + ' ' + plural(upPending) + ' still on the phone. You can close the job — they go up as soon as you have signal.'
-        : upPending + ' ' + plural(upPending) + ' still uploading. Give it a moment — closing now would leave the office without them.') +
+        ? upPending + ' ' + plural(upPending) + ' still on the phone — they send when you have signal. You can close.'
+        : upPending + ' ' + plural(upPending) + ' still uploading — give it a moment before closing.') +
       '</div>';
   }
 
@@ -1544,9 +1536,8 @@
     if (!pendingSlot) return;
     slotBanner.innerHTML =
       '<span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">link</span>' +
-      '<div style="font:400 12.5px/1.45 Geist;color:#546478">Filed against <b style="font-weight:600;color:#1A2332">' +
-      'Report Card · item ' + pendingSlot.item + '</b>, slot <b style="font-weight:600;color:#1A2332">' +
-      pendingSlot.slot + '</b>. The office gets it labelled — no sorting at the other end.</div>';
+      '<div style="font:400 13px/1.4 Geist;color:#546478">Report Card · <b style="font-weight:600;color:#1A2332">' +
+      pendingSlot.item + '</b> · slot <b style="font-weight:600;color:#1A2332">' + pendingSlot.slot + '</b></div>';
   }
 
   /* =========================================================
@@ -1598,10 +1589,9 @@
   }
 
   function warrantyText(hits) {
-    return hits.join(' and ') + (hits.length > 1 ? ' are' : ' is') + ' work on ' +
-      RECENT_INSTALL.unit + ' we installed ' + RECENT_INSTALL.monthsAgo +
-      ' months ago for ' + fmt(RECENT_INSTALL.paid) + ' (' + RECENT_INSTALL.invoice +
-      '). Check it isn&rsquo;t covered before quoting — this goes to review flagged.';
+    return '<b style="font-weight:600;color:#1A2332">' + hits.join(', ') + '</b> — on ' +
+      RECENT_INSTALL.unit + ' we installed ' + RECENT_INSTALL.monthsAgo + ' months ago for ' +
+      fmt(RECENT_INSTALL.paid) + '. May be under warranty.';
   }
 
   /* One banner, reused on whichever estimate screen needs it. */
@@ -2023,8 +2013,7 @@
       'display:flex;align-items:flex-start;gap:9px;background:#FEF3E2;border:1px solid #F3D9AE;' +
       'border-radius:11px;padding:12px 13px;margin-bottom:12px');
     note.innerHTML = '<span class="mi" style="font-size:19px;color:#D97706;margin-top:1px">history_toggle_off</span>' +
-      '<div style="font:400 13px/1.45 Geist;color:#7A5B12">Customer declined earlier. The estimate is still open &mdash; ' +
-      'present it again whenever they are ready.</div>';
+      '<div style="font:400 13px/1.45 Geist;color:#7A5B12">Declined earlier &mdash; still open to present again.</div>';
     list.parentElement.insertBefore(note, list);
   }
 
@@ -2066,9 +2055,7 @@
 
   function paintOptions() {
     var short = MAX_OPTIONS - optCount;
-    optFooters.forEach(function (f) {
-      f.textContent = 'Options: ' + optCount + '/' + MAX_OPTIONS + (short > 0 ? ' · ' + short + ' to go' : '');
-    });
+    optFooters.forEach(function (f) { f.textContent = 'Options: ' + optCount + '/' + MAX_OPTIONS; });
     if (optAddBtn) optAddBtn.style.opacity = optCount >= MAX_OPTIONS ? '.45' : '';
     if (optSendBtn) optSendBtn.setAttribute('style', short > 0 ? SEND_OFF : SEND_ON);
     ['est-draft', 'est-review', 'est-ready'].forEach(orderOptionsByPrice);
