@@ -43,6 +43,47 @@
   var photosThisVisit = 0;       // proof for the install crew, reset per job
   var goBacks = [];              // return visits raised at close-out, for dispatch
 
+  /* =========================================================
+     Plan selection: the monthly figure the customer is shown.
+
+     It was four read-only tiles, a dropdown that did not drop and an
+     "Add down payment" that did nothing — sitting under a heading that
+     never said what any of it was for. Meanwhile every "/month" on the
+     option cards was a number typed into the mock-up.
+
+     A plan is a rate and a term; the monthly payment follows from those
+     and the amount financed, by the ordinary amortisation formula. Pick
+     a different plan or put money down and every monthly figure in the
+     estimate moves, because they are all the same calculation.
+
+     The board's own default reconciles at 24 months, not the 12 its tile
+     claimed: $1,109 at 7.99% over 24 gives $50.15, which is the $50.20
+     it drew. The term was the typo, so the term is what changed.
+     ========================================================= */
+  var PLANS = [
+    { name: 'Ally', rate: 7.99, apr: 8.35, months: 24 },
+    { name: 'Synchrony', rate: 9.99, apr: 10.4, months: 36 },
+    { name: 'GreenSky', rate: 6.99, apr: 7.25, months: 12 },
+    { name: 'Pay in full', rate: 0, apr: 0, months: 0 }
+  ];
+  var planIdx = 0;
+  var downPct = 0;                    // a share of the option, so it fits any of them
+
+  function plan() { return PLANS[planIdx]; }
+  // payment per dollar financed — what the card calls the monthly factor
+  function planFactor() {
+    var p = plan();
+    if (!p.months) return 0;
+    var r = p.rate / 100 / 12;
+    if (!r) return 1 / p.months;
+    return r / (1 - Math.pow(1 + r, -p.months));
+  }
+  function monthlyFor(total) {
+    if (!plan().months) return 0;
+    return Math.max(0, total * (1 - downPct / 100)) * planFactor();
+  }
+  var MONTHLY_FACTOR = 0.0129;        // kept for anything still reading it directly
+
   var RATING = ['Good', 'Attention', 'Immediate'];   // the Report Card's three-state control
   var RC_GROUPS = {                                   // overview badges: design baseline + what the tech changes
     'Household Analysis': { base: 4, screens: ['rc-section'] },
@@ -980,7 +1021,7 @@
       ['@send^1', 'act:estSendReview'],
       ['Option A^1', 'est-option', 'modal'],
       ['~Add new option', 'act:newOption'],
-      ['~Add down payment', null]
+      ['~Add down payment', 'act:downPayment']
     ],
     'ov-option-menu': [
       ['@edit^1', 'est-option', 'modal'],
@@ -1367,6 +1408,82 @@
     var v = byId('photo-detail'); if (!v) { MISS.push('photo-detail :: screen'); return; }
     v.style.background = '#0B1116';
   })();
+
+  (function () {
+    var list = byId('planList'); if (!list) return;
+    PLANS.forEach(function (p, i) {
+      var row = document.createElement('div');
+      row.dataset.tap = '1';
+      row.dataset.plan = String(i);
+      row.setAttribute('style', 'display:flex;align-items:center;gap:11px;padding:15px 18px;' +
+        'border-top:1px solid #EDF0F5;font:500 15.5px/1.35 Geist');
+      row.innerHTML = '<div style="flex:1"><div data-nm></div>' +
+        '<div data-sub style="font:400 12.5px/1.3 Geist;color:#8A97A8;margin-top:3px"></div></div>' +
+        '<span class="mi" data-tick style="font-size:20px;color:#C8D5E8">radio_button_unchecked</span>';
+      $('[data-nm]', row).textContent = p.name;
+      $('[data-sub]', row).textContent = p.months
+        ? p.rate.toFixed(2) + '% over ' + p.months + ' months · APR ' + p.apr.toFixed(2) + '%'
+        : 'The customer pays the total, no monthly';
+      list.appendChild(row);
+    });
+    list.addEventListener('click', function (ev) {
+      var row = ev.target.closest('[data-plan]'); if (!row) return;
+      ev.stopPropagation();
+      planIdx = +row.dataset.plan;
+      paintPlanRows();
+      paintPlanEverywhere();
+      setTimeout(back, 200);
+      toast(plan().months ? 'Plan: ' + plan().name : 'No financing — total only', 'account_balance');
+    }, true);
+    paintPlanRows();
+  })();
+
+  function paintPlanRows() {
+    var list = byId('planList'); if (!list) return;
+    $$('[data-plan]', list).forEach(function (r) {
+      var on = +r.dataset.plan === planIdx;
+      var t = $('[data-tick]', r);
+      t.textContent = on ? 'radio_button_checked' : 'radio_button_unchecked';
+      t.className = (on ? 'mif' : 'mi');
+      t.style.color = on ? '#4A6FA5' : '#C8D5E8';
+      r.style.background = on ? '#EBF0F8' : '';
+    });
+  }
+
+  /* A down payment is a share of the option, so the same setting fits a
+     $479 option and a $5,665 one. */
+  ACT.downPayment = function () {
+    var row = planRefs && planRefs.down; if (!row) return;
+    if ($('[data-downpick]', row.parentElement)) return;
+    var pick = document.createElement('div');
+    pick.setAttribute('data-downpick', '1');
+    pick.setAttribute('style', 'display:flex;gap:7px;margin-top:9px');
+    [0, 10, 20, 50].forEach(function (v) {
+      var c = document.createElement('span');
+      c.dataset.tap = '1';
+      c.dataset.down = String(v);
+      c.textContent = v ? v + '%' : 'None';
+      pick.appendChild(c);
+    });
+    row.parentElement.insertBefore(pick, row.nextElementSibling);
+    function paintChips() {
+      $$('[data-down]', pick).forEach(function (c) {
+        var on = +c.dataset.down === downPct;
+        c.setAttribute('style', 'flex:1;text-align:center;border-radius:9px;padding:12px 0;' +
+          'font:600 13.5px/1 Geist;' + (on
+            ? 'background:#4A6FA5;color:#fff'
+            : 'background:#fff;border:1px solid #C8D5E8;color:#4A6FA5'));
+      });
+    }
+    paintChips();
+    pick.addEventListener('click', function (ev) {
+      var c = ev.target.closest('[data-down]'); if (!c) return;
+      ev.stopPropagation();
+      downPct = +c.dataset.down;
+      paintChips();
+      paintPlanEverywhere();
+    }, true);
+  };
 
   /* job tab strips */
   ['job-general', 'job-notes', 'rc-overview', 'est-empty', 'est-draft', 'est-review',
@@ -1770,7 +1887,6 @@
      working qty and a summary that adds up. Done used to just navigate
      back and the option stayed empty.
      ========================================================= */
-  var MONTHLY_FACTOR = 0.0129;        // the plan card's own "Monthly factor 1.29%"
   var optionItems = recall('optionItems', []);       // a half-built option survives a reload
   var addedOptions = recall('addedOptions', []);     // options the tech added beyond A/B/C
   var optItemsBox = null, optEmptyState = null, optSummary = null, optSaveBtn = null;
@@ -1811,7 +1927,7 @@
     var total = optionItems.reduce(function (a, it) { return a + it.price * it.qty; }, 0);
     var n = optionItems.reduce(function (a, it) { return a + it.qty; }, 0);
     if (optSummary.count) optSummary.count.textContent = String(n);
-    if (optSummary.monthly) optSummary.monthly.textContent = fmt(total * MONTHLY_FACTOR);
+    if (optSummary.monthly) optSummary.monthly.textContent = fmt(monthlyFor(total));
     if (optSummary.total) optSummary.total.textContent = fmt(total);
   }
 
@@ -2682,6 +2798,102 @@
 
   if (recall('declined', false)) markDeclined();
 
+  /* ---- the plan card, and every monthly figure it drives ---- */
+  var planRefs = null;
+  (function () {
+    var root = byId('est-draft'); if (!root) return;
+    var head = sel(root, 'Plan selection')[0];
+    // byText lands on the innermost match, so this is the label itself —
+    // the tappable row is its parent
+    var label = sel(root, 'Ally — 7.99% / 1.29%')[0];
+    var drop = label && label.parentElement;
+    var card = drop && drop.parentElement;
+    if (!head || !label || !card) { MISS.push('est-draft :: plan card'); return; }
+
+    // the heading never said what any of this was for
+    var why = document.createElement('div');
+    why.setAttribute('style', 'font:400 12.5px/1.45 Geist;color:#8A97A8;margin:-6px 0 10px');
+    why.textContent = 'What the customer is quoted per month, and what they put down.';
+    head.parentElement.insertBefore(why, head.nextElementSibling);
+
+    drop.dataset.tap = '1';
+    drop.dataset.go = 'ov-plan';
+    drop.dataset.mode = 'overlay';
+
+    var tiles = $$('div', card).filter(function (e) {
+      return /background:#F5F7FA;border-radius:8px/.test(e.getAttribute('style') || '');
+    });
+    // the button carries an icon, so only its own text nodes identify it
+    var down = sel(root, '~Add down payment')[0];
+    planRefs = { label: label, tiles: tiles, down: down || null };
+  })();
+
+  function paintPlanCard() {
+    if (!planRefs) return;
+    var p = plan();
+    if (planRefs.label) {
+      planRefs.label.textContent = p.months
+        ? p.name + ' — ' + p.rate.toFixed(2) + '% / ' + p.months + ' mo'
+        : p.name;
+    }
+    var vals = [
+      p.months ? (planFactor() * 100).toFixed(2) + '%' : '—',
+      p.months ? p.rate.toFixed(2) + '%' : '—',
+      p.months ? p.apr.toFixed(2) + '%' : '—',
+      p.months ? p.months + ' months' : 'No financing'
+    ];
+    planRefs.tiles.forEach(function (t, i) {
+      var v = t.lastElementChild;
+      if (v && vals[i] !== undefined) v.textContent = vals[i];
+    });
+    if (planRefs.down) {
+      var txt = planRefs.down.childNodes[planRefs.down.childNodes.length - 1];
+      if (txt && txt.nodeType === 3) {
+        txt.nodeValue = downPct ? 'Down payment ' + downPct + '%' : 'Add down payment';
+      }
+    }
+  }
+
+  /* Every card's "/month" was a number from the mock-up, and the "Tap for
+     monthly" it sits next to never did anything. Both are the same sum. */
+  var PER_MONTH = '<span style="font:500 13px/1 Geist;color:#546478"> /month</span>';
+  function paintOptionPrices(screenId) {
+    var root = byId(screenId); if (!root) return;
+    var cards = $$('div', root).filter(function (e) {
+      return /border-radius:12px/.test(e.getAttribute('style') || '') && optionName(e);
+    });
+    cards = cards.filter(function (e) { return !cards.some(function (o) { return o !== e && o.contains(e); }); });
+    cards.forEach(function (c) {
+      var total = OPTION_TOTALS[optionName(c)] || 0;
+      var hint = $$('span', c).filter(function (e) { return /^Tap for (total|monthly)$/.test(norm(e.textContent)); })[0];
+      var priceEl = $$('span', c).filter(function (e) {
+        return /^\$[\d,]+\.\d\d/.test(norm(e.textContent)) && /font:700/.test(e.getAttribute('style') || '');
+      })[0];
+      if (!priceEl) return;
+      var canFinance = !!plan().months;
+      if (hint && !canFinance) { hint.hidden = true; priceEl.textContent = fmt(total); return; }
+      if (hint) hint.hidden = false;
+      var showingMonthly = hint && /Tap for total/.test(norm(hint.textContent));
+      if (showingMonthly) priceEl.innerHTML = fmt(monthlyFor(total)) + PER_MONTH;
+      else priceEl.textContent = fmt(total);
+
+      if (hint && !hint.dataset.tap) {
+        hint.dataset.tap = '1';
+        hint.addEventListener('click', function (ev) {
+          ev.stopPropagation();
+          hint.textContent = /Tap for total/.test(norm(hint.textContent)) ? 'Tap for monthly' : 'Tap for total';
+          paintOptionPrices(screenId);
+        }, true);
+      }
+    });
+  }
+
+  function paintPlanEverywhere() {
+    paintPlanCard();
+    ['est-draft', 'est-review', 'est-ready', 'est-customer'].forEach(paintOptionPrices);
+    paintOptionSummary();
+  }
+
   /* SOP: four options, every one of them, presented most expensive first.
      Option A's card shows a monthly figure rather than its total, so its
      total comes from the option screen's own adjusted total ($1,089) —
@@ -3229,6 +3441,7 @@
     paintNextStep();
     ['est-draft', 'est-review', 'est-ready'].forEach(orderOptionsByPrice);
     paintPriceRange();
+    paintPlanEverywhere();
   }
 
   /* The draft used to show one greyed-out "Send to review" that refused to
