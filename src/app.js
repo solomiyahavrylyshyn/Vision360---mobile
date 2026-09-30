@@ -62,6 +62,25 @@
   $$('.overlay', viewport).forEach(function (el) { ovLayer.appendChild(el); });
   phone.appendChild(byId('toast'));   // toasts sit above sheets
 
+  /* The running clock said "On site" on one screen only. Open Job Details
+     and the last thing telling you a job was still going disappeared —
+     which is exactly when you want to know you haven't already closed it
+     out. It isn't a screen's banner, it's the phone's: it sits under the
+     status bar with the connection line, and shows for as long as the
+     clock runs, wherever you are. */
+  var onsiteBar = (function () {
+    var active = byId('home-active');
+    var bar = active && active.children[0];
+    if (!bar || !/background:#16A34A/.test(bar.getAttribute('style') || '')) {
+      MISS.push('home-active :: on-site bar');
+      return null;
+    }
+    bar.dataset.tap = '1';
+    bar.dataset.go = 'job-general';        // it was tappable where it used to live
+    phone.insertBefore(bar, viewport);
+    return bar;
+  })();
+
   /* ---------- screen registry ---------- */
   var INFO = {};                                   // id -> {tabs, sb, title, section, overlay}
   META.forEach(function (m) { INFO[m.id] = m; });
@@ -829,7 +848,6 @@
       ['@campaign^1', 'history']
     ],
     'home-active': [
-      ['On site · Randy Johnson^1', 'job-general'],
       ['Randy Johnson^2', 'job-general'],
       ['@assignment^1', 'job-general'],
       ['@more_horiz^1', 'ov-job-actions'],
@@ -862,8 +880,6 @@
     'job-general': [
       ['@play_arrow^1', 'act:start'],
       ['12 Jobs', 'cust-jobs'],
-      ['Additional information', 'ov-job-actions'],
-      ['@expand_more#0', 'ov-job-actions'],
       ['@photo_camera^1', 'ov-media-source'],
       ['@image^1', 'photo-detail', 'modal'],
       ['@add^1', 'act:jobAddItem'],
@@ -1151,6 +1167,75 @@
     });
   });
 
+
+  /* =========================================================
+     Job actions belonged to the job, not to the customer.
+
+     En route, Equipment, Assets and Set to "Completed" were hung off the
+     "Additional information" row inside the Customer card — a disclosure
+     that names what it does and then did something else. Nothing on that
+     row suggests it ends a job.
+
+     They move to a kebab in the job's own header, reachable from every
+     tab and sitting next to Start, where an app's actions live. And the
+     row goes back to disclosing what it says it discloses.
+     ========================================================= */
+  (function () {
+    var done = [];
+    $$('.screen [data-act="start"]').forEach(function (btn) {
+      var scr = btn.closest('.screen');
+      var hdr = btn.parentElement;
+      // only a job header — on Home the same button sits inside a card
+      if (!scr || !hdr || hdr !== scr.children[0]) return;
+      if (done.indexOf(hdr) > -1) return;
+      done.push(hdr);
+      var kebab = document.createElement('span');
+      kebab.className = 'mi';
+      kebab.setAttribute('style', 'font-size:23px;color:#4A6FA5');
+      kebab.textContent = 'more_vert';
+      kebab.dataset.tap = '1';
+      kebab.dataset.go = 'ov-job-actions';
+      hdr.appendChild(kebab);
+    });
+    if (!done.length) MISS.push('job :: actions kebab');
+  })();
+
+  /* The row said "Additional information · 2" and opened a menu. It now
+     discloses the two the customer actually has — the address for sending
+     paperwork, and what the technician needs to get through the gate. */
+  (function () {
+    var root = byId('job-general'); if (!root) return;
+    var label = sel(root, 'Additional information')[0];
+    var head = label && label.parentElement;
+    var card = head && head.parentElement;
+    var chev = head && $('.mi', head);
+    if (!label || !card || !chev) { MISS.push('job-general :: additional information'); return; }
+
+    var box = document.createElement('div');
+    box.hidden = true;
+    box.setAttribute('style', 'margin-top:11px;padding-top:11px;border-top:1px solid #EDF0F5;' +
+      'display:flex;flex-direction:column;gap:12px');
+    [
+      ['Email', 'randy.johnson@gmail.com'],
+      ['Access notes', 'Gate code 4417 · dog in the back yard']
+    ].forEach(function (r) {
+      var row = document.createElement('div');
+      row.innerHTML = '<div style="font:400 12px/1 Geist;color:#8A97A8"></div>' +
+        '<div style="font:500 14px/1.4 Geist;margin-top:5px;text-wrap:pretty"></div>';
+      row.children[0].textContent = r[0];
+      row.children[1].textContent = r[1];
+      box.appendChild(row);
+    });
+    card.appendChild(box);
+
+    head.dataset.tap = '1';
+    head.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      var open = box.hidden;
+      box.hidden = !open;
+      chev.textContent = open ? 'expand_less' : 'expand_more';
+    }, true);
+  })();
 
   /* job tab strips */
   ['job-general', 'job-notes', 'rc-overview', 'est-empty', 'est-draft', 'est-review',
@@ -1712,7 +1797,7 @@
      now. What the app records here is what payroll pays on, so the tech
      has to be able to see it.
      ========================================================= */
-  var jobTimerEl = sel(byId('home-active'), '43:45')[0] || null;
+  var jobTimerEl = sel(phone, '43:45')[0] || null;   // the bar left home-active
   var VISIT_BASE = 15;
   var WEEK = { regular: 32.5, overtime: 4.0, drive: 6.2 };   // Mon–Thu, already banked
   var clock = { drive: 0, work: 0, mode: 'off', since: 0, visits: 0, sold: 0, labor: 0, commission: 0 };
@@ -2415,6 +2500,7 @@
     $$('.screen [data-act="start"]').forEach(function (b) {
       toggleDisplay(b, !state.onsite);
     });
+    toggleDisplay(onsiteBar, !!state.onsite);
   }
   (function () {
     var btn = sel(byId('home'), '@navigation^1')[0];
@@ -2552,7 +2638,7 @@
       brief: sel(root, 'AC not cooling')[0],
       type: sel(root, 'Estimate')[0],
       phone: sel(root, '(123) 456-7890')[0],
-      banner: sel(root, 'On site · Randy Johnson')[0]
+      banner: sel(phone, 'On site · Randy Johnson')[0]   // now phone chrome
     };
     var addrRow = sel(root, '@place^1')[0];
     var addr = addrRow ? $('div', addrRow) : null;
