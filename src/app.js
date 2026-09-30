@@ -38,6 +38,10 @@
      rest of the boot-time state, because the action that reads it is defined
      far above the pad that sets it. */
   var estSigned = false;
+  var estPresented = false;      // the customer sheet was actually opened
+  var payMethod = '';            // which way the money came in, if it did
+  var photosThisVisit = 0;       // proof for the install crew, reset per job
+  var goBacks = [];              // return visits raised at close-out, for dispatch
 
   var RECENT_INSTALL = {        // the unit dispatch keeps in their head today
     unit: 'the air handler',
@@ -187,6 +191,7 @@
     else if (mode === 'modal') { stack.push({ id: id, mode: 'modal' }); animate(fromEl, el, 'up'); }
     else { stack.push({ id: id, mode: 'push' }); animate(fromEl, el, 'push'); }
     if (id === 'image-desc') { paintSlotBanner(); paintMediaForm(); }
+    if (id === 'closeout') paintCloseout();
     chrome();
   }
 
@@ -744,6 +749,7 @@
         return;
       }
       state.inv = 'paid';
+      payMethod = PAY_LABEL[curPage()] || 'Card';
       kpiPaid(2000);                                // the "To be paid" figure lands in Revenue
       closeOverlays(true);
       go('inv-paid', 'root');
@@ -760,6 +766,7 @@
       back();
       toast(net.online ? 'Report Card saved' : 'Report Card saved locally — will sync');
     },
+    present: function () { estPresented = true; go('est-customer', 'modal'); },
     pickGallery: function () {
       galClear();
       closeOverlays(false);
@@ -783,8 +790,12 @@
         pendingSlot = null;
       }
       addMediaThumbs(n);
+      photosThisVisit += n;
       mediaBatch = 1;
       back();
+      // back() doesn't run the per-screen paint, and the install card is
+      // counting these photos
+      paintInstall();
       startUpload(n, bound);
       toast(bound
         ? 'Photo filed against slot ' + bound.slot
@@ -812,6 +823,25 @@
         toast(upPending + ' ' + plural(upPending) + ' still uploading — wait for it', 'sync');
         return;
       }
+      if (ntgbOn() && !ntgbWho) {
+        toast('Say which department goes back', 'groups');
+        return;
+      }
+      var gaps = installMissing();
+      if (gaps.length) {
+        paintInstall();
+        toast('An install was sold — still missing ' + gaps.join(', '), 'handyman');
+        return;
+      }
+      if (ntgbOn()) {
+        // dispatch picks this up as a job of its own, against this customer
+        goBacks.push({
+          dept: ntgbWho, customer: (JOBS[jobIdx] || {}).name || '',
+          addr: (JOBS[jobIdx] || {}).addr || '', when: noteStamp()
+        });
+        remember('goBacks', goBacks);
+        queued('Go-back');
+      }
       setClock('off');
       clock.visits++;
       var done = JOBS[jobIdx];
@@ -824,6 +854,11 @@
       // the closeout form belongs to the visit that just ended
       $$('#closeout .co-f').forEach(function (f) { f.value = f.tagName === 'TEXTAREA' ? '' : f.defaultValue; });
       remember('closeout', []);
+      var sentBack = ntgbOn() ? ntgbWho : '';
+      resetNtgb();
+      estPresented = false;
+      payMethod = '';
+      photosThisVisit = 0;
       state.onsite = false;
       state.enroute = false;
       state.extra = false;
@@ -834,10 +869,12 @@
       closeOverlays(true);
       go('home', 'root');
       queued('Job status');
-      toast(upPending
-        ? 'Job closed — ' + upPending + ' ' + plural(upPending) + ' will upload on signal'
-        : (JOBS[jobIdx] ? 'Job closed — next one unlocked' : 'Job closed — nothing left today'),
-        'task_alt');
+      toast(sentBack
+        ? 'Job closed — go-back for ' + sentBack + ' sent to dispatch'
+        : upPending
+          ? 'Job closed — ' + upPending + ' ' + plural(upPending) + ' will upload on signal'
+          : (JOBS[jobIdx] ? 'Job closed — next one unlocked' : 'Job closed — nothing left today'),
+        sentBack ? 'assignment_return' : 'task_alt');
     },
     resetDemo: function () {
       forgetAll();
@@ -978,7 +1015,7 @@
     'est-ready': [
       ['@play_arrow^1', 'act:start'],
       ['@visibility^1', 'est-preview', 'modal'],
-      ['@present_to_all^1', 'est-customer', 'modal']
+      ['@present_to_all^1', 'act:present']
     ],
     'est-customer': [
       ['@check_circle^1', 'act:estOrder']
@@ -1366,18 +1403,147 @@
     if (el.id !== 'ntgbSwitch') return;
     var who = byId('ntgbWho');
     if (who) who.hidden = !isOn;
+    if (!isOn) ntgbWho = '';
   });
   (function () {
     var chips = $$('[data-ntgb]', byId('closeout'));
     if (chips.length < 2) return;
     var ON = chips[0].getAttribute('style'), OFF = chips[1].getAttribute('style');
+    var ON_STYLE = 'font:600 13px/1 Geist;color:#fff;background:#4A6FA5;border-radius:18px;padding:10px 14px';
+    clearNtgbChips = function () {
+      chips.forEach(function (o) { o.setAttribute('style', OFF); });
+    };
     chips.forEach(function (c) {
       c.dataset.tap = '1';
       c.addEventListener('click', function () {
-        chips.forEach(function (o) { o.setAttribute('style', o === c ? ON : OFF); });
+        ntgbWho = norm(c.textContent);
+        chips.forEach(function (o) { o.setAttribute('style', o === c ? ON_STYLE : OFF); });
       });
     });
   })();
+
+  /* =========================================================
+     The closeout, filled in from what the app already knows.
+
+     It shipped with the mock-up's answers baked in: two thousand dollars
+     in the amount box, "collected on site" already on, "presentation
+     given" already on, and a department already chosen for the go-back.
+     Every one of those is a claim about the visit, pre-answered, on a
+     form whose whole point is that dispatch stops getting empty notes.
+     A pre-answered form is worse than an empty one — nobody reads a
+     field that is already filled.
+
+     So the app fills in only what it can actually know: the amount from
+     the job, the method from the payment that was taken, the two
+     switches from whether those things happened, and "chose" from the
+     option the customer signed. Anything it cannot know is left blank.
+     ========================================================= */
+  var PAY_LABEL = {
+    'pay-card': 'Credit Card', 'pay-cash': 'Cash',
+    'pay-check': 'Check', 'pay-apps': 'Zelle / Venmo / Cash App'
+  };
+
+  function forceSwitch(el, on) {
+    if (!el) return;
+    if (el.dataset.on === (on ? '1' : '0')) return;
+    el.click();                 // through the wired handler, so state stays true
+  }
+
+  function soldSummary(j) {
+    if (!j || !j.sold) return '';
+    var names = (j.items || []).filter(function (it) { return it.from === 'estimate'; })
+      .map(function (it) { return (it.qty > 1 ? it.qty + ' × ' : '') + it.name; });
+    return j.sold.option + ' — ' + fmt(j.sold.total) +
+      (names.length ? ' (' + names.join(', ') + ')' : '');
+  }
+
+  /* An install is sold when the signed option carries installation work —
+     that is the crew's job, and they arrive with nothing but these notes. */
+  function installSold(j) {
+    if (!j) return false;
+    if (j.type === 'Install' && j.sold) return true;
+    return (j.items || []).some(function (it) {
+      return it.from === 'estimate' &&
+        (it.cat === 'Installation' ||
+          (it.group || []).some(function (p) { return p.cat === 'Installation'; }));
+    });
+  }
+
+  function paintCloseout() {
+    var root = byId('closeout'); if (!root) return;
+    var j = JOBS[jobIdx] || {};
+
+    var amount = byId('coAmount');
+    var total = j.sold ? j.sold.total : jobItemsTotal(j);
+    if (amount && !amount.dataset.touched) amount.value = total ? fmt(total) : '';
+
+    var method = byId('coMethod');
+    if (method && method.firstChild) {
+      method.firstChild.nodeValue = payMethod || 'Not collected';
+    }
+    forceSwitch(byId('coCollected'), state.inv === 'paid');
+    forceSwitch(byId('coPresented'), estPresented);
+
+    // 3 · Chose — the option the customer put their name to
+    var chose = $$('#closeout .co-f')[2];
+    if (chose && !chose.value) chose.value = soldSummary(j);
+
+    paintInstall();
+  }
+
+  function paintInstall() {
+    var card = byId('coInstall'); if (!card) return;
+    var need = installSold(JOBS[jobIdx]);
+    card.hidden = !need;
+    if (!need) return;
+    var photos = byId('coPhotoState');
+    if (photos) {
+      photos.textContent = photosThisVisit
+        ? photosThisVisit + ' ' + plural(photosThisVisit) + ' on this visit'
+        : 'None taken on this visit';
+    }
+    var state_ = byId('coInstallState');
+    var missing = installMissing();
+    if (state_) {
+      var ok = !missing.length;
+      state_.textContent = ok ? 'Ready for the crew' : 'Incomplete';
+      state_.setAttribute('style', 'font:600 11.5px/1 Geist;border-radius:5px;padding:5px 8px;' +
+        (ok ? 'color:#15803D;background:#E8F6ED;border:1px solid #B6E3C6'
+            : 'color:#B45309;background:#FEF3E2;border:1px solid #F3D9AE'));
+    }
+  }
+
+  function installMissing() {
+    if (!installSold(JOBS[jobIdx])) return [];
+    var gaps = [];
+    [['coScope', 'the scope'], ['coSite', 'site conditions'], ['coParts', 'the parts list']]
+      .forEach(function (p) {
+        var el = byId(p[0]);
+        if (el && !el.value.trim()) gaps.push(p[1]);
+      });
+    if (!photosThisVisit) gaps.push('a photo');
+    return gaps;
+  }
+
+  /* The department has to be named, or the go-back lands on nobody's desk. */
+  var ntgbWho = '';
+  var clearNtgbChips = function () { };
+
+  /* The form's text is wiped when a job closes, but its switches were not,
+     so the next job opened with the last one's answers still set — "need to
+     go back" on, against a customer it was never about. */
+  function resetNtgb() {
+    ntgbWho = '';
+    clearNtgbChips();
+    forceSwitch(byId('ntgbSwitch'), false);
+    var who = byId('ntgbWho');
+    if (who) who.hidden = true;
+  }
+
+  function ntgbOn() {
+    var sw = byId('ntgbSwitch');
+    return !!sw && sw.dataset.on === '1';
+  }
 
   /* The closeout is typed on site, often with the app going in and out of the
      pocket — every keystroke is kept. */
@@ -2539,6 +2705,8 @@
     $('[data-tot]', foot).textContent = fmt(total);
     R.card.insertBefore(foot, R.add);
   }
+
+  goBacks = recall('goBacks', []);
 
   if (recall('declined', false)) markDeclined();
 

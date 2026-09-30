@@ -817,7 +817,7 @@ body.dev #indexBtn{display:flex}
               <div id="ntgbWho" hidden style="padding:0 14px 14px 44px">
                 <div style="font:500 13px/1 Geist;color:#546478;margin-bottom:8px">Who goes back</div>
                 <div style="display:flex;flex-wrap:wrap;gap:7px">
-                  <span data-ntgb style="font:600 13px/1 Geist;color:#fff;background:#4A6FA5;border-radius:18px;padding:10px 14px">Service</span>
+                  <span data-ntgb style="font:500 13px/1 Geist;color:#546478;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:18px;padding:10px 14px">Service</span>
                   <span data-ntgb style="font:500 13px/1 Geist;color:#546478;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:18px;padding:10px 14px">Install</span>
                   <span data-ntgb style="font:500 13px/1 Geist;color:#546478;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:18px;padding:10px 14px">Sales</span>
                   <span data-ntgb style="font:500 13px/1 Geist;color:#546478;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:18px;padding:10px 14px">Duct</span>
@@ -832,7 +832,7 @@ body.dev #indexBtn{display:flex}
               <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid #EDF0F5">
                 <span style="font:600 12px/1 Geist;color:#8A97A8;min-width:18px">6</span>
                 <span style="flex:1;font:500 14.5px/1 Geist">Amount</span>
-                <input class="inp co-f" id="coAmount" inputmode="decimal" value="$2,000.00" style="width:130px;height:44px;text-align:right;font:600 15px/1 Geist">
+                <input class="inp co-f" id="coAmount" inputmode="decimal" placeholder="$0.00" style="width:130px;height:44px;text-align:right;font:600 15px/1 Geist">
               </div>
               <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid #EDF0F5">
                 <span style="font:600 12px/1 Geist;color:#8A97A8;min-width:18px">7</span>
@@ -842,8 +842,8 @@ body.dev #indexBtn{display:flex}
               <div style="display:flex;align-items:center;gap:12px;padding:14px">
                 <span style="font:600 12px/1 Geist;color:#8A97A8;min-width:18px">8</span>
                 <span style="flex:1;font:500 14.5px/1 Geist">Collected on site</span>
-                <div style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none">
-                  <div style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>
+                <div id="coCollected" style="width:52px;height:31px;border-radius:16px;background:#DDE3EE;position:relative;flex:none">
+                  <div style="position:absolute;top:3px;left:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>
                 </div>
               </div>
             </div>
@@ -853,8 +853,8 @@ body.dev #indexBtn{display:flex}
               <div style="display:flex;align-items:center;gap:12px;padding:15px 14px">
                 <span style="font:600 12px/1 Geist;color:#8A97A8;min-width:18px">9</span>
                 <span style="flex:1;font:500 14.5px/1.35 Geist">Presentation given</span>
-                <div style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none">
-                  <div style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>
+                <div id="coPresented" style="width:52px;height:31px;border-radius:16px;background:#DDE3EE;position:relative;flex:none">
+                  <div style="position:absolute;top:3px;left:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>
                 </div>
               </div>
             </div>
@@ -870,6 +870,35 @@ body.dev #indexBtn{display:flex}
                 <span style="font:600 12px/1.5 Geist;color:#8A97A8;min-width:18px">11</span>
                 <div style="flex:1"><div style="font:600 13px/1 Geist;letter-spacing:.05em;color:#8A97A8;text-transform:uppercase;margin-bottom:8px">Follow-up notes</div>
                 <textarea class="inp co-f" rows="2" placeholder="What still needs chasing" style="height:auto;padding:10px 12px;font:400 14.5px/1.45 Geist;resize:none"></textarea></div>
+              </div>
+            </div>
+
+            <!-- Install sold: the crew arrives with nothing but what is written here -->
+            <div class="card" id="coInstall" hidden style="overflow:hidden;margin-bottom:12px;border:1.5px solid #C8D5E8">
+              <div style="display:flex;align-items:center;gap:8px;padding:13px 14px;background:#EBF0F8;border-bottom:1px solid #C8D5E8">
+                <span class="mi" style="font-size:19px;color:#4A6FA5">handyman</span>
+                <span style="flex:1;font:600 12px/1 Geist;letter-spacing:.06em;color:#4A6FA5;text-transform:uppercase">Install sold &middot; required</span>
+                <span id="coInstallState" style="font:600 11.5px/1 Geist;color:#B45309;background:#FEF3E2;border:1px solid #F3D9AE;border-radius:5px;padding:5px 8px">Incomplete</span>
+              </div>
+              <div style="display:flex;align-items:flex-start;gap:12px;padding:14px;border-bottom:1px solid #EDF0F5">
+                <span class="mi" style="font-size:18px;color:#8A97A8;margin-top:2px">assignment</span>
+                <div style="flex:1"><div style="font:600 13px/1 Geist;letter-spacing:.05em;color:#8A97A8;text-transform:uppercase;margin-bottom:8px">Scope for the crew</div>
+                <textarea class="inp co-f co-inst" id="coScope" rows="2" placeholder="Exactly what the crew is installing" style="height:auto;padding:10px 12px;font:400 14.5px/1.45 Geist;resize:none"></textarea></div>
+              </div>
+              <div style="display:flex;align-items:flex-start;gap:12px;padding:14px;border-bottom:1px solid #EDF0F5">
+                <span class="mi" style="font-size:18px;color:#8A97A8;margin-top:2px">home_work</span>
+                <div style="flex:1"><div style="font:600 13px/1 Geist;letter-spacing:.05em;color:#8A97A8;text-transform:uppercase;margin-bottom:8px">Site conditions</div>
+                <textarea class="inp co-f co-inst" id="coSite" rows="2" placeholder="Access, clearances, attic or crawl, anything awkward" style="height:auto;padding:10px 12px;font:400 14.5px/1.45 Geist;resize:none"></textarea></div>
+              </div>
+              <div style="display:flex;align-items:flex-start;gap:12px;padding:14px;border-bottom:1px solid #EDF0F5">
+                <span class="mi" style="font-size:18px;color:#8A97A8;margin-top:2px">inventory_2</span>
+                <div style="flex:1"><div style="font:600 13px/1 Geist;letter-spacing:.05em;color:#8A97A8;text-transform:uppercase;margin-bottom:8px">Parts list</div>
+                <textarea class="inp co-f co-inst" id="coParts" rows="2" placeholder="What has to be on the truck" style="height:auto;padding:10px 12px;font:400 14.5px/1.45 Geist;resize:none"></textarea></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:14px">
+                <span class="mi" style="font-size:18px;color:#8A97A8">photo_camera</span>
+                <span style="flex:1;font:500 14.5px/1.35 Geist">Photos of the site<div id="coPhotoState" style="font:400 12.5px/1.35 Geist;color:#8A97A8;margin-top:3px">None taken on this visit</div></span>
+                <div data-tap data-go="ov-media-source" data-mode="overlay" style="height:42px;padding:0 14px;display:flex;align-items:center;gap:6px;background:#fff;border:1px solid #C8D5E8;color:#4A6FA5;border-radius:9px;font:600 13.5px/1 Geist"><span class="mi" style="font-size:18px">add_a_photo</span>Add</div>
               </div>
             </div>
 
@@ -2880,6 +2909,10 @@ body.dev #indexBtn{display:flex}
      rest of the boot-time state, because the action that reads it is defined
      far above the pad that sets it. */
   var estSigned = false;
+  var estPresented = false;      // the customer sheet was actually opened
+  var payMethod = '';            // which way the money came in, if it did
+  var photosThisVisit = 0;       // proof for the install crew, reset per job
+  var goBacks = [];              // return visits raised at close-out, for dispatch
 
   var RECENT_INSTALL = {        // the unit dispatch keeps in their head today
     unit: 'the air handler',
@@ -3029,6 +3062,7 @@ body.dev #indexBtn{display:flex}
     else if (mode === 'modal') { stack.push({ id: id, mode: 'modal' }); animate(fromEl, el, 'up'); }
     else { stack.push({ id: id, mode: 'push' }); animate(fromEl, el, 'push'); }
     if (id === 'image-desc') { paintSlotBanner(); paintMediaForm(); }
+    if (id === 'closeout') paintCloseout();
     chrome();
   }
 
@@ -3586,6 +3620,7 @@ body.dev #indexBtn{display:flex}
         return;
       }
       state.inv = 'paid';
+      payMethod = PAY_LABEL[curPage()] || 'Card';
       kpiPaid(2000);                                // the "To be paid" figure lands in Revenue
       closeOverlays(true);
       go('inv-paid', 'root');
@@ -3602,6 +3637,7 @@ body.dev #indexBtn{display:flex}
       back();
       toast(net.online ? 'Report Card saved' : 'Report Card saved locally — will sync');
     },
+    present: function () { estPresented = true; go('est-customer', 'modal'); },
     pickGallery: function () {
       galClear();
       closeOverlays(false);
@@ -3625,8 +3661,12 @@ body.dev #indexBtn{display:flex}
         pendingSlot = null;
       }
       addMediaThumbs(n);
+      photosThisVisit += n;
       mediaBatch = 1;
       back();
+      // back() doesn't run the per-screen paint, and the install card is
+      // counting these photos
+      paintInstall();
       startUpload(n, bound);
       toast(bound
         ? 'Photo filed against slot ' + bound.slot
@@ -3654,6 +3694,25 @@ body.dev #indexBtn{display:flex}
         toast(upPending + ' ' + plural(upPending) + ' still uploading — wait for it', 'sync');
         return;
       }
+      if (ntgbOn() && !ntgbWho) {
+        toast('Say which department goes back', 'groups');
+        return;
+      }
+      var gaps = installMissing();
+      if (gaps.length) {
+        paintInstall();
+        toast('An install was sold — still missing ' + gaps.join(', '), 'handyman');
+        return;
+      }
+      if (ntgbOn()) {
+        // dispatch picks this up as a job of its own, against this customer
+        goBacks.push({
+          dept: ntgbWho, customer: (JOBS[jobIdx] || {}).name || '',
+          addr: (JOBS[jobIdx] || {}).addr || '', when: noteStamp()
+        });
+        remember('goBacks', goBacks);
+        queued('Go-back');
+      }
       setClock('off');
       clock.visits++;
       var done = JOBS[jobIdx];
@@ -3666,6 +3725,11 @@ body.dev #indexBtn{display:flex}
       // the closeout form belongs to the visit that just ended
       $$('#closeout .co-f').forEach(function (f) { f.value = f.tagName === 'TEXTAREA' ? '' : f.defaultValue; });
       remember('closeout', []);
+      var sentBack = ntgbOn() ? ntgbWho : '';
+      resetNtgb();
+      estPresented = false;
+      payMethod = '';
+      photosThisVisit = 0;
       state.onsite = false;
       state.enroute = false;
       state.extra = false;
@@ -3676,10 +3740,12 @@ body.dev #indexBtn{display:flex}
       closeOverlays(true);
       go('home', 'root');
       queued('Job status');
-      toast(upPending
-        ? 'Job closed — ' + upPending + ' ' + plural(upPending) + ' will upload on signal'
-        : (JOBS[jobIdx] ? 'Job closed — next one unlocked' : 'Job closed — nothing left today'),
-        'task_alt');
+      toast(sentBack
+        ? 'Job closed — go-back for ' + sentBack + ' sent to dispatch'
+        : upPending
+          ? 'Job closed — ' + upPending + ' ' + plural(upPending) + ' will upload on signal'
+          : (JOBS[jobIdx] ? 'Job closed — next one unlocked' : 'Job closed — nothing left today'),
+        sentBack ? 'assignment_return' : 'task_alt');
     },
     resetDemo: function () {
       forgetAll();
@@ -3820,7 +3886,7 @@ body.dev #indexBtn{display:flex}
     'est-ready': [
       ['@play_arrow^1', 'act:start'],
       ['@visibility^1', 'est-preview', 'modal'],
-      ['@present_to_all^1', 'est-customer', 'modal']
+      ['@present_to_all^1', 'act:present']
     ],
     'est-customer': [
       ['@check_circle^1', 'act:estOrder']
@@ -4208,18 +4274,147 @@ body.dev #indexBtn{display:flex}
     if (el.id !== 'ntgbSwitch') return;
     var who = byId('ntgbWho');
     if (who) who.hidden = !isOn;
+    if (!isOn) ntgbWho = '';
   });
   (function () {
     var chips = $$('[data-ntgb]', byId('closeout'));
     if (chips.length < 2) return;
     var ON = chips[0].getAttribute('style'), OFF = chips[1].getAttribute('style');
+    var ON_STYLE = 'font:600 13px/1 Geist;color:#fff;background:#4A6FA5;border-radius:18px;padding:10px 14px';
+    clearNtgbChips = function () {
+      chips.forEach(function (o) { o.setAttribute('style', OFF); });
+    };
     chips.forEach(function (c) {
       c.dataset.tap = '1';
       c.addEventListener('click', function () {
-        chips.forEach(function (o) { o.setAttribute('style', o === c ? ON : OFF); });
+        ntgbWho = norm(c.textContent);
+        chips.forEach(function (o) { o.setAttribute('style', o === c ? ON_STYLE : OFF); });
       });
     });
   })();
+
+  /* =========================================================
+     The closeout, filled in from what the app already knows.
+
+     It shipped with the mock-up's answers baked in: two thousand dollars
+     in the amount box, "collected on site" already on, "presentation
+     given" already on, and a department already chosen for the go-back.
+     Every one of those is a claim about the visit, pre-answered, on a
+     form whose whole point is that dispatch stops getting empty notes.
+     A pre-answered form is worse than an empty one — nobody reads a
+     field that is already filled.
+
+     So the app fills in only what it can actually know: the amount from
+     the job, the method from the payment that was taken, the two
+     switches from whether those things happened, and "chose" from the
+     option the customer signed. Anything it cannot know is left blank.
+     ========================================================= */
+  var PAY_LABEL = {
+    'pay-card': 'Credit Card', 'pay-cash': 'Cash',
+    'pay-check': 'Check', 'pay-apps': 'Zelle / Venmo / Cash App'
+  };
+
+  function forceSwitch(el, on) {
+    if (!el) return;
+    if (el.dataset.on === (on ? '1' : '0')) return;
+    el.click();                 // through the wired handler, so state stays true
+  }
+
+  function soldSummary(j) {
+    if (!j || !j.sold) return '';
+    var names = (j.items || []).filter(function (it) { return it.from === 'estimate'; })
+      .map(function (it) { return (it.qty > 1 ? it.qty + ' × ' : '') + it.name; });
+    return j.sold.option + ' — ' + fmt(j.sold.total) +
+      (names.length ? ' (' + names.join(', ') + ')' : '');
+  }
+
+  /* An install is sold when the signed option carries installation work —
+     that is the crew's job, and they arrive with nothing but these notes. */
+  function installSold(j) {
+    if (!j) return false;
+    if (j.type === 'Install' && j.sold) return true;
+    return (j.items || []).some(function (it) {
+      return it.from === 'estimate' &&
+        (it.cat === 'Installation' ||
+          (it.group || []).some(function (p) { return p.cat === 'Installation'; }));
+    });
+  }
+
+  function paintCloseout() {
+    var root = byId('closeout'); if (!root) return;
+    var j = JOBS[jobIdx] || {};
+
+    var amount = byId('coAmount');
+    var total = j.sold ? j.sold.total : jobItemsTotal(j);
+    if (amount && !amount.dataset.touched) amount.value = total ? fmt(total) : '';
+
+    var method = byId('coMethod');
+    if (method && method.firstChild) {
+      method.firstChild.nodeValue = payMethod || 'Not collected';
+    }
+    forceSwitch(byId('coCollected'), state.inv === 'paid');
+    forceSwitch(byId('coPresented'), estPresented);
+
+    // 3 · Chose — the option the customer put their name to
+    var chose = $$('#closeout .co-f')[2];
+    if (chose && !chose.value) chose.value = soldSummary(j);
+
+    paintInstall();
+  }
+
+  function paintInstall() {
+    var card = byId('coInstall'); if (!card) return;
+    var need = installSold(JOBS[jobIdx]);
+    card.hidden = !need;
+    if (!need) return;
+    var photos = byId('coPhotoState');
+    if (photos) {
+      photos.textContent = photosThisVisit
+        ? photosThisVisit + ' ' + plural(photosThisVisit) + ' on this visit'
+        : 'None taken on this visit';
+    }
+    var state_ = byId('coInstallState');
+    var missing = installMissing();
+    if (state_) {
+      var ok = !missing.length;
+      state_.textContent = ok ? 'Ready for the crew' : 'Incomplete';
+      state_.setAttribute('style', 'font:600 11.5px/1 Geist;border-radius:5px;padding:5px 8px;' +
+        (ok ? 'color:#15803D;background:#E8F6ED;border:1px solid #B6E3C6'
+            : 'color:#B45309;background:#FEF3E2;border:1px solid #F3D9AE'));
+    }
+  }
+
+  function installMissing() {
+    if (!installSold(JOBS[jobIdx])) return [];
+    var gaps = [];
+    [['coScope', 'the scope'], ['coSite', 'site conditions'], ['coParts', 'the parts list']]
+      .forEach(function (p) {
+        var el = byId(p[0]);
+        if (el && !el.value.trim()) gaps.push(p[1]);
+      });
+    if (!photosThisVisit) gaps.push('a photo');
+    return gaps;
+  }
+
+  /* The department has to be named, or the go-back lands on nobody's desk. */
+  var ntgbWho = '';
+  var clearNtgbChips = function () { };
+
+  /* The form's text is wiped when a job closes, but its switches were not,
+     so the next job opened with the last one's answers still set — "need to
+     go back" on, against a customer it was never about. */
+  function resetNtgb() {
+    ntgbWho = '';
+    clearNtgbChips();
+    forceSwitch(byId('ntgbSwitch'), false);
+    var who = byId('ntgbWho');
+    if (who) who.hidden = true;
+  }
+
+  function ntgbOn() {
+    var sw = byId('ntgbSwitch');
+    return !!sw && sw.dataset.on === '1';
+  }
 
   /* The closeout is typed on site, often with the app going in and out of the
      pocket — every keystroke is kept. */
@@ -5381,6 +5576,8 @@ body.dev #indexBtn{display:flex}
     $('[data-tot]', foot).textContent = fmt(total);
     R.card.insertBefore(foot, R.add);
   }
+
+  goBacks = recall('goBacks', []);
 
   if (recall('declined', false)) markDeclined();
 

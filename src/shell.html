@@ -585,7 +585,7 @@
               <div id="ntgbWho" hidden style="padding:0 14px 14px 44px">
                 <div style="font:500 13px/1 Geist;color:#546478;margin-bottom:8px">Who goes back</div>
                 <div style="display:flex;flex-wrap:wrap;gap:7px">
-                  <span data-ntgb style="font:600 13px/1 Geist;color:#fff;background:#4A6FA5;border-radius:18px;padding:10px 14px">Service</span>
+                  <span data-ntgb style="font:500 13px/1 Geist;color:#546478;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:18px;padding:10px 14px">Service</span>
                   <span data-ntgb style="font:500 13px/1 Geist;color:#546478;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:18px;padding:10px 14px">Install</span>
                   <span data-ntgb style="font:500 13px/1 Geist;color:#546478;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:18px;padding:10px 14px">Sales</span>
                   <span data-ntgb style="font:500 13px/1 Geist;color:#546478;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:18px;padding:10px 14px">Duct</span>
@@ -600,7 +600,7 @@
               <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid #EDF0F5">
                 <span style="font:600 12px/1 Geist;color:#8A97A8;min-width:18px">6</span>
                 <span style="flex:1;font:500 14.5px/1 Geist">Amount</span>
-                <input class="inp co-f" id="coAmount" inputmode="decimal" value="$2,000.00" style="width:130px;height:44px;text-align:right;font:600 15px/1 Geist">
+                <input class="inp co-f" id="coAmount" inputmode="decimal" placeholder="$0.00" style="width:130px;height:44px;text-align:right;font:600 15px/1 Geist">
               </div>
               <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid #EDF0F5">
                 <span style="font:600 12px/1 Geist;color:#8A97A8;min-width:18px">7</span>
@@ -610,8 +610,8 @@
               <div style="display:flex;align-items:center;gap:12px;padding:14px">
                 <span style="font:600 12px/1 Geist;color:#8A97A8;min-width:18px">8</span>
                 <span style="flex:1;font:500 14.5px/1 Geist">Collected on site</span>
-                <div style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none">
-                  <div style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>
+                <div id="coCollected" style="width:52px;height:31px;border-radius:16px;background:#DDE3EE;position:relative;flex:none">
+                  <div style="position:absolute;top:3px;left:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>
                 </div>
               </div>
             </div>
@@ -621,8 +621,8 @@
               <div style="display:flex;align-items:center;gap:12px;padding:15px 14px">
                 <span style="font:600 12px/1 Geist;color:#8A97A8;min-width:18px">9</span>
                 <span style="flex:1;font:500 14.5px/1.35 Geist">Presentation given</span>
-                <div style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none">
-                  <div style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>
+                <div id="coPresented" style="width:52px;height:31px;border-radius:16px;background:#DDE3EE;position:relative;flex:none">
+                  <div style="position:absolute;top:3px;left:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>
                 </div>
               </div>
             </div>
@@ -638,6 +638,35 @@
                 <span style="font:600 12px/1.5 Geist;color:#8A97A8;min-width:18px">11</span>
                 <div style="flex:1"><div style="font:600 13px/1 Geist;letter-spacing:.05em;color:#8A97A8;text-transform:uppercase;margin-bottom:8px">Follow-up notes</div>
                 <textarea class="inp co-f" rows="2" placeholder="What still needs chasing" style="height:auto;padding:10px 12px;font:400 14.5px/1.45 Geist;resize:none"></textarea></div>
+              </div>
+            </div>
+
+            <!-- Install sold: the crew arrives with nothing but what is written here -->
+            <div class="card" id="coInstall" hidden style="overflow:hidden;margin-bottom:12px;border:1.5px solid #C8D5E8">
+              <div style="display:flex;align-items:center;gap:8px;padding:13px 14px;background:#EBF0F8;border-bottom:1px solid #C8D5E8">
+                <span class="mi" style="font-size:19px;color:#4A6FA5">handyman</span>
+                <span style="flex:1;font:600 12px/1 Geist;letter-spacing:.06em;color:#4A6FA5;text-transform:uppercase">Install sold &middot; required</span>
+                <span id="coInstallState" style="font:600 11.5px/1 Geist;color:#B45309;background:#FEF3E2;border:1px solid #F3D9AE;border-radius:5px;padding:5px 8px">Incomplete</span>
+              </div>
+              <div style="display:flex;align-items:flex-start;gap:12px;padding:14px;border-bottom:1px solid #EDF0F5">
+                <span class="mi" style="font-size:18px;color:#8A97A8;margin-top:2px">assignment</span>
+                <div style="flex:1"><div style="font:600 13px/1 Geist;letter-spacing:.05em;color:#8A97A8;text-transform:uppercase;margin-bottom:8px">Scope for the crew</div>
+                <textarea class="inp co-f co-inst" id="coScope" rows="2" placeholder="Exactly what the crew is installing" style="height:auto;padding:10px 12px;font:400 14.5px/1.45 Geist;resize:none"></textarea></div>
+              </div>
+              <div style="display:flex;align-items:flex-start;gap:12px;padding:14px;border-bottom:1px solid #EDF0F5">
+                <span class="mi" style="font-size:18px;color:#8A97A8;margin-top:2px">home_work</span>
+                <div style="flex:1"><div style="font:600 13px/1 Geist;letter-spacing:.05em;color:#8A97A8;text-transform:uppercase;margin-bottom:8px">Site conditions</div>
+                <textarea class="inp co-f co-inst" id="coSite" rows="2" placeholder="Access, clearances, attic or crawl, anything awkward" style="height:auto;padding:10px 12px;font:400 14.5px/1.45 Geist;resize:none"></textarea></div>
+              </div>
+              <div style="display:flex;align-items:flex-start;gap:12px;padding:14px;border-bottom:1px solid #EDF0F5">
+                <span class="mi" style="font-size:18px;color:#8A97A8;margin-top:2px">inventory_2</span>
+                <div style="flex:1"><div style="font:600 13px/1 Geist;letter-spacing:.05em;color:#8A97A8;text-transform:uppercase;margin-bottom:8px">Parts list</div>
+                <textarea class="inp co-f co-inst" id="coParts" rows="2" placeholder="What has to be on the truck" style="height:auto;padding:10px 12px;font:400 14.5px/1.45 Geist;resize:none"></textarea></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:14px">
+                <span class="mi" style="font-size:18px;color:#8A97A8">photo_camera</span>
+                <span style="flex:1;font:500 14.5px/1.35 Geist">Photos of the site<div id="coPhotoState" style="font:400 12.5px/1.35 Geist;color:#8A97A8;margin-top:3px">None taken on this visit</div></span>
+                <div data-tap data-go="ov-media-source" data-mode="overlay" style="height:42px;padding:0 14px;display:flex;align-items:center;gap:6px;background:#fff;border:1px solid #C8D5E8;color:#4A6FA5;border-radius:9px;font:600 13.5px/1 Geist"><span class="mi" style="font-size:18px">add_a_photo</span>Add</div>
               </div>
             </div>
 
