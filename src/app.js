@@ -43,15 +43,6 @@
   var photosThisVisit = 0;       // proof for the install crew, reset per job
   var goBacks = [];              // return visits raised at close-out, for dispatch
 
-  var RECENT_INSTALL = {        // the unit dispatch keeps in their head today
-    unit: 'the air handler',
-    monthsAgo: 2,
-    paid: 12480,
-    invoice: 'INV-25-11-088',
-    covers: ['Blower Motor Repair', 'Air Handler Replacement', 'Capacitor Replacement']
-  };
-  var RECENT_MONTHS = 12;       // repairs inside this window get flagged
-
   var RATING = ['Good', 'Attention', 'Immediate'];   // the Report Card's three-state control
   var RC_GROUPS = {                                   // overview badges: design baseline + what the tech changes
     'Household Analysis': { base: 4, screens: ['rc-section'] },
@@ -662,13 +653,10 @@
           (MAX_OPTIONS - optCount) + ' still to build', 'rule');
         return;
       }
-      var flagged = paintDraftWarranty() || [];
       state.est = 'review';
       go('est-review', 'replace');
       queued('Estimate');
-      toast(flagged.length
-        ? 'Sent for review · flagged: work on our own recent install'
-        : 'Sent to your manager for review', flagged.length ? 'gpp_maybe' : 'send');
+      toast('Sent to your manager for review', 'send');
     },
     estApprove: function () { state.est = 'ready'; go('est-ready', 'replace'); toast('Manager approved — ready to present', 'verified'); },
     estOrder: function () {
@@ -1800,24 +1788,8 @@
     paintOptionSummary();
     paintOptionSave();
     remember('optionItems', optionItems);
-    // flag it while the option is still being built, not after it's sent
-    warrantyBanner('est-new-option',
-      function () { return optItemsBox; },
-      flaggedItems(optionItems.map(function (it) { return it.name; })));
   }
 
-  /* Anything already on the draft counts too — the design's own options
-     carry a blower motor repair. */
-  function paintDraftWarranty() {
-    var root = byId('est-draft'); if (!root) return;
-    var names = $$('div', root)
-      .filter(function (e) { return /font:400 14px/.test(e.getAttribute('style') || ''); })
-      .map(function (e) { return norm(e.textContent).replace(/^\d+\s*/, ''); });
-    var hits = [];
-    flaggedItems(names).forEach(function (n) { if (hits.indexOf(n) < 0) hits.push(n); });
-    warrantyBanner('est-draft', function () { return sel(root, 'Options list')[0]; }, hits);
-    return hits;
-  }
   steppers('est-option', ['Adjusted total', 'Total']);
   steppers('add-items', ['Section total']);
 
@@ -2640,44 +2612,6 @@
 
   if (recall('declined', false)) markDeclined();
 
-  /* =========================================================
-     Dispatch currently catches this by memory: a technician quoting a
-     repair on a unit we installed weeks ago for far more money. The data
-     for the check already sits on the Equipment screen, so the app can
-     raise it instead of one person having to notice.
-     ========================================================= */
-  function flaggedItems(names) {
-    if (RECENT_INSTALL.monthsAgo >= RECENT_MONTHS) return [];
-    return names.filter(function (n) { return RECENT_INSTALL.covers.indexOf(n) > -1; });
-  }
-
-  function warrantyText(hits) {
-    return '<b style="font-weight:600;color:#1A2332">' + hits.join(', ') + '</b> — on ' +
-      RECENT_INSTALL.unit + ' we installed ' + RECENT_INSTALL.monthsAgo + ' months ago for ' +
-      fmt(RECENT_INSTALL.paid) + '. May be under warranty.';
-  }
-
-  /* One banner, reused on whichever estimate screen needs it. */
-  function warrantyBanner(screenId, anchorFn, hits) {
-    var root = byId(screenId); if (!root) return;
-    var id = 'warn-' + screenId;
-    var el = byId(id);
-    if (!hits.length) { if (el) el.hidden = true; return; }
-    if (!el) {
-      el = document.createElement('div');
-      el.id = id;
-      el.setAttribute('style',
-        'display:flex;align-items:flex-start;gap:9px;background:#FEF3E2;border:1px solid #F3D9AE;' +
-        'border-radius:11px;padding:12px 13px;margin-bottom:12px');
-      var anchor = anchorFn();
-      if (!anchor) return;
-      anchor.parentElement.insertBefore(el, anchor);
-    }
-    el.hidden = false;
-    el.innerHTML = '<span class="mi" style="font-size:19px;color:#D97706;margin-top:1px">gpp_maybe</span>' +
-      '<div style="font:400 12.5px/1.45 Geist;color:#7A5B12">' + warrantyText(hits) + '</div>';
-  }
-
   /* SOP: four options, every one of them, presented most expensive first.
      Option A's card shows a monthly figure rather than its total, so its
      total comes from the option screen's own adjusted total ($1,089) —
@@ -3193,8 +3127,6 @@
   var optSendBtn = null;
   var SEND_ON = 'height:52px;display:flex;align-items:center;justify-content:center;gap:8px;' +
     'background:#4A6FA5;color:#fff;border-radius:11px;font:600 16px/1 Geist';
-  var SEND_OFF = 'height:52px;display:flex;align-items:center;justify-content:center;gap:8px;' +
-    'background:#EDF0F5;color:#A9B4C2;border-radius:11px;font:600 16px/1 Geist';
   var optList = null, optAddBtn = null, optCard = null, optFooters = [];
   (function () {
     var root = byId('est-draft'); if (!root) return;
@@ -3224,10 +3156,31 @@
     var short = MAX_OPTIONS - optCount;
     optFooters.forEach(function (f) { f.textContent = 'Options: ' + optCount + '/' + MAX_OPTIONS; });
     if (optAddBtn) optAddBtn.style.opacity = optCount >= MAX_OPTIONS ? '.45' : '';
-    if (optSendBtn) optSendBtn.setAttribute('style', short > 0 ? SEND_OFF : SEND_ON);
+    paintNextStep(short);
     ['est-draft', 'est-review', 'est-ready'].forEach(orderOptionsByPrice);
     paintPriceRange();
-    paintDraftWarranty();
+  }
+
+  /* The draft's one big button sat greyed out saying "Send to review"
+     until a fourth option existed, and the only way to build one was a
+     dashed button buried under three full-height option cards. The screen
+     showed a dead control and hid the live one.
+
+     It says what the screen is actually waiting for: short of four it
+     adds the next option, at four it sends. One button, always live,
+     always the next thing. The dashed one in the list still works for
+     anyone who scrolls that far. */
+  function paintNextStep(short) {
+    if (!optSendBtn) return;
+    optSendBtn.setAttribute('style', SEND_ON);
+    if (short > 0) {
+      optSendBtn.innerHTML = '<span class="mi" style="font-size:20px">add</span>' +
+        'Add option ' + (optCount + 1) + ' of ' + MAX_OPTIONS;
+      optSendBtn.dataset.act = 'newOption';
+    } else {
+      optSendBtn.innerHTML = '<span class="mi" style="font-size:20px">send</span>Send to review';
+      optSendBtn.dataset.act = 'estSendReview';
+    }
   }
 
   /* The footer range has to move when an option is added, or it quietly
