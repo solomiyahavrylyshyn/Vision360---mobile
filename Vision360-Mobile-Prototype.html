@@ -4111,7 +4111,10 @@ body.dev #indexBtn{display:flex}
   /* segmented controls */
   seg('home', ['Week', 'Month', 'Quarter', 'Year'], 1);
   seg('photos', ['All 24', 'Before 4', 'After 20'], 0);
-  seg('job-notes', ['Detailed 2', "Technician's 2", 'Private 1'], 0);
+  seg('job-notes', ['Detailed 2', "Technician's 2", 'Private 1'], 0, function (i) {
+    tabNoteKind = NOTE_ORDER[i];
+    paintNotes();
+  });
   seg('est-catalog', ['Repairs', 'Equipment', 'Ductwork', 'IAQ', 'Others'], 0);
   seg('est-new-option', ['Monthly payment + Total', 'Total only', 'Monthly payment only'], 0);
   seg('est-option', ['−20%', '0%', '+20%'], 1);
@@ -5853,33 +5856,174 @@ body.dev #indexBtn{display:flex}
       h + ':' + String(d.getMinutes()).padStart(2, '0') + ' ' + (d.getHours() < 12 ? 'AM' : 'PM');
   }
 
-  function noteComposer(screenId, counterLabel) {
-    var root = byId(screenId); if (!root) return;
-    var btn = sel(root, '@add^1')[0];
-    if (!btn) { MISS.push(screenId + ' :: add note'); return; }
-    var slot = btn.parentElement;
-    var list = slot.previousElementSibling;
-    var card = list && list.firstElementChild;
-    if (!card) { MISS.push(screenId + ' :: note list'); return; }
+  /* =========================================================
+     Notes: three kinds, one store.
 
-    var template = card.cloneNode(true);
-    var badge = null;
-    $$('span', root).forEach(function (e) {
-      if (!badge && /^\d+$/.test(norm(e.textContent)) && /border-radius:5px/.test(e.getAttribute('style') || '')) badge = e;
-    });
+     A technician writing a note has to know who ends up reading it. The
+     detailed description and the technician's notes travel with the job
+     to the customer; private notes never leave the company, which is the
+     whole reason the kind exists — "customer has a small baby, do not
+     ring the doorbell" is not for the customer to read back. Every list
+     now says which it is, in words, above the notes themselves.
 
-    // no badge on the notes tab — the count lives in the segment label
-    var segCount = null;
-    if (!badge && counterLabel) {
-      segCount = $$('div,span', root).filter(function (e) {
-        var t = norm(e.textContent);
-        return !e.children.length && t.indexOf(counterLabel + ' ') === 0 &&
-          /^[0-9]+$/.test(t.slice(counterLabel.length + 1));
-      })[0];
+     The office writes the detailed description, so it stays read-only
+     here. The two the technician writes, the technician can fix and
+     remove — a note typed on a phone in a plant room is going to have
+     mistakes in it, and there was no way to correct one.
+
+     One store behind three surfaces: the Notes tab's segment and the two
+     dialogs off Home show the same notes, so an edit in either shows in
+     both.
+     ========================================================= */
+  var NOTE_KINDS = {
+    detailed: {
+      seg: 'Detailed', title: 'Detailed description',
+      shared: true, readOnly: true, add: ''
+    },
+    tech: {
+      seg: "Technician's", title: "Technician's Notes",
+      shared: true, readOnly: false, add: "Add technician's note"
+    },
+    private: {
+      seg: 'Private', title: 'Private Notes',
+      shared: false, readOnly: false, add: 'Add private note'
     }
+  };
+  var NOTE_ORDER = ['detailed', 'tech', 'private'];
 
-    var composer = document.createElement('div');
-    composer.innerHTML =
+  /* the design's own cards are the starting content — read once, then the
+     store is what every surface draws from */
+  var noteCard = null;
+  function noteListBox(screenId) {
+    var root = byId(screenId); if (!root) return null;
+    var any = $$('div', root).filter(function (e) {
+      // the dialogs draw the card at 11px, the sheet the tab came from at 12px
+      var st = e.getAttribute('style') || '';
+      return /border-radius:1[12]px/.test(st) && /background:#F5F7FA/.test(st);
+    })[0];
+    return any ? any.parentElement : null;
+  }
+  function noteSeed(screenId) {
+    var box = noteListBox(screenId);
+    if (!box) { MISS.push(screenId + ' :: note cards'); return []; }
+    if (!noteCard) noteCard = box.firstElementChild.cloneNode(true);
+    return $$(':scope > div', box).map(function (c) {
+      var meta = $$('span', c);
+      return {
+        text: norm(c.firstElementChild.textContent),
+        stamp: meta[0] ? norm(meta[0].textContent) : '',
+        author: meta[1] ? norm(meta[1].textContent) : ''
+      };
+    });
+  }
+
+  var notes = recall('notes.v2', null);
+  if (!notes) {
+    notes = {
+      detailed: noteSeed('ov-note-detailed'),
+      tech: noteSeed('ov-note-tech'),
+      private: noteSeed('ov-note-private')
+    };
+    remember('notes.v2', notes);
+  } else {
+    noteSeed('ov-note-detailed');          // still need the card template
+  }
+  function saveNotes() { remember('notes.v2', notes); }
+
+  function noteStampNow() { return noteStamp(); }
+
+  /* ---- one surface: a list box, an optional add button, a banner ---- */
+  var noteSurfaces = [];
+
+  function noteBanner(kind) {
+    var k = NOTE_KINDS[kind];
+    var el = document.createElement('div');
+    el.setAttribute('data-notebanner', '1');
+    var on = k.shared;
+    el.setAttribute('style', 'display:flex;align-items:center;gap:8px;margin:0 16px 12px;' +
+      'padding:10px 12px;border-radius:10px;font:500 12.5px/1.35 Geist;' +
+      (on ? 'background:#E8F6ED;border:1px solid #B6E3C6;color:#15803D'
+          : 'background:#FEF3E2;border:1px solid #F3D9AE;color:#8A6114'));
+    el.innerHTML = '<span class="mi" style="font-size:18px;flex:none"></span><span></span>';
+    el.children[0].textContent = on ? 'visibility' : 'lock';
+    el.children[1].textContent = on
+      ? 'The customer sees these notes'
+      : 'Internal only — the customer never sees these';
+    return el;
+  }
+
+  function noteRow(kind, rec, idx) {
+    var k = NOTE_KINDS[kind];
+    var card = noteCard.cloneNode(true);
+    card.setAttribute('data-note', '1');
+    var body = card.firstElementChild;
+    var meta = card.children[1];
+    body.textContent = rec.text;
+
+    // date and author move together so the actions get the right-hand side
+    meta.innerHTML = '<span></span>';
+    meta.firstElementChild.textContent = rec.stamp + (rec.author ? ' · ' + rec.author : '');
+    meta.setAttribute('style', 'display:flex;justify-content:space-between;align-items:center;' +
+      'gap:10px;margin-top:11px;font:500 12.5px/1 Geist;color:#8A97A8');
+
+    if (k.readOnly) return card;
+
+    var acts = document.createElement('div');
+    acts.setAttribute('style', 'display:flex;gap:2px;flex:none;margin:-8px -6px -8px 0');
+    [['edit', 'Edit'], ['delete_outline', 'Delete']].forEach(function (a) {
+      var b = document.createElement('span');
+      b.className = 'mi';
+      b.dataset.tap = '1';
+      b.dataset.noteact = a[0];
+      b.setAttribute('role', 'button');
+      b.setAttribute('aria-label', a[1] + ' note');
+      b.setAttribute('style', 'font-size:19px;color:#8A97A8;padding:8px;border-radius:8px');
+      b.textContent = a[0];
+      acts.appendChild(b);
+    });
+    meta.appendChild(acts);
+
+    acts.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      var hit = ev.target.closest('[data-noteact]');
+      if (!hit) return;
+      if (hit.dataset.noteact === 'edit') editNote(card, kind, idx);
+      else confirmDelete(card, kind, idx);
+    }, true);
+    return card;
+  }
+
+  /* Deleting is one tap away from losing what someone wrote, so it asks —
+     in the card itself, not in a dialog over the whole screen. */
+  function confirmDelete(card, kind, idx) {
+    if ($('[data-noteconfirm]', card)) return;
+    var bar = document.createElement('div');
+    bar.setAttribute('data-noteconfirm', '1');
+    bar.setAttribute('style', 'display:flex;align-items:center;gap:9px;margin-top:11px;' +
+      'padding-top:11px;border-top:1px solid #DDE3EE');
+    bar.innerHTML = '<span style="flex:1;font:500 12.5px/1.35 Geist;color:#8A6114">Delete this note?</span>' +
+      '<span data-no style="font:600 13px/1 Geist;color:#546478;padding:8px 10px">Keep</span>' +
+      '<span data-yes style="font:600 13px/1 Geist;color:#fff;background:#DC2626;' +
+      'border-radius:8px;padding:9px 13px">Delete</span>';
+    $('[data-no]', bar).dataset.tap = '1';
+    $('[data-yes]', bar).dataset.tap = '1';
+    bar.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      if (ev.target.closest('[data-no]')) { bar.remove(); return; }
+      if (!ev.target.closest('[data-yes]')) return;
+      notes[kind].splice(idx, 1);
+      saveNotes();
+      paintNotes(kind);
+      queued('Note');
+      toast('Note deleted', 'delete_outline');
+    }, true);
+    card.appendChild(bar);
+  }
+
+  function noteEditor(value) {
+    var box = document.createElement('div');
+    box.setAttribute('data-noteeditor', '1');
+    box.innerHTML =
       '<textarea class="inp" rows="3" placeholder="Write the note" ' +
       'style="height:auto;padding:11px 12px;font:400 15px/1.5 Geist;resize:none"></textarea>' +
       '<div style="display:flex;gap:9px;margin-top:9px">' +
@@ -5887,55 +6031,124 @@ body.dev #indexBtn{display:flex}
       'background:#fff;border:1px solid #C8D5E8;color:#546478;border-radius:10px;font:600 14.5px/1 Geist">Cancel</div>' +
       '<div data-save style="flex:1;height:46px;display:flex;align-items:center;justify-content:center;' +
       'background:#4A6FA5;color:#fff;border-radius:10px;font:600 14.5px/1 Geist">Save note</div></div>';
+    $('textarea', box).value = value || '';
+    return box;
+  }
 
-    function close() { composer.remove(); toggleDisplay(btn, true); }
-
-    btn.dataset.tap = '1';
-    btn.addEventListener('click', function (ev) {
+  function editNote(card, kind, idx) {
+    if ($('[data-noteeditor]', card)) return;
+    var rec = notes[kind][idx];
+    var box = noteEditor(rec.text);
+    var hide = $$(':scope > div', card);
+    hide.forEach(function (e) { toggleDisplay(e, false); });
+    card.appendChild(box);
+    var ta = $('textarea', box);
+    setTimeout(function () { ta.focus(); }, 30);
+    box.addEventListener('click', function (ev) {
       ev.stopPropagation();
-      toggleDisplay(btn, false);
-      slot.appendChild(composer);
-      var ta = $('textarea', composer);
-      ta.value = '';
-      setTimeout(function () { ta.focus(); }, 30);
-    }, true);
-
-    composer.addEventListener('click', function (ev) {
-      ev.stopPropagation();
-      var ta = $('textarea', composer);
-      if (ev.target.closest('[data-cancel]')) return close();
+      if (ev.target.closest('[data-cancel]')) { paintNotes(kind); return; }
       if (!ev.target.closest('[data-save]')) return;
       var text = ta.value.trim();
       if (!text) { ta.focus(); return; }
+      rec.text = text;
+      rec.stamp = noteStampNow();
+      rec.author = 'Marek Stroz';          // whoever last touched it owns it
+      saveNotes();
+      paintNotes(kind);
+      queued('Note');
+      toast(net.online ? 'Note updated' : 'Note updated — will sync', 'edit_note');
+    }, true);
+  }
 
-      var stamp = noteStamp();
-      file(text, stamp, 'Marek Stroz');
-      saved.push({ text: text, stamp: stamp, author: 'Marek Stroz' });
-      remember(key, saved);
-      close();
+  function addNote(kind, box) {
+    var editor = noteEditor('');
+    box.appendChild(editor);
+    var ta = $('textarea', editor);
+    setTimeout(function () { ta.focus(); }, 30);
+    editor.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      if (ev.target.closest('[data-cancel]')) { paintNotes(kind); return; }
+      if (!ev.target.closest('[data-save]')) return;
+      var text = ta.value.trim();
+      if (!text) { ta.focus(); return; }
+      notes[kind].unshift({ text: text, stamp: noteStampNow(), author: 'Marek Stroz' });
+      saveNotes();
+      paintNotes(kind);
       queued('Note');
       toast(net.online ? 'Note added' : 'Note saved — will sync', 'edit_note');
     }, true);
-
-    /* build the card the sheet already uses and put it at the top */
-    function file(text, stamp, author) {
-      var note = template.cloneNode(true);
-      note.firstElementChild.textContent = text;
-      var meta = $$('span', note);
-      if (meta[0]) meta[0].textContent = stamp;
-      if (meta[1]) meta[1].textContent = author;
-      list.insertBefore(note, list.firstElementChild);
-      if (badge) badge.textContent = String((parseInt(badge.textContent, 10) || 0) + 1);
-      if (segCount) segCount.textContent = counterLabel + ' ' + String(list.children.length);
-    }
-
-    // notes written before the reload come back in the same order
-    var key = 'notes:' + screenId;
-    var saved = recall(key, []);
-    saved.slice().reverse().forEach(function (n) { file(n.text, n.stamp, n.author); });
   }
-  noteComposer('job-notes', 'Detailed');
-  ['ov-note-tech', 'ov-note-private'].forEach(function (id) { noteComposer(id); });
+
+  /* repaint every surface showing this kind — the tab and the dialog are
+     two windows onto the same notes */
+  function paintNotes(kind) {
+    noteSurfaces.forEach(function (sf) {
+      var k = sf.kind || tabNoteKind;
+      if (kind && k !== kind) return;
+      var spec = NOTE_KINDS[k];
+      $$('[data-note],[data-noteeditor]', sf.box).forEach(function (e) { e.remove(); });
+      notes[k].forEach(function (rec, i) { sf.box.appendChild(noteRow(k, rec, i)); });
+
+      if (sf.banner) {
+        var fresh = noteBanner(k);
+        sf.banner.setAttribute('style', fresh.getAttribute('style'));
+        sf.banner.innerHTML = fresh.innerHTML;
+      }
+      if (sf.addBtn) {
+        toggleDisplay(sf.addBtn, !spec.readOnly);
+        var lbl = sf.addBtn.lastChild;
+        if (spec.add && lbl && lbl.nodeType === 3) lbl.nodeValue = spec.add;
+      }
+      if (sf.count) sf.count.textContent = String(notes[k].length);
+    });
+    paintNoteSegment();
+  }
+
+  function noteSurface(screenId, kind) {
+    var root = byId(screenId); if (!root) return;
+    var box = noteListBox(screenId);
+    if (!box) { MISS.push(screenId + ' :: note list'); return; }
+    var addBtn = sel(root, '@add^1')[0] || null;
+    var count = null;
+    $$('span', root).forEach(function (e) {
+      if (!count && /^[0-9]+$/.test(norm(e.textContent)) &&
+        /border-radius:5px/.test(e.getAttribute('style') || '')) count = e;
+    });
+    var banner = noteBanner(kind || 'detailed');
+    box.parentElement.insertBefore(banner, box);
+    box.innerHTML = '';
+    var sf = { screen: screenId, kind: kind, box: box, addBtn: addBtn, banner: banner, count: count };
+    noteSurfaces.push(sf);
+    if (addBtn) {
+      addBtn.dataset.tap = '1';
+      addBtn.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        var k = sf.kind || tabNoteKind;
+        if (NOTE_KINDS[k].readOnly) return;
+        if ($('[data-noteeditor]', sf.box)) return;
+        addNote(k, sf.box);
+      }, true);
+    }
+  }
+
+  /* the Notes tab's segment picks the kind; the dialogs are fixed to one */
+  var tabNoteKind = 'detailed';
+  function paintNoteSegment() {
+    var root = byId('job-notes'); if (!root) return;
+    NOTE_ORDER.forEach(function (k) {
+      var spec = NOTE_KINDS[k];
+      var el = $$('div', root).filter(function (e) {
+        return !e.children.length && norm(e.textContent).indexOf(spec.seg + ' ') === 0;
+      })[0];
+      if (el) el.textContent = spec.seg + ' ' + notes[k].length;
+    });
+  }
+
+  noteSurface('ov-note-detailed', 'detailed');
+  noteSurface('ov-note-tech', 'tech');
+  noteSurface('ov-note-private', 'private');
+  noteSurface('job-notes', null);
+  paintNotes();
 
   /* =========================================================
      Calling the customer on the way is what techs did before it was taken
