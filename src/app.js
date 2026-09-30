@@ -1000,7 +1000,7 @@
       ['Save', 'act:estSaveOption'],
       ['@add^1', 'act:optAddItem'],
       ['@tune^1', 'est-option', 'modal'],
-      ['@note_add^1', null]
+      ['@note_add^1', 'act:optionNote']
     ],
     'est-catalog': [
       ['Add custom item^1', 'est-custom-item', 'modal'],
@@ -2798,6 +2798,82 @@
 
   if (recall('declined', false)) markDeclined();
 
+  /* =========================================================
+     Pricing preview: what the customer is actually shown.
+
+     Three radios and an "Add extra notes" that did nothing, under a
+     label — "Pricing preview type" — that does not say whose preview or
+     when they would see it. It decides what lands on the option card at
+     the customer's kitchen table: the monthly, the total, or both.
+
+     So it drives the cards. Total only strips the monthly and its
+     toggle; monthly only strips the total. Choosing something the plan
+     cannot deliver is not possible — with no financing there is no
+     monthly to show.
+     ========================================================= */
+  var PREVIEW = ['both', 'total', 'monthly'];
+  var previewMode = 'both';
+
+  (function () {
+    var root = byId('est-new-option'); if (!root) return;
+    var head = sel(root, 'Pricing preview type')[0];
+    if (!head) { MISS.push('est-new-option :: preview type'); return; }
+    var why = document.createElement('div');
+    why.setAttribute('style', 'font:400 12.5px/1.45 Geist;color:#8A97A8;margin:-3px 0 9px');
+    why.textContent = 'What the customer sees on the option card when you present it.';
+    head.parentElement.insertBefore(why, head.nextElementSibling);
+
+    // the label is a span inside the row; the row is what carries the state
+    seg('est-new-option',
+      ['Monthly payment + Total^1', 'Total only^1', 'Monthly payment only^1'], 0,
+      function (i) {
+        previewMode = PREVIEW[i];
+        paintPlanEverywhere();
+        toast(i === 0 ? 'Customer sees the monthly and the total'
+          : i === 1 ? 'Customer sees the total only'
+            : 'Customer sees the monthly only', 'visibility');
+      });
+  })();
+
+  /* A note the technician wants on the option — a reason, a caveat, what
+     the price does not cover. It rides with the option to the customer. */
+  var optionNoteText = '';
+  ACT.optionNote = function () {
+    var root = byId('est-new-option'); if (!root) return;
+    var btn = sel(root, '~Add extra notes')[0];
+    if (!btn) { btn = sel(root, 'Add extra notes')[0]; }
+    if (!btn || $('[data-optnote]', root)) return;
+    var box = document.createElement('div');
+    box.setAttribute('data-optnote', '1');
+    box.setAttribute('style', 'margin-top:9px');
+    box.innerHTML =
+      '<textarea class="inp" rows="3" placeholder="Anything the customer should read with this price" ' +
+      'style="height:auto;padding:11px 12px;font:400 14.5px/1.5 Geist;resize:none"></textarea>' +
+      '<div style="display:flex;gap:9px;margin-top:9px">' +
+      '<div data-ncancel style="flex:1;height:44px;display:flex;align-items:center;justify-content:center;' +
+      'background:#fff;border:1px solid #C8D5E8;color:#546478;border-radius:10px;font:600 14px/1 Geist">Cancel</div>' +
+      '<div data-nsave style="flex:1;height:44px;display:flex;align-items:center;justify-content:center;' +
+      'background:#4A6FA5;color:#fff;border-radius:10px;font:600 14px/1 Geist">Save note</div></div>';
+    var ta = $('textarea', box);
+    ta.value = optionNoteText;
+    btn.parentElement.insertBefore(box, btn.nextElementSibling);
+    toggleDisplay(btn, false);
+    setTimeout(function () { ta.focus(); }, 30);
+    box.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      if (ev.target.closest('[data-ncancel]')) { box.remove(); toggleDisplay(btn, true); return; }
+      if (!ev.target.closest('[data-nsave]')) return;
+      optionNoteText = ta.value.trim();
+      box.remove();
+      toggleDisplay(btn, true);
+      var txt = btn.childNodes[btn.childNodes.length - 1];
+      if (txt && txt.nodeType === 3) {
+        txt.nodeValue = optionNoteText ? 'Note added — tap to edit' : 'Add extra notes';
+      }
+      toast(optionNoteText ? 'Note saved with the option' : 'Note cleared', 'sticky_note_2');
+    }, true);
+  };
+
   /* ---- the plan card, and every monthly figure it drives ---- */
   var planRefs = null;
   (function () {
@@ -2871,7 +2947,13 @@
       })[0];
       if (!priceEl) return;
       var canFinance = !!plan().months;
-      if (hint && !canFinance) { hint.hidden = true; priceEl.textContent = fmt(total); return; }
+      // nothing to show a monthly from, or the technician chose not to
+      if (hint && (!canFinance || previewMode === 'total')) {
+        hint.hidden = true; priceEl.textContent = fmt(total); return;
+      }
+      if (hint && previewMode === 'monthly') {
+        hint.hidden = true; priceEl.innerHTML = fmt(monthlyFor(total)) + PER_MONTH; return;
+      }
       if (hint) hint.hidden = false;
       var showingMonthly = hint && /Tap for total/.test(norm(hint.textContent));
       if (showingMonthly) priceEl.innerHTML = fmt(monthlyFor(total)) + PER_MONTH;
