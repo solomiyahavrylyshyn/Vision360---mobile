@@ -1237,6 +1237,33 @@
     }, true);
   })();
 
+  /* The service agreement tier is a billing fact, not something the
+     technician acts on at the door. It was the card's last row, so the
+     one above it has to give up its divider or the card ends on a line
+     with nothing under it. */
+  (function () {
+    var root = byId('job-general'); if (!root) return;
+    var label = sel(root, 'Service agreement')[0];
+    var row = label && label.parentElement;
+    if (!row) { MISS.push('job-general :: service agreement'); return; }
+    var prev = row.previousElementSibling;
+    if (prev) {
+      prev.setAttribute('style',
+        (prev.getAttribute('style') || '').replace(/;?border-bottom:[^;]*/, ''));
+    }
+    row.remove();
+  })();
+
+  /* The photo viewer is drawn white-on-dark — header, pager, chevrons all
+     assume it. The board carried that background on the frame itself, which
+     is the one thing the export does not bring across, so the screen came
+     out on the app's light ground and the header went invisible.
+     Same colour as the image area, so the viewer is one dark surface. */
+  (function () {
+    var v = byId('photo-detail'); if (!v) { MISS.push('photo-detail :: screen'); return; }
+    v.style.background = '#0B1116';
+  })();
+
   /* job tab strips */
   ['job-general', 'job-notes', 'rc-overview', 'est-empty', 'est-draft', 'est-review',
     'est-ready', 'est-approved', 'fin-empty', 'add-empty', 'add-items', 'inv-paid', 'inv-sent']
