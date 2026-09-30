@@ -974,6 +974,8 @@
     ],
     'est-catalog': [
       ['@more_vert', 'est-custom-item', 'modal'],
+      ['Add custom item^1', 'est-custom-item', 'modal'],
+      ['@add_circle_outline^1', 'est-custom-item', 'modal'],
       ['Done', 'act:estCatalogDone']
     ],
     'est-custom-item': [
@@ -1161,6 +1163,27 @@
   };
 
   /* apply link tables */
+  /* The item catalog hid "add a custom item" behind the kebab in its
+     header. Three dots are not an invitation — nobody opens them on the
+     off chance, so a technician holding a part that isn't on the shelf
+     had no way of knowing the app could take it.
+
+     The other catalog already solves this: the design draws a dashed
+     "Add custom item" card at the top of its list. The same card, in the
+     same place, so both catalogs behave alike. */
+  (function () {
+    var src = byId('add-catalog'), dst = byId('est-catalog');
+    if (!src || !dst) return;
+    var card = $$('div', src).filter(function (e) {
+      return /border:1px dashed/.test(e.getAttribute('style') || '') &&
+        norm(e.textContent).indexOf('Add custom item') > -1;
+    })[0];
+    var pill = sel(dst, '@add^1')[0];
+    var list = pill && pill.parentElement.parentElement.parentElement.parentElement;
+    if (!card || !list) { MISS.push('est-catalog :: custom item'); return; }
+    list.insertBefore(card.cloneNode(true), list.firstElementChild);
+  })();
+
   /* =========================================================
      Notes is a tab, so it gets a tab's screen.
 
