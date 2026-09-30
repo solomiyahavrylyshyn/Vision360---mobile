@@ -3844,7 +3844,6 @@ body.dev #indexBtn{display:flex}
       ['@note_add^1', null]
     ],
     'est-catalog': [
-      ['@more_vert', 'est-custom-item', 'modal'],
       ['Add custom item^1', 'est-custom-item', 'modal'],
       ['@add_circle_outline^1', 'est-custom-item', 'modal'],
       ['Done', 'act:estCatalogDone']
@@ -4053,6 +4052,12 @@ body.dev #indexBtn{display:flex}
     var list = pill && pill.parentElement.parentElement.parentElement.parentElement;
     if (!card || !list) { MISS.push('est-catalog :: custom item'); return; }
     list.insertBefore(card.cloneNode(true), list.firstElementChild);
+
+    // the kebab was this screen's only way to a custom item, and the reason
+    // nobody found one. The card says it now, so the dots have nothing left
+    // to offer — the other catalog never had them.
+    var kebab = sel(dst, '@more_vert')[0];
+    if (kebab) kebab.remove();
   })();
 
   /* =========================================================
