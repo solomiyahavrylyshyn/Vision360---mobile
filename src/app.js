@@ -215,6 +215,7 @@
       }));
     }
     paintDash();
+    paintStartButtons();
     var m = INFO[pid] || {};
     phone.setAttribute('data-tabs', m.tabs ? 'on' : 'off');
     phone.setAttribute('data-sb', m.sb ? 'dark' : 'light');
@@ -579,7 +580,7 @@
   /* --- named actions --- */
   var ACT = {
     jobGeneral: function () { go('job-general', 'replace'); },
-    jobNotes: function () { go('ov-notes'); },
+    jobNotes: function () { go('job-notes', 'replace'); },
     jobRC: function () { go('rc-overview', 'replace'); },
     jobEst: function () { go(estScreen(), 'replace'); },
     jobFin: function () { go(finScreen(), 'replace'); },
@@ -841,7 +842,9 @@
       ['@fact_check^1', 'rc-overview'],
       ['@request_quote^1', 'act:jobEst']
     ],
-    'ov-notes': [],
+    'job-notes': [
+      ['@play_arrow^1', 'act:start']
+    ],
     'photos': [
       ['@add_a_photo', 'ov-media-source'],
       ['@add^1', 'ov-media-source'],
@@ -1086,6 +1089,60 @@
   };
 
   /* apply link tables */
+  /* =========================================================
+     Notes is a tab, so it gets a tab's screen.
+
+     It used to be a bottom sheet hung off the Notes tab, which made it
+     behave unlike the other four: it covered the screen you came from,
+     the strip underneath still showed that screen as current, and
+     dismissing it dropped you back somewhere you had not chosen. The
+     sheet's own parts are fine — a segment, a list, an Add note. They
+     move onto a screen that carries the job's header and strip, the
+     same ones every other tab draws.
+     ========================================================= */
+  (function () {
+    var sheet = byId('ov-notes'), tpl = byId('job-general');
+    if (!sheet || !tpl || !tpl.children[1]) { MISS.push('job-notes :: source'); return; }
+    var panel = sheet.lastElementChild;            // the sheet body, under the scrim
+    var parts = $$(':scope > div', panel);
+    // grabber, title row, then the three pieces worth keeping
+    var keep = parts.slice(2);
+    if (keep.length < 3) { MISS.push('job-notes :: sheet parts'); return; }
+
+    var scr = document.createElement('div');
+    scr.className = 'screen';
+    scr.id = 'job-notes';
+    scr.setAttribute('data-tabs', 'on');
+    scr.appendChild(tpl.children[0].cloneNode(true));       // Job header + Start
+    var strip = tpl.children[1].cloneNode(true);            // the five tabs
+    scr.appendChild(strip);
+    keep.forEach(function (el) { scr.appendChild(el); });
+
+    // the strip is cloned from General, so the underline has to move
+    var on = $$(':scope > div', strip).filter(function (e) {
+      return /border-bottom/.test(e.getAttribute('style') || '');
+    })[0];
+    var off = $$(':scope > div', strip).filter(function (e) { return e !== on; })[0];
+    if (on && off) {
+      var ACTIVE = on.getAttribute('style'), IDLE = off.getAttribute('style');
+      on.setAttribute('style', IDLE);
+      strip.children[1].setAttribute('style', ACTIVE);
+    }
+
+    // that 26px was the sheet clearing the home indicator; the tab bar is
+    // below this screen instead
+    var foot = scr.lastElementChild;
+    foot.setAttribute('style', (foot.getAttribute('style') || '').replace('26px', '16px'));
+
+    viewport.appendChild(scr);
+    INFO['job-notes'] = {
+      id: 'job-notes', title: 'Notes', section: 'job',
+      desc: 'Every note on the job, in the tab that says Notes.',
+      tabs: true, sb: false, overlay: false
+    };
+    sheet.remove();                                 // nothing routes to the sheet any more
+  })();
+
   Object.keys(LINKS).forEach(function (id) {
     link(id, LINKS[id].filter(function (s) { return s[1] !== null && s[1] !== undefined; }));
     // explicit "inert" entries: mark as tappable but do nothing
@@ -1094,8 +1151,9 @@
     });
   });
 
+
   /* job tab strips */
-  ['job-general', 'rc-overview', 'est-empty', 'est-draft', 'est-review',
+  ['job-general', 'job-notes', 'rc-overview', 'est-empty', 'est-draft', 'est-review',
     'est-ready', 'est-approved', 'fin-empty', 'add-empty', 'add-items', 'inv-paid', 'inv-sent']
     .forEach(wireJobTabs);
 
@@ -1118,7 +1176,7 @@
   /* segmented controls */
   seg('home', ['Week', 'Month', 'Quarter', 'Year'], 1);
   seg('photos', ['All 24', 'Before 4', 'After 20'], 0);
-  seg('ov-notes', ['Detailed 2', "Technician's 2", 'Private 1'], 0);
+  seg('job-notes', ['Detailed 2', "Technician's 2", 'Private 1'], 0);
   seg('est-catalog', ['Repairs', 'Equipment', 'Ductwork', 'IAQ', 'Others'], 0);
   seg('est-new-option', ['Monthly payment + Total', 'Total only', 'Monthly payment only'], 0);
   seg('est-option', ['−20%', '0%', '+20%'], 1);
@@ -2348,6 +2406,16 @@
      and releases on a second tap. */
   var paintEnroute = function () { };
   var paintDash = function () { };
+
+  /* Every job screen carries a Start button in its header, and it kept
+     offering to start a job that was already running. Once the clock is
+     going there is nothing left for it to do, so it goes — on all
+     thirteen screens at once, from the one place that knows. */
+  function paintStartButtons() {
+    $$('.screen [data-act="start"]').forEach(function (b) {
+      toggleDisplay(b, !state.onsite);
+    });
+  }
   (function () {
     var btn = sel(byId('home'), '@navigation^1')[0];
     if (!btn) { MISS.push('home :: en route'); return; }
@@ -2849,7 +2917,7 @@
       h + ':' + String(d.getMinutes()).padStart(2, '0') + ' ' + (d.getHours() < 12 ? 'AM' : 'PM');
   }
 
-  function noteComposer(screenId) {
+  function noteComposer(screenId, counterLabel) {
     var root = byId(screenId); if (!root) return;
     var btn = sel(root, '@add^1')[0];
     if (!btn) { MISS.push(screenId + ' :: add note'); return; }
@@ -2863,6 +2931,16 @@
     $$('span', root).forEach(function (e) {
       if (!badge && /^\d+$/.test(norm(e.textContent)) && /border-radius:5px/.test(e.getAttribute('style') || '')) badge = e;
     });
+
+    // no badge on the notes tab — the count lives in the segment label
+    var segCount = null;
+    if (!badge && counterLabel) {
+      segCount = $$('div,span', root).filter(function (e) {
+        var t = norm(e.textContent);
+        return !e.children.length && t.indexOf(counterLabel + ' ') === 0 &&
+          /^[0-9]+$/.test(t.slice(counterLabel.length + 1));
+      })[0];
+    }
 
     var composer = document.createElement('div');
     composer.innerHTML =
@@ -2912,6 +2990,7 @@
       if (meta[1]) meta[1].textContent = author;
       list.insertBefore(note, list.firstElementChild);
       if (badge) badge.textContent = String((parseInt(badge.textContent, 10) || 0) + 1);
+      if (segCount) segCount.textContent = counterLabel + ' ' + String(list.children.length);
     }
 
     // notes written before the reload come back in the same order
@@ -2919,7 +2998,8 @@
     var saved = recall(key, []);
     saved.slice().reverse().forEach(function (n) { file(n.text, n.stamp, n.author); });
   }
-  ['ov-notes', 'ov-note-tech', 'ov-note-private'].forEach(noteComposer);
+  noteComposer('job-notes', 'Detailed');
+  ['ov-note-tech', 'ov-note-private'].forEach(function (id) { noteComposer(id); });
 
   /* =========================================================
      Calling the customer on the way is what techs did before it was taken
@@ -3282,7 +3362,7 @@
     byId('sheet').classList.remove('on');
     var id = it.dataset.jump;
     if (isOv(id)) {
-      var base = { 'ov-notes': 'job-general', 'ov-job-actions': 'job-general', 'ov-option-menu': 'est-draft', 'ov-pay-method': 'fin-empty', 'ov-inv-share': 'inv-sent', 'ov-period': 'home', 'ov-period-month': 'home', 'ov-note-detailed': 'job-general', 'ov-note-tech': 'job-general', 'ov-note-private': 'job-general', 'ov-media-source': 'home-active' }[id] || 'home';
+      var base = { 'ov-job-actions': 'job-general', 'ov-option-menu': 'est-draft', 'ov-pay-method': 'fin-empty', 'ov-inv-share': 'inv-sent', 'ov-period': 'home', 'ov-period-month': 'home', 'ov-note-detailed': 'job-general', 'ov-note-tech': 'job-general', 'ov-note-private': 'job-general', 'ov-media-source': 'home-active' }[id] || 'home';
       go(base, 'root'); setTimeout(function () { go(id); }, 60);
     } else go(id, 'root');
   });
