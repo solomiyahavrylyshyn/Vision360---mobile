@@ -84,6 +84,10 @@
   }
   var MONTHLY_FACTOR = 0.0129;        // kept for anything still reading it directly
 
+  // filled by the job-header pass, read by the paint that swaps Start for
+  // Complete — both run long before this file's midpoint
+  var jobHeaderBtns = [];
+
   var RATING = ['Good', 'Attention', 'Immediate'];   // the Report Card's three-state control
   var RC_GROUPS = {                                   // overview badges: design baseline + what the tech changes
     'Household Analysis': { base: 4, screens: ['rc-section'] },
@@ -1301,6 +1305,7 @@
       var hdr = btn.parentElement;
       // only a job header — on Home the same button sits inside a card
       if (!scr || !hdr || hdr !== scr.children[0]) return;
+      jobHeaderBtns.push(btn);
       if (done.indexOf(hdr) > -1) return;
       done.push(hdr);
       var kebab = document.createElement('span');
@@ -2173,8 +2178,14 @@
 
     // the header timer on the in-progress screen is the same work clock
     if (jobTimerEl) {
+      // minutes only, so an hour on site read 61:20 and a long one 37255:53.
+      // Past the hour it rolls over like a clock, the way the design's own
+      // 43:45 reads under it.
       var t = Math.floor(work);
-      jobTimerEl.textContent = Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+      jobTimerEl.textContent = t >= 3600
+        ? Math.floor(t / 3600) + ':' + String(Math.floor(t % 3600 / 60)).padStart(2, '0') +
+          ':' + String(t % 60).padStart(2, '0')
+        : Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
     }
 
     $$('[data-tsmode]').forEach(function (b) {
@@ -3139,12 +3150,35 @@
   var paintDash = function () { };
 
   /* Every job screen carries a Start button in its header, and it kept
-     offering to start a job that was already running. Once the clock is
-     going there is nothing left for it to do, so it goes — on all
-     thirteen screens at once, from the one place that knows. */
+     offering to start a job that was already running. Hiding it left a
+     gap — and the way to end a job was buried in the kebab, so tapping
+     the running-job bar landed you on the job with nothing on screen
+     that finished it.
+
+     One slot, the next thing to do: Start before, Complete while it
+     runs. Home's own Start sits inside a card rather than a header, and
+     Home is not reachable while a job is running, so that one just
+     hides. */
+  var START_STYLE = '', COMPLETE_STYLE = '';
   function paintStartButtons() {
-    $$('.screen [data-act="start"]').forEach(function (b) {
+    $$('.screen [data-act="start"],.screen [data-act="complete"]').forEach(function (b) {
+      if (jobHeaderBtns.indexOf(b) > -1) return;
       toggleDisplay(b, !state.onsite);
+    });
+    jobHeaderBtns.forEach(function (b) {
+      if (!START_STYLE) START_STYLE = b.getAttribute('style') || '';
+      if (!COMPLETE_STYLE) {
+        COMPLETE_STYLE = START_STYLE.replace('background:#4A6FA5', 'background:#16A34A');
+      }
+      if (state.onsite) {
+        b.dataset.act = 'complete';
+        b.setAttribute('style', COMPLETE_STYLE);
+        b.innerHTML = '<span class="mif" style="font-size:18px">task_alt</span>Complete';
+      } else {
+        b.dataset.act = 'start';
+        b.setAttribute('style', START_STYLE);
+        b.innerHTML = '<span class="mif" style="font-size:18px">play_arrow</span>Start';
+      }
     });
     toggleDisplay(onsiteBar, !!state.onsite);
   }
