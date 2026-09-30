@@ -648,10 +648,10 @@
       toast(added ? 'Option saved to draft estimate' : 'Maximum ' + MAX_OPTIONS + ' options per job');
     },
     estSendReview: function () {
-      // SOP: all four options go up together — a partial sheet isn't reviewable
-      if (optCount < MAX_OPTIONS) {
-        toast('SOP needs all ' + MAX_OPTIONS + ' options — ' +
-          (MAX_OPTIONS - optCount) + ' still to build', 'rule');
+      // however many options were built, they go up — four is the ceiling,
+      // not a quota, and an estimate with two is still an estimate
+      if (!optCount) {
+        toast('Add an option before sending it for review', 'info');
         return;
       }
       state.est = 'review';
@@ -3226,31 +3226,44 @@
     var short = MAX_OPTIONS - optCount;
     optFooters.forEach(function (f) { f.textContent = 'Options: ' + optCount + '/' + MAX_OPTIONS; });
     if (optAddBtn) optAddBtn.style.opacity = optCount >= MAX_OPTIONS ? '.45' : '';
-    paintNextStep(short);
+    paintNextStep();
     ['est-draft', 'est-review', 'est-ready'].forEach(orderOptionsByPrice);
     paintPriceRange();
   }
 
-  /* The draft's one big button sat greyed out saying "Send to review"
-     until a fourth option existed, and the only way to build one was a
-     dashed button buried under three full-height option cards. The screen
-     showed a dead control and hid the live one.
+  /* The draft used to show one greyed-out "Send to review" that refused to
+     work until a fourth option existed, with the only way to build one
+     buried under three full-height option cards. Both halves were wrong:
+     the send was dead, and adding an option was hidden.
 
-     It says what the screen is actually waiting for: short of four it
-     adds the next option, at four it sends. One button, always live,
-     always the next thing. The dashed one in the list still works for
-     anyone who scrolls that far. */
-  function paintNextStep(short) {
+     They are two different things, so they are two buttons, side by side
+     and both live. Four options is the ceiling, not a quota — an estimate
+     with two goes to review just the same. The dashed button in the list
+     still works for anyone who scrolls that far. */
+  var optAddSecondary = null;
+  function paintNextStep() {
     if (!optSendBtn) return;
-    optSendBtn.setAttribute('style', SEND_ON);
-    if (short > 0) {
-      optSendBtn.innerHTML = '<span class="mi" style="font-size:20px">add</span>' +
-        'Add option ' + (optCount + 1) + ' of ' + MAX_OPTIONS;
-      optSendBtn.dataset.act = 'newOption';
-    } else {
-      optSendBtn.innerHTML = '<span class="mi" style="font-size:20px">send</span>Send to review';
-      optSendBtn.dataset.act = 'estSendReview';
+    if (!optAddSecondary) {
+      var row = document.createElement('div');
+      row.setAttribute('style', 'display:flex;gap:9px;align-items:stretch');
+      optSendBtn.parentElement.insertBefore(row, optSendBtn);
+      optAddSecondary = document.createElement('div');
+      optAddSecondary.dataset.tap = '1';
+      optAddSecondary.dataset.act = 'newOption';
+      row.appendChild(optAddSecondary);
+      optSendBtn.style.flex = '1.5';
+      row.appendChild(optSendBtn);
     }
+    var room = optCount < MAX_OPTIONS;
+    optAddSecondary.setAttribute('style',
+      'flex:1;height:54px;display:flex;align-items:center;justify-content:center;gap:6px;' +
+      'background:#fff;border:1px solid #C8D5E8;border-radius:11px;font:600 15px/1 Geist;' +
+      'color:#4A6FA5' + (room ? '' : ';opacity:.45'));
+    optAddSecondary.innerHTML = '<span class="mi" style="font-size:19px">add</span>Add option';
+    optSendBtn.setAttribute('style', SEND_ON);
+    optSendBtn.style.flex = '1.5';
+    optSendBtn.innerHTML = '<span class="mi" style="font-size:20px">send</span>Send to review';
+    optSendBtn.dataset.act = 'estSendReview';
   }
 
   /* The footer range has to move when an option is added, or it quietly
