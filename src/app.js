@@ -186,7 +186,7 @@
     }
     else if (mode === 'modal') { stack.push({ id: id, mode: 'modal' }); animate(fromEl, el, 'up'); }
     else { stack.push({ id: id, mode: 'push' }); animate(fromEl, el, 'push'); }
-    if (id === 'image-desc') paintSlotBanner();
+    if (id === 'image-desc') { paintSlotBanner(); paintMediaForm(); }
     chrome();
   }
 
@@ -760,14 +760,36 @@
       back();
       toast(net.online ? 'Report Card saved' : 'Report Card saved locally — will sync');
     },
+    pickGallery: function () {
+      galClear();
+      closeOverlays(false);
+      go('gallery', 'modal');
+    },
+    useCamera: function () {
+      mediaBatch = 1;
+      closeOverlays(false);
+      go('image-desc', 'modal');
+    },
+    galDone: function () {
+      if (!galPicked.length) return;
+      mediaBatch = galPicked.length;
+      go('image-desc', 'replace');
+    },
     mediaSaved: function () {
       var bound = pendingSlot;
+      var n = Math.max(1, mediaBatch);
       if (bound) {
         markSlotFilled(bound);
         pendingSlot = null;
       }
+      addMediaThumbs(n);
+      mediaBatch = 1;
       back();
-      startUpload(1, bound);
+      startUpload(n, bound);
+      toast(bound
+        ? 'Photo filed against slot ' + bound.slot
+        : n + ' ' + plural(n) + ' saved',
+        'photo_camera');
     },
     // "Set to Completed" runs the SOP closeout first — the job isn't done
     // until the twelve fields are in (US-M05-2)
@@ -1095,8 +1117,8 @@
       ['@Choose file to upload', null]
     ],
     'ov-media-source': [
-      ['@photo_library^1', 'image-desc', 'modal'],
-      ['@photo_camera^1', 'image-desc', 'modal'],
+      ['@photo_library^1', 'act:pickGallery'],
+      ['@photo_camera^1', 'act:useCamera'],
       ['Cancel', 'BACK']
     ],
     'image-desc': [
@@ -1305,7 +1327,6 @@
   seg('history', ['Today', 'Week', 'Month', 'Quarter'], 0);
   seg('pay-apps', ['Zelle', 'Venmo', 'Cash App', 'Bank'], 0);
   seg('pay-cash', ['$2,000', '$2,500', '$3,000'], 0);
-  seg('image-desc', ['Before', '@check^1'], 1);
   seg('ov-period', ['~This week', '~This month', '~This quarter', '~This year'], 1, function () { setTimeout(back, 240); });
   seg('ov-period-month', ['January', 'February', 'March', 'April', 'May', 'June', 'July',
     'August', 'September', 'October', 'November', 'December'], 4);
@@ -2068,6 +2089,164 @@
       e.addEventListener('click', function () { pendingSlot = null; }, true);
     });
   });
+
+  /* =========================================================
+     Labelling at capture, and more than one at a time.
+
+     The Before / After control on the description screen was drawn but
+     inert, so whatever the technician picked, nothing carried it. And
+     every photo cost a full trip through the sheet, the picker and the
+     form — four taps each, standing in a plant room, for a job that
+     wants a dozen.
+
+     The label now travels with the save, the gallery hands over as many
+     as were ticked under one label and one description, and the photos
+     appear in the job's media strip wearing it.
+     ========================================================= */
+  var GAL_TILES = 12;
+  var galPicked = [];
+  var mediaBatch = 1;                // how many the next save is filing
+
+  var GAL_ON = 'position:absolute;top:5px;right:5px;font-size:21px;color:#4A6FA5;' +
+    'background:#fff;border-radius:11px';
+  var GAL_OFF = 'position:absolute;top:5px;right:5px;font-size:21px;color:#fff;' +
+    'background:rgba(28,43,58,.32);border-radius:11px';
+  var GAL_DONE_ON = 'height:50px;padding:0 22px;display:flex;align-items:center;' +
+    'background:#4A6FA5;color:#fff;border-radius:10px;font:600 15px/1 Geist';
+  var GAL_DONE_OFF = 'height:50px;padding:0 22px;display:flex;align-items:center;' +
+    'background:#EDF0F5;color:#A9B4C2;border-radius:10px;font:600 15px/1 Geist';
+
+  function galClear() {
+    galPicked = [];
+    paintGallery();
+  }
+  function paintGallery() {
+    var grid = byId('galGrid'); if (!grid) return;
+    $$('[data-gal]', grid).forEach(function (t) {
+      var on = galPicked.indexOf(t.dataset.gal) > -1;
+      var tick = $('[data-galtick]', t);
+      tick.textContent = on ? 'check_circle' : 'radio_button_unchecked';
+      tick.className = (on ? 'mif' : 'mi');
+      tick.setAttribute('style', on ? GAL_ON : GAL_OFF);
+      t.style.outline = on ? '2.5px solid #4A6FA5' : '';
+      t.style.outlineOffset = on ? '-2.5px' : '';
+    });
+    var n = galPicked.length;
+    var c = byId('galCount');
+    if (c) c.textContent = n ? n + ' ' + plural(n) + ' picked' : 'Nothing picked yet';
+    var d = byId('galDone');
+    if (d) {
+      d.setAttribute('style', n ? GAL_DONE_ON : GAL_DONE_OFF);
+      d.textContent = n ? 'Add ' + n : 'Add';
+    }
+    var all = byId('galAll');
+    if (all) all.textContent = n === GAL_TILES ? 'Clear' : 'Select all';
+  }
+
+  (function () {
+    var grid = byId('galGrid'); if (!grid) { MISS.push('gallery :: grid'); return; }
+    for (var i = 0; i < GAL_TILES; i++) {
+      var t = document.createElement('div');
+      t.dataset.tap = '1';
+      t.dataset.gal = String(i);
+      t.setAttribute('style', 'position:relative;aspect-ratio:1;border-radius:10px;' +
+        'background:' + (i % 3 ? '#E4E9F1' : '#D8DFEA') + ';display:flex;' +
+        'align-items:center;justify-content:center;overflow:hidden');
+      t.innerHTML = '<span class="mi" style="font-size:30px;color:#A9B4C2">image</span>' +
+        '<span data-galtick class="mi"></span>';
+      grid.appendChild(t);
+    }
+    grid.addEventListener('click', function (ev) {
+      var t = ev.target.closest('[data-gal]'); if (!t) return;
+      ev.stopPropagation();
+      var k = t.dataset.gal, at = galPicked.indexOf(k);
+      if (at > -1) galPicked.splice(at, 1); else galPicked.push(k);
+      paintGallery();
+    }, true);
+
+    var all = byId('galAll');
+    if (all) all.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      galPicked = galPicked.length === GAL_TILES
+        ? []
+        : $$('[data-gal]', grid).map(function (t) { return t.dataset.gal; });
+      paintGallery();
+    }, true);
+
+    var done = byId('galDone');
+    if (done) { done.dataset.tap = '1'; done.dataset.act = 'galDone'; }
+    paintGallery();
+  })();
+
+  /* A saved photo shows up in the job's media strip wearing its label —
+     otherwise the only proof anything happened is a toast that's gone in
+     two seconds. */
+  function addMediaThumbs(n) {
+    var root = byId('job-general'); if (!root) return;
+    var head = sel(root, 'Media')[0];
+    var card = head && head.parentElement && head.parentElement.parentElement;
+    if (!card) { MISS.push('job-general :: media strip'); return; }
+    var strip = head.parentElement.nextElementSibling;
+    var tiles = $$(':scope > div', strip);
+    var tpl = tiles[0], addTile = tiles[tiles.length - 1];
+    if (!tpl || !addTile || tpl === addTile) { MISS.push('job-general :: media tiles'); return; }
+    for (var i = 0; i < n; i++) {
+      var t = tpl.cloneNode(true);
+      // no label was chosen at capture, so the thumb does not claim one
+      var badge = $$('span', t).filter(function (e) {
+        return /position:absolute/.test(e.getAttribute('style') || '');
+      })[0];
+      if (badge) badge.remove();
+      strip.insertBefore(t, addTile);
+    }
+    var count = head.parentElement.lastElementChild;
+    if (count && /^[0-9]+$/.test(norm(count.textContent))) {
+      count.textContent = String((parseInt(count.textContent, 10) || 0) + n);
+    }
+    // the strip would grow past the card; let it scroll instead
+    strip.style.overflowX = 'auto';
+    strip.classList.add('sc');
+  }
+
+  /* How many this save is filing, and — when a Report Card slot owns the
+     photo — that Before / After is not the technician's call here. */
+  var mediaCaption = null;
+  (function dropTypePicker() {
+    /* One Before / After for a whole batch is a trap: you tick four photos,
+       hit Save, and only then remember two of them were the before shots.
+       Asking once per batch would mislabel them; asking per photo puts the
+       four taps back that the batch just removed. So capture stops
+       claiming to know, and the label is left to be set on the photo
+       itself. A Report Card photo was never labelled this way anyway —
+       the slot names it. */
+    var root = byId('image-desc'); if (!root) return;
+    var typeLabel = sel(root, 'Image type')[0];
+    var typeRow = typeLabel && typeLabel.nextElementSibling;
+    if (!typeLabel || !typeRow) { MISS.push('image-desc :: type picker'); return; }
+    typeRow.remove();
+    typeLabel.remove();
+  })();
+
+  function paintMediaForm() {
+    var root = byId('image-desc'); if (!root) return;
+    var sc = $('.sc', root); if (!sc) return;
+
+    if (!mediaCaption) {
+      mediaCaption = document.createElement('div');
+      mediaCaption.setAttribute('style',
+        'font:500 13.5px/1.4 Geist;color:#546478;margin:-12px 0 18px;text-align:center');
+      var preview = $$(':scope > div', sc).filter(function (e) {
+        return /height:200px/.test(e.getAttribute('style') || '');
+      })[0];
+      if (preview) preview.parentElement.insertBefore(mediaCaption, preview.nextElementSibling);
+    }
+    if (mediaCaption) {
+      var n = Math.max(1, mediaBatch);
+      mediaCaption.hidden = n < 2;
+      mediaCaption.textContent = n + ' ' + plural(n) +
+        ' — one description for all of them';
+    }
+  }
 
   /* The binding is stated on the description screen, so the tech sees what
      the photo will be filed against before saving it. */
