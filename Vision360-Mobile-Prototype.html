@@ -4130,6 +4130,37 @@ body.dev #indexBtn{display:flex}
     if (!done.length) MISS.push('job :: actions kebab');
   })();
 
+  /* The only way into a customer's past jobs was a grey chip reading
+     "12 Jobs" beside their name. It looks like a statistic, because that
+     is what a chip is for, and a technician standing at the door wanting
+     to know what we did here last time has nothing that says so. It gets
+     a row that says it, with the count and an arrow. */
+  (function () {
+    var root = byId('job-general'); if (!root) return;
+    var chip = sel(root, '12 Jobs')[0];
+    var nameRow = chip && chip.parentElement;
+    var card = nameRow && nameRow.parentElement;
+    if (!chip || !card) { MISS.push('job-general :: job history'); return; }
+    var n = parseInt(norm(chip.textContent), 10) || 0;
+
+    var row = document.createElement('div');
+    row.dataset.tap = '1';
+    row.dataset.go = 'cust-jobs';
+    row.setAttribute('style', 'display:flex;align-items:center;gap:11px;margin-top:12px;' +
+      'padding-top:11px;border-top:1px solid #EDF0F5');
+    row.innerHTML =
+      '<span class="mi" style="font-size:20px;color:#4A6FA5;flex:none">history</span>' +
+      '<span style="flex:1;font:500 14px/1.35 Geist;color:#4A6FA5">Job history' +
+      '<span style="display:block;font:400 12.5px/1.35 Geist;color:#8A97A8;margin-top:3px"></span></span>' +
+      '<span class="mi" style="font-size:20px;color:#A9B4C2;flex:none">chevron_right</span>';
+    $('span span', row).textContent = n
+      ? 'What we have done at this address before · ' + n + ' jobs'
+      : 'What we have done at this address before';
+
+    // above the disclosure, so the card reads: who they are, what we did, the rest
+    card.insertBefore(row, nameRow.nextElementSibling);
+  })();
+
   /* The row said "Additional information · 2" and opened a menu. It now
      discloses the two the customer actually has — the address for sending
      paperwork, and what the technician needs to get through the gate. */
