@@ -183,6 +183,7 @@
     else { stack.push({ id: id, mode: 'push' }); animate(fromEl, el, 'push'); }
     if (id === 'image-desc') { paintSlotBanner(); paintMediaForm(); }
     if (id === 'closeout') paintCloseout();
+    if (PAY_SCREENS.indexOf(id) > -1) paintPayScreens();
     chrome();
   }
 
@@ -735,11 +736,11 @@
       }
       state.inv = 'paid';
       payMethod = PAY_LABEL[curPage()] || 'Card';
-      kpiPaid(2000);                                // the "To be paid" figure lands in Revenue
+      kpiPaid(payAmount);                           // what was actually collected lands in Revenue
       closeOverlays(true);
       go('inv-paid', 'root');
       queued('Payment');
-      toast(net.online ? 'Payment received · $2,000.00'
+      toast(net.online ? 'Payment received · ' + fmt(payAmount)
         : 'Payment recorded offline · will post when you have signal');
     },
     addItemsDone: function () { state.extra = true; go('add-items', 'replace'); toast('2 items added to the invoice'); },
@@ -1407,7 +1408,76 @@
   });
   seg('history', ['Today', 'Week', 'Month', 'Quarter'], 0);
   seg('pay-apps', ['Zelle', 'Venmo', 'Cash App', 'Bank'], 0);
-  seg('pay-cash', ['$2,000', '$2,500', '$3,000'], 0);
+  /* =========================================================
+     The money on the payment screens is the job's money.
+
+     They carried the board's own little story — total $3,000, a $1,000
+     down payment, $2,000 to collect — while the job in front of the
+     technician was worth something else entirely. Two different amounts
+     for the same visit, one screen apart, and the one the technician
+     reads out to the customer was the wrong one.
+     ========================================================= */
+  var PAY_SCREENS = ['pay-card', 'pay-cash', 'pay-check', 'pay-apps'];
+  var payAmount = 0;
+  var cashTenders = [];
+  var paintTenders = function () { };
+
+  function valueFor(root, label) {
+    var l = sel(root, label)[0];
+    return l && l.nextElementSibling;
+  }
+  // the technician is handed notes, not coins — round up to something real
+  function tendersFor(due) {
+    var up = function (step) { return Math.ceil(due / step) * step; };
+    var list = [due, up(50), up(100), up(500)];
+    var seen = [], out = [];
+    list.forEach(function (v) { if (v > 0 && seen.indexOf(v) < 0) { seen.push(v); out.push(v); } });
+    return out.slice(0, 3);
+  }
+
+  function paintPayScreens() {
+    var j = JOBS[jobIdx] || {};
+    payAmount = j.sold ? j.sold.total : jobItemsTotal(j);
+    PAY_SCREENS.forEach(function (id) {
+      var root = byId(id); if (!root) return;
+      var total = valueFor(root, 'Total');
+      var down = valueFor(root, 'Down payment');
+      var due = valueFor(root, 'To be paid');
+      if (total) total.textContent = fmt(payAmount);
+      if (down) down.textContent = fmt(0);          // nothing has been paid on it yet
+      if (due) due.textContent = fmt(payAmount);
+    });
+    paintTenders();
+    paintCash(payAmount);
+  }
+
+  function paintCash(received) {
+    var root = byId('pay-cash'); if (!root) return;
+    var head = sel(root, 'Cash received')[0];
+    var field = head && head.nextElementSibling;
+    if (field) field.textContent = fmt(received);
+    var change = valueFor(root, 'Change due');
+    if (change) change.textContent = fmt(Math.max(0, received - payAmount));
+  }
+
+  (function () {
+    var root = byId('pay-cash'); if (!root) return;
+    cashTenders = tendersFor(2000);               // relabelled properly on every entry
+    var chips = ['$2,000', '$2,500', '$3,000'];
+    seg('pay-cash', chips, 0, function (i) { paintCash(cashTenders[i] || payAmount); });
+    // keep the elements so the labels can follow the job's total
+    var els = chips.map(function (c) { return sel(root, c)[0]; });
+    paintTenders = function () {
+      cashTenders = tendersFor(payAmount);
+      els.forEach(function (e, i) {
+        if (!e) return;
+        var v = cashTenders[i];
+        e.hidden = v === undefined;
+        if (v !== undefined) e.textContent = '$' + v.toLocaleString('en-US');
+      });
+    };
+  })();
+
   seg('ov-period', ['~This week', '~This month', '~This quarter', '~This year'], 1, function () { setTimeout(back, 240); });
   seg('ov-period-month', ['January', 'February', 'March', 'April', 'May', 'June', 'July',
     'August', 'September', 'October', 'November', 'December'], 4);
