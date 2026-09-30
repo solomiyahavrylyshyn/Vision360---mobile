@@ -67,7 +67,7 @@
     { name: 'Pay in full', rate: 0, apr: 0, months: 0 }
   ];
   var planIdx = 0;
-  var downPct = 0;                    // a share of the option, so it fits any of them
+  var deposit = 0;                    // what the customer hands over on the day
 
   function plan() { return PLANS[planIdx]; }
   // payment per dollar financed — what the card calls the monthly factor
@@ -80,7 +80,7 @@
   }
   function monthlyFor(total) {
     if (!plan().months) return 0;
-    return Math.max(0, total * (1 - downPct / 100)) * planFactor();
+    return Math.max(0, total - deposit) * planFactor();   // a deposit under the total is financed
   }
   var MONTHLY_FACTOR = 0.0129;        // kept for anything still reading it directly
 
@@ -1021,7 +1021,7 @@
       ['@send^1', 'act:estSendReview'],
       ['Option A^1', 'est-option', 'modal'],
       ['~Add new option', 'act:newOption'],
-      ['~Add down payment', 'act:downPayment']
+      ['~Add down payment', 'act:deposit']
     ],
     'ov-option-menu': [
       ['@edit^1', 'est-option', 'modal'],
@@ -1450,37 +1450,71 @@
     });
   }
 
-  /* A down payment is a share of the option, so the same setting fits a
-     $479 option and a $5,665 one. */
-  ACT.downPayment = function () {
+  /* The deposit is a sum of money, so it is typed as one. Round amounts
+     sit alongside for the common cases — nobody wants a number pad open
+     to say "five hundred". */
+  var DEPOSIT_QUICK = [0, 250, 500, 1000];
+  ACT.deposit = function () {
     var row = planRefs && planRefs.down; if (!row) return;
-    if ($('[data-downpick]', row.parentElement)) return;
+    var host = row.parentElement;
+    if ($('[data-depositpick]', host)) return;
+
     var pick = document.createElement('div');
-    pick.setAttribute('data-downpick', '1');
-    pick.setAttribute('style', 'display:flex;gap:7px;margin-top:9px');
-    [0, 10, 20, 50].forEach(function (v) {
+    pick.setAttribute('data-depositpick', '1');
+    pick.setAttribute('style', 'margin-top:9px');
+    pick.innerHTML =
+      '<div style="display:flex;align-items:center;gap:9px;height:52px;padding:0 13px;' +
+      'background:#fff;border:1.5px solid #4A6FA5;border-radius:10px">' +
+      '<span style="font:600 17px/1 Geist;color:#8A97A8">$</span>' +
+      '<input data-depinput class="inp" inputmode="decimal" placeholder="0.00" ' +
+      'style="flex:1;height:auto;border:0;padding:0;background:transparent;font:600 17px/1 Geist">' +
+      '</div>' +
+      '<div data-depchips style="display:flex;gap:7px;margin-top:8px"></div>' +
+      '<div data-dephint style="font:400 12px/1.4 Geist;color:#8A97A8;margin-top:8px"></div>';
+
+    var chips = $('[data-depchips]', pick);
+    DEPOSIT_QUICK.forEach(function (v) {
       var c = document.createElement('span');
       c.dataset.tap = '1';
-      c.dataset.down = String(v);
-      c.textContent = v ? v + '%' : 'None';
-      pick.appendChild(c);
+      c.dataset.dep = String(v);
+      c.textContent = v ? '$' + v.toLocaleString('en-US') : 'None';
+      chips.appendChild(c);
     });
-    row.parentElement.insertBefore(pick, row.nextElementSibling);
-    function paintChips() {
-      $$('[data-down]', pick).forEach(function (c) {
-        var on = +c.dataset.down === downPct;
+    host.insertBefore(pick, row.nextElementSibling);
+
+    var input = $('[data-depinput]', pick);
+    var hint = $('[data-dephint]', pick);
+    input.value = deposit ? deposit.toFixed(2) : '';
+
+    function paint() {
+      $$('[data-dep]', chips).forEach(function (c) {
+        var on = +c.dataset.dep === deposit;
         c.setAttribute('style', 'flex:1;text-align:center;border-radius:9px;padding:12px 0;' +
           'font:600 13.5px/1 Geist;' + (on
             ? 'background:#4A6FA5;color:#fff'
             : 'background:#fff;border:1px solid #C8D5E8;color:#4A6FA5'));
       });
+      // a deposit bigger than an option pays that option off outright
+      var lowest = Math.min.apply(null, Object.keys(OPTION_TOTALS)
+        .slice(0, optCount).map(function (k) { return OPTION_TOTALS[k]; }).concat([Infinity]));
+      hint.textContent = !deposit ? 'Taken off the price before the monthly is worked out.'
+        : deposit >= lowest ? 'Covers the cheaper options outright — nothing left to finance on those.'
+          : fmt(deposit) + ' down, the rest financed.';
     }
-    paintChips();
-    pick.addEventListener('click', function (ev) {
-      var c = ev.target.closest('[data-down]'); if (!c) return;
+    paint();
+    paintPlanEverywhere();
+
+    input.addEventListener('input', function () {
+      deposit = Math.max(0, parseFloat(String(input.value).replace(/[^0-9.]/g, '')) || 0);
+      paint();
+      paintPlanEverywhere();
+    });
+    chips.addEventListener('click', function (ev) {
+      var c = ev.target.closest('[data-dep]'); if (!c) return;
       ev.stopPropagation();
-      downPct = +c.dataset.down;
-      paintChips();
+      deposit = +c.dataset.dep;
+      input.value = deposit ? deposit.toFixed(2) : '';
+      paint();
       paintPlanEverywhere();
     }, true);
   };
@@ -1554,14 +1588,21 @@
 
   function paintPayScreens() {
     var j = JOBS[jobIdx] || {};
-    payAmount = j.sold ? j.sold.total : jobItemsTotal(j);
+    var jobTotal = j.sold ? j.sold.total : jobItemsTotal(j);
+    // A deposit only counts once the customer has signed for the option it
+    // was quoted against. On an estimate nobody bought, no money changed
+    // hands, so there is nothing to take off the invoice.
+    var paid = j.sold ? Math.min(deposit, jobTotal) : 0;
+    payAmount = Math.max(0, jobTotal - paid);
     PAY_SCREENS.forEach(function (id) {
       var root = byId(id); if (!root) return;
       var total = valueFor(root, 'Total');
-      var down = valueFor(root, 'Down payment');
+      var down = valueFor(root, 'Down payment') || valueFor(root, 'Deposit');
+      var downLabel = sel(root, 'Down payment')[0];
+      if (downLabel) downLabel.textContent = 'Deposit';
       var due = valueFor(root, 'To be paid');
-      if (total) total.textContent = fmt(payAmount);
-      if (down) down.textContent = fmt(0);          // nothing has been paid on it yet
+      if (total) total.textContent = fmt(jobTotal);
+      if (down) down.textContent = fmt(paid);
       if (due) due.textContent = fmt(payAmount);
     });
     paintTenders();
@@ -2925,7 +2966,7 @@
     if (planRefs.down) {
       var txt = planRefs.down.childNodes[planRefs.down.childNodes.length - 1];
       if (txt && txt.nodeType === 3) {
-        txt.nodeValue = downPct ? 'Down payment ' + downPct + '%' : 'Add down payment';
+        txt.nodeValue = deposit ? 'Deposit ' + fmt(deposit) : 'Add deposit';
       }
     }
   }
