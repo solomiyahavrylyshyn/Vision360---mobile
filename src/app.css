@@ -1,3 +1,6 @@
+/* the UA rule for [hidden] is display:none, which an inline display:flex
+   silently outranks — every collapsed block here carries one */
+[hidden]{display:none!important}
 /* ===== Vision 360 Mobile — clickable prototype ===== */
 :root{
   --ink:#1A2332; --muted:#546478; --dim:#8A97A8;
@@ -173,9 +176,6 @@ body{
 .rowi .t{flex:1;font:500 15.5px/1.3 Geist}
 .rowi .t small{display:block;font:400 12.5px/1.35 Geist;color:var(--dim);margin-top:3px}
 .rowi .ch{font-size:20px;color:#A9B4C2}
-.divide{display:flex;align-items:center;gap:12px;margin:20px 0}
-.divide::before,.divide::after{content:"";flex:1;height:1px;background:var(--line)}
-.divide span{font:500 12px/1 Geist;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
 .chk{display:flex;align-items:center;gap:9px;cursor:pointer;font:500 13.5px/1 Geist;color:var(--muted)}
 .chk .box{width:20px;height:20px;border-radius:5px;border:1.5px solid var(--edge);background:#fff;display:flex;align-items:center;justify-content:center;color:#fff;flex:none}
 .chk .box .mif{font-size:15px;opacity:0}

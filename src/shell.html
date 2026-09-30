@@ -72,8 +72,6 @@
 
               <button class="btn" id="li-go"><span class="mif" style="font-size:19px">login</span>Sign in</button>
 
-              <div class="divide"><span>or</span></div>
-              <button class="btn-o" id="li-bio"><span class="mi" style="font-size:21px">fingerprint</span>Sign in with Face&nbsp;ID</button>
 
               <div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px;margin:24px 0 0">
                 <span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">info</span>
@@ -268,14 +266,23 @@
                 <span style="font:500 14px/1 Geist;color:#546478">Sold today</span>
                 <span style="font:600 14.5px/1 Geist" id="tsSold">$0.00</span>
               </div>
-              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5">
                 <span style="font:500 14px/1 Geist;color:#546478">On the clock today</span>
                 <span style="font:600 14.5px/1 Geist" id="tsToday">0h 00m</span>
+              </div>
+              <!-- compensation is recorded in two halves, never one bucket -->
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5">
+                <span style="font:500 14px/1 Geist;color:#546478">Labour</span>
+                <span style="font:600 14.5px/1 Geist" id="tsLabor">$0.00</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px">
+                <span style="font:500 14px/1 Geist;color:#546478">Commission</span>
+                <span style="font:600 14.5px/1 Geist" id="tsCommission">$0.00</span>
               </div>
             </div>
             <div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px;margin-bottom:18px">
               <span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">info</span>
-              <div style="font:400 12.5px/1.45 Geist;color:#546478">$15 base per visit. Commission is worked out by payroll from what&rsquo;s recorded here &mdash; check it before the week is submitted.</div>
+              <div style="font:400 12.5px/1.45 Geist;color:#546478">$15 base per visit. Labour and commission are recorded separately, not as one lump &mdash; the split is what workers&rsquo; comp is rated on. Check both before the week is submitted.</div>
             </div>
             <div style="font:600 16px/1 Geist;margin-bottom:10px">Week of Dec 8</div>
             <div class="card" style="overflow:hidden">

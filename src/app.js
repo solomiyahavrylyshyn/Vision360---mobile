@@ -34,6 +34,11 @@
      that could touch it, because `var` hoists the name and not the value —
      declared any later, a restore that runs at boot would find `undefined`.
      Two bugs in this file came from exactly that. */
+  /* The customer's signature on the option sheet. Declared up here with the
+     rest of the boot-time state, because the action that reads it is defined
+     far above the pad that sets it. */
+  var estSigned = false;
+
   var RECENT_INSTALL = {        // the unit dispatch keeps in their head today
     unit: 'the air handler',
     monthsAgo: 2,
@@ -205,8 +210,11 @@
       // every navigation is a checkpoint
       remember('state', state);
       remember('jobIdx', jobIdx);
-      remember('jobs', JOBS.map(function (j) { return { est: j.est, inv: j.inv }; }));
+      remember('jobs', JOBS.map(function (j) {
+        return { est: j.est, inv: j.inv, items: j.items, sold: j.sold };
+      }));
     }
+    paintDash();
     var m = INFO[pid] || {};
     phone.setAttribute('data-tabs', m.tabs ? 'on' : 'off');
     phone.setAttribute('data-sb', m.sb ? 'dark' : 'light');
@@ -473,11 +481,20 @@
           var row = p.parentElement.parentElement;      // right column → the flex row
           var left = row.firstElementChild;
           var texts = $$('div', left).map(function (d) { return norm(d.textContent); });
+          var gsku = row.parentElement.getAttribute('data-group');
+          var g = gsku && GROUP[gsku];
+          var known = !g && BY_NAME[texts[0]];
           return {
+            sku: g ? g.sku : (known ? known.sku : ''),
             name: texts[0] || 'Item',
             desc: texts[1] || '',
             warranty: texts[2] || '',
-            price: priceOf(p)
+            price: priceOf(p),
+            // a package is one line to the customer and a list to the books
+            type: g ? 'group' : (known ? known.type : 'service'),
+            cat: known ? known.cat : '',
+            labor: g ? groupLabor(g) : (known ? known.labor : 0),
+            group: g ? groupLines(g) : null
           };
         });
       },
@@ -633,12 +650,31 @@
     },
     estApprove: function () { state.est = 'ready'; go('est-ready', 'replace'); toast('Manager approved — ready to present', 'verified'); },
     estOrder: function () {
+      if (!estSigned) {
+        toast('The customer signs first — that signature is the order', 'draw');
+        return;
+      }
+      var pick = pickedOption;
+      var total = OPTION_TOTALS[pick] || 0;
+      var j = JOBS[jobIdx];
       state.est = 'approved';
-      kpiSale(OPTION_TOTALS['Option C'] || 0);     // the dashboard on Home moves
+      if (j) {
+        j.sold = { option: pick, total: total };
+        /* Marek: the items on the approved option are the job's items. Nobody
+           retypes them — an approval that doesn't carry its own items leaves
+           the crew working from a number. */
+        j.items = mergeItems(j.items || [], (OPTION_ITEMS[pick] || []).map(function (it) {
+          var c = {}; for (var k in it) c[k] = it[k];
+          c.from = 'estimate';
+          return c;
+        }));
+      }
+      renderJobItems();
+      kpiSale(total);                              // the dashboard on Home moves
       closeOverlays(true);
       go('est-approved', 'root');
       queued('Estimate');
-      toast('Order confirmed · Option C signed');
+      toast('Order confirmed · ' + pick + ' signed — ' + fmt(total), 'check_circle');
     },
     estDecline: function () {
       state.est = 'ready';                 // still presentable — that's the fix
@@ -653,14 +689,28 @@
       go('fin-empty', 'root');
       toast('Start a new invoice for this job', 'note_add');
     },
+    optAddItem: function () { catalogTarget = 'option'; go('est-catalog', 'push'); },
+    jobAddItem: function () {
+      catalogTarget = 'job';
+      // the design draws two items already ticked. On the estimate that is a
+      // state worth keeping; on a job it would quietly bill the customer for
+      // two things the technician never chose, so this opens empty.
+      if (estCatalog) estCatalog.clear();
+      go('est-catalog', 'modal');
+    },
     estCatalogDone: function () {
       var picked = estCatalog ? estCatalog.selection() : [];
+      if (estCatalog) estCatalog.clear();
+      if (catalogTarget === 'job') { jobAddPicked(picked); return; }
       picked.forEach(function (it) {
         var seen = optionItems.filter(function (o) { return o.name === it.name; })[0];
         if (seen) seen.qty++;                       // same item twice = quantity, not a duplicate row
-        else optionItems.push({ name: it.name, desc: it.desc, warranty: it.warranty, price: it.price, qty: 1 });
+        else optionItems.push({
+          sku: it.sku, name: it.name, desc: it.desc, warranty: it.warranty,
+          price: it.price, type: it.type, cat: it.cat, labor: it.labor,
+          group: it.group, qty: 1
+        });
       });
-      if (estCatalog) estCatalog.clear();
       renderOptionItems();
       back();
       toast(picked.length ? picked.length + (picked.length === 1 ? ' item added' : ' items added') + ' to the option'
@@ -722,7 +772,11 @@
       }
       setClock('off');
       clock.visits++;
-      if (state.est === 'approved') clock.sold += OPTION_TOTALS['Option C'] || 0;
+      var done = JOBS[jobIdx];
+      if (state.est === 'approved' && done && done.sold) clock.sold += done.sold.total;
+      // compensation splits: labour is earned on the items, commission on the sale
+      clock.labor += jobLabor(done);
+      clock.commission += (done && done.sold ? done.sold.total : 0) * COMMISSION_RATE;
       paintClock();
       remember('clock', clock);
       // the closeout form belongs to the visit that just ended
@@ -809,7 +863,7 @@
       ['@expand_more#0', 'ov-job-actions'],
       ['@photo_camera^1', 'ov-media-source'],
       ['@image^1', 'photo-detail', 'modal'],
-      ['@add^1', 'add-catalog'],
+      ['@add^1', 'act:jobAddItem'],
       ['@upload_file^1', 'files']
     ],
     'ov-job-actions': [
@@ -839,7 +893,7 @@
     ],
     'est-new-option': [
       ['Save', 'act:estSaveOption'],
-      ['@add^1', 'est-catalog'],
+      ['@add^1', 'act:optAddItem'],
       ['@tune^1', 'est-option', 'modal'],
       ['@note_add^1', null]
     ],
@@ -852,7 +906,7 @@
     ],
     'est-option': [
       ['Save', 'act:estSaveOption'],
-      ['@add^1', 'est-catalog']
+      ['@add^1', 'act:optAddItem']
     ],
     'est-draft': [
       ['@play_arrow^1', 'act:start'],
@@ -1068,7 +1122,13 @@
   seg('est-catalog', ['Repairs', 'Equipment', 'Ductwork', 'IAQ', 'Others'], 0);
   seg('est-new-option', ['Monthly payment + Total', 'Total only', 'Monthly payment only'], 0);
   seg('est-option', ['−20%', '0%', '+20%'], 1);
-  seg('est-customer', ['Option A^1', 'Option B^1', 'Option C^1'], 0);
+  /* The radio the customer actually taps. Everything downstream used to
+     assume Option C no matter what was ticked, so the KPI, the day's sold
+     figure and the confirmation all recorded an option nobody chose. */
+  var pickedOption = 'Option A';        // the design's own checked radio
+  seg('est-customer', ['Option A^1', 'Option B^1', 'Option C^1'], 0, function (i, label) {
+    pickedOption = label.split('^')[0];
+  });
   seg('history', ['Today', 'Week', 'Month', 'Quarter'], 0);
   seg('pay-apps', ['Zelle', 'Venmo', 'Cash App', 'Bank'], 0);
   seg('pay-cash', ['$2,000', '$2,500', '$3,000'], 0);
@@ -1144,6 +1204,242 @@
     if (resetSwitches) resetSwitches();
     toast('Filters reset', 'restart_alt');
   };
+
+  /* =========================================================
+     Items, and groups of items.
+
+     Marek, Sep 10: a small item carries basic information and nothing
+     more — what it is (type), where it belongs (category), what the
+     customer pays, and what it costs us. The cost has to stay readable in
+     parts, because compensation splits into labour and commission and
+     workers' comp is priced off labour alone. A packaged item that says
+     "cost $200" and stops there can never be taken apart again.
+
+     A group is what actually gets sold. Replace an AC system and it is
+     labour, several materials, equipment, a permit fee under admin, and
+     an hour of crane if the unit goes on a roof. One line at the door,
+     seven lines in the books. That is the price book.
+     ========================================================= */
+  var ITEM_TYPE = {
+    service: ['Service', '#4A6FA5', '#EBF0F8'],
+    material: ['Material', '#B45309', '#FEF3E2'],
+    equipment: ['Equipment', '#6D28D9', '#F0EAFB'],
+    admin: ['Admin fee', '#546478', '#F1F4F9'],
+    asset: ['Asset use', '#0E7490', '#E4F3F7']
+  };
+  var COMMISSION_RATE = 0.10;      // Marek's own worked example: 10% labour, 10% commission
+
+  /* price is what the customer pays. `labor` is what the technician earns
+     on it — theirs to see. `supply` is what we pay someone else, and it
+     never appears on this device. */
+  var ITEMS = {};
+  var BY_NAME = {};
+  [
+    // the catalog's own singles, at the design's prices
+    ['SV-2001', 'AC Tune-Up', 'service', 'Maintenance', 129, 45, 0],
+    ['SV-2002', 'Blower Motor Repair', 'service', 'Repair', 350, 90, 60],
+    ['SV-2003', 'Duct Cleaning', 'service', 'Maintenance', 450, 150, 0],
+    ['SV-2004', 'Condenser Coil Cleaning', 'service', 'Maintenance', 250, 70, 0],
+    ['SV-2005', 'Capacitor Replacement', 'service', 'Repair', 180, 40, 35],
+    ['SV-2006', 'Thermostat Calibration', 'service', 'Diagnostic', 90, 35, 0],
+    ['SV-2007', 'Diagnostic Call', 'service', 'Diagnostic', 89, 30, 0],
+    ['EQ-2001', 'Air Handler Replacement', 'equipment', 'Installation', 2800, 260, 1680],
+    ['MT-2001', 'Attic Insulation Top-Up', 'material', 'Installation', 1800, 180, 900],
+    ['MT-2002', 'HVAC Filter Replacement', 'material', 'Maintenance', 40, 8, 14],
+    // the parts a package is built from
+    ['SV-3001', 'System installation labour', 'service', 'Installation', 1200, 300, 0],
+    ['SV-3002', 'Compressor replacement labour', 'service', 'Repair', 500, 100, 0],
+    ['SV-3003', 'Duct cleaning labour, 2 techs', 'service', 'Maintenance', 380, 160, 0],
+    ['MT-3101', 'Condensing unit, 3-ton 16 SEER', 'material', 'Installation', 2100, 0, 1450],
+    ['MT-3102', 'Line set, 3/8" × 25 ft', 'material', 'Installation', 180, 0, 96],
+    ['MT-3103', 'Refrigerant R-410A, 8 lb', 'material', 'Installation', 240, 0, 120],
+    ['MT-3104', 'Compressor, scroll 3-ton', 'material', 'Repair', 380, 0, 210],
+    ['MT-3105', 'Refrigerant R-410A, 4 lb', 'material', 'Repair', 120, 0, 60],
+    ['MT-3106', 'Register & vent sanitiser', 'material', 'Maintenance', 45, 0, 22],
+    ['EQ-3201', 'Air handler, variable speed', 'equipment', 'Installation', 1450, 0, 980],
+    ['AD-3301', 'County permit fee', 'admin', 'Installation', 175, 0, 175],
+    ['AS-3401', 'Crane, 1 hour', 'asset', 'Installation', 320, 0, 210],
+    ['AS-3402', 'Negative-air machine, 3 hours', 'asset', 'Maintenance', 135, 0, 60]
+  ].forEach(function (r) {
+    ITEMS[r[0]] = { sku: r[0], name: r[1], type: r[2], cat: r[3], price: r[4], labor: r[5], supply: r[6] };
+    BY_NAME[r[1]] = ITEMS[r[0]];
+  });
+
+  /* Marek's own examples, in his own words: "replace AC system — it's the
+     labor, is the material, multiple materials, pieces, parts, it's
+     equipment, and there is a permit fee under admin. And if we need to
+     use crane, we're gonna add asset usage crane for one hour." */
+  var ITEM_GROUPS = [
+    {
+      sku: 'PB-4001', name: 'Replace AC System', warranty: '10 years',
+      desc: 'Full changeout — condensing unit, air handler, line set, charge, permit and crane',
+      items: [
+        { sku: 'SV-3001', qty: 1 }, { sku: 'MT-3101', qty: 1 }, { sku: 'EQ-3201', qty: 1 },
+        { sku: 'MT-3102', qty: 1 }, { sku: 'MT-3103', qty: 1 }, { sku: 'AD-3301', qty: 1 },
+        { sku: 'AS-3401', qty: 1 }
+      ]
+    },
+    {
+      sku: 'PB-4002', name: 'Compressor Replacement', warranty: '5 years',
+      desc: 'Recover, swap the compressor, recharge and verify',
+      items: [{ sku: 'SV-3002', qty: 1 }, { sku: 'MT-3104', qty: 1 }, { sku: 'MT-3105', qty: 1 }]
+    },
+    {
+      sku: 'PB-4003', name: 'Duct Cleaning — Whole System', warranty: '1 year',
+      desc: 'Two technicians, negative-air machine, all registers sanitised',
+      items: [{ sku: 'SV-3003', qty: 1 }, { sku: 'MT-3106', qty: 8 }, { sku: 'AS-3402', qty: 1 }]
+    }
+  ];
+  var GROUP = {};
+  ITEM_GROUPS.forEach(function (g) { GROUP[g.sku] = g; });
+
+  function groupPrice(g) {
+    return g.items.reduce(function (a, r) { return a + (ITEMS[r.sku] ? ITEMS[r.sku].price * r.qty : 0); }, 0);
+  }
+  function groupLabor(g) {
+    return g.items.reduce(function (a, r) { return a + (ITEMS[r.sku] ? ITEMS[r.sku].labor * r.qty : 0); }, 0);
+  }
+  function groupPieces(g) {
+    return g.items.reduce(function (a, r) { return a + r.qty; }, 0);
+  }
+  // a group flattens into real line items — that's the whole point of it
+  function groupLines(g) {
+    return g.items.map(function (r) {
+      var it = ITEMS[r.sku] || { sku: r.sku, name: r.sku, type: 'material', cat: '', price: 0, labor: 0 };
+      return { sku: it.sku, name: it.name, type: it.type, cat: it.cat, price: it.price, labor: it.labor, qty: r.qty };
+    });
+  }
+
+  /* A line on a job. Either a single item, or a package that keeps its
+     parts — the customer sees one line, the books see all of them. */
+  function jobLine(sku, qty, from) {
+    var it = ITEMS[sku];
+    if (!it) return { sku: sku, name: sku, type: 'material', cat: '', price: 0, labor: 0, qty: qty || 1, from: from || 'manual' };
+    return {
+      sku: it.sku, name: it.name, type: it.type, cat: it.cat,
+      price: it.price, labor: it.labor, qty: qty || 1, from: from || 'manual', group: null
+    };
+  }
+  function groupLine(sku, qty, from) {
+    var g = GROUP[sku];
+    if (!g) return jobLine(sku, qty, from);
+    return {
+      sku: g.sku, name: g.name, type: 'group', cat: '',
+      price: groupPrice(g), labor: groupLabor(g), qty: qty || 1,
+      from: from || 'manual', group: groupLines(g)
+    };
+  }
+
+  function typeChip(type, small) {
+    var t = ITEM_TYPE[type] || ITEM_TYPE.material;
+    return '<span style="font:600 ' + (small ? '10' : '10.5') + 'px/1 Geist;color:' + t[1] +
+      ';background:' + t[2] + ';border-radius:4px;padding:4px 6px;white-space:nowrap">' + t[0] + '</span>';
+  }
+
+  /* ---- the catalog grows a Packages section ----
+     Built by cloning the design's own card, so a package looks like
+     everything else on the shelf and the catalog's existing tick/subtotal
+     machinery picks up its Add pill without being told about it. */
+  function isMoneyEl(e) { return /^\$[\d,]+\.\d\d$/.test(norm(e.textContent)); }
+
+  function catalogHeading(text, sub) {
+    var h = document.createElement('div');
+    h.setAttribute('data-cathead', '1');
+    h.setAttribute('style', 'display:flex;align-items:baseline;gap:8px;margin:2px 0 1px');
+    h.innerHTML = '<span style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;' +
+      'text-transform:uppercase"></span><span style="font:400 12px/1 Geist;color:#A9B4C2"></span>';
+    h.children[0].textContent = text;
+    h.children[1].textContent = sub || '';
+    return h;
+  }
+
+  function groupCard(tpl, g) {
+    var card = tpl.cloneNode(true);
+    card.setAttribute('data-group', g.sku);
+    var row = card.firstElementChild;
+    var left = row.firstElementChild, right = left.nextElementSibling;
+    var lines = $$('div', left);
+    if (lines[0]) lines[0].textContent = g.name;
+    if (lines[1]) lines[1].textContent = g.desc;
+    if (lines[2]) lines[2].textContent = 'Warranty: ' + g.warranty;
+    var price = $$('div', right).filter(isMoneyEl)[0];
+    if (price) price.textContent = fmt(groupPrice(g));
+
+    // the package marker is a <span>, where the catalog's text scrape doesn't look
+    var chip = document.createElement('span');
+    chip.setAttribute('style', 'display:inline-flex;align-items:center;gap:5px;margin-top:9px;' +
+      'font:600 10.5px/1 Geist;color:#4A6FA5;background:#EBF0F8;border-radius:5px;padding:5px 7px');
+    chip.innerHTML = '<span class="mi" style="font-size:14px">inventory_2</span>PACKAGE · ' +
+      g.items.length + ' items';
+    left.appendChild(chip);
+
+    var body = document.createElement('div');
+    body.setAttribute('data-groupbody', '1');
+    body.hidden = true;
+    body.setAttribute('style', 'margin-top:12px;padding-top:12px;border-top:1px solid #EDF0F5;' +
+      'display:flex;flex-direction:column;gap:10px');
+    groupLines(g).forEach(function (it) {
+      var r = document.createElement('div');
+      r.setAttribute('style', 'display:flex;align-items:flex-start;gap:9px');
+      r.innerHTML = typeChip(it.type, true) +
+        '<div style="flex:1"><div style="font:500 13.5px/1.35 Geist"></div>' +
+        '<div style="font:400 11.5px/1.3 Geist;color:#8A97A8;margin-top:3px"></div></div>' +
+        '<span style="font:600 13px/1 Geist;white-space:nowrap"></span>';
+      var txt = r.children[1];
+      txt.children[0].textContent = it.name;
+      txt.children[1].textContent = it.sku + ' · ' + it.cat + (it.qty > 1 ? ' · Qty ' + it.qty : '');
+      r.children[2].textContent = fmt(it.price * it.qty);
+      body.appendChild(r);
+    });
+    var labour = groupLabor(g);
+    if (labour) {
+      var f = document.createElement('div');
+      f.setAttribute('style', 'display:flex;justify-content:space-between;align-items:center;' +
+        'margin-top:2px;padding-top:10px;border-top:1px solid #EDF0F5;font:500 12.5px/1 Geist;color:#546478');
+      f.innerHTML = '<span>Your labour on this package</span><span style="font:600 13px/1 Geist;color:#1A2332"></span>';
+      f.children[1].textContent = fmt(labour);
+      body.appendChild(f);
+    }
+    card.appendChild(body);
+
+    var toggle = document.createElement('div');
+    toggle.setAttribute('data-grouptoggle', '1');
+    toggle.dataset.tap = '1';
+    toggle.setAttribute('style', 'display:flex;align-items:center;justify-content:center;gap:5px;' +
+      'margin:11px -14px -13px;padding:11px 0;border-top:1px solid #EDF0F5;' +
+      'font:600 13px/1 Geist;color:#4A6FA5');
+    toggle.innerHTML = '<span data-glabel>What’s included</span>' +
+      '<span class="mi" style="font-size:18px">expand_more</span>';
+    toggle.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      var open = body.hidden;
+      body.hidden = !open;
+      $('[data-glabel]', toggle).textContent = open ? 'Hide the breakdown' : 'What’s included';
+      $('.mi', toggle).textContent = open ? 'expand_less' : 'expand_more';
+    }, true);
+    card.appendChild(toggle);
+    return card;
+  }
+
+  function injectGroups(screenId) {
+    var root = byId(screenId); if (!root) return;
+    var pill = sel(root, '@add^1')[0];
+    if (!pill) { MISS.push(screenId + ' :: group template'); return; }
+    var tpl = pill.parentElement.parentElement.parentElement;   // right column → row → card
+    var list = tpl.parentElement;
+    var first = list.firstElementChild;
+    list.insertBefore(catalogHeading('Packages', ITEM_GROUPS.length + ' in the price book'), first);
+    ITEM_GROUPS.forEach(function (g) { list.insertBefore(groupCard(tpl, g), first); });
+    list.insertBefore(catalogHeading('Single items', null), first);
+  }
+
+  injectGroups('est-catalog');
+  injectGroups('add-catalog');
+
+  /* The one catalog serves two destinations: the option a technician is
+     building, and the job itself. Which one is set by the button that
+     opened it, not guessed from the screen underneath. */
+  var catalogTarget = 'option';
 
   /* catalogs + steppers */
   var estCatalog = catalog('est-catalog');
@@ -1361,7 +1657,7 @@
   var jobTimerEl = sel(byId('home-active'), '43:45')[0] || null;
   var VISIT_BASE = 15;
   var WEEK = { regular: 32.5, overtime: 4.0, drive: 6.2 };   // Mon–Thu, already banked
-  var clock = { drive: 0, work: 0, mode: 'off', since: 0, visits: 0, sold: 0 };
+  var clock = { drive: 0, work: 0, mode: 'off', since: 0, visits: 0, sold: 0, labor: 0, commission: 0 };
   // a running clock keeps running through a reload — `since` is a timestamp
   Object.assign(clock, recall('clock', {}));
 
@@ -1409,6 +1705,10 @@
     set('tsToday', hm(drive + work));
     set('tsVisits', clock.visits + ' · ' + fmt(clock.visits * VISIT_BASE) + ' base');
     set('tsSold', fmt(clock.sold));
+    // labour earned on the work, commission earned on the sale — two numbers,
+    // because workers' comp is rated on the first one alone
+    set('tsLabor', fmt(clock.visits * VISIT_BASE + clock.labor));
+    set('tsCommission', fmt(clock.commission));
 
     // the header timer on the in-progress screen is the same work clock
     if (jobTimerEl) {
@@ -1634,6 +1934,18 @@
     return '$' + (n / 1000).toFixed(1).replace('.', ',') + 'k';
   }
   var kpiRefs = null;
+  /* The n/14 chip on each KPI card is unexplained on the card and
+     unexplained anywhere else — a technician reading "7/14" cannot tell
+     whether it is a rank, a countdown or a quota, and nothing in the app
+     answers it. A number nobody can act on is noise on the one screen
+     that has to read at a glance. */
+  (function () {
+    var root = byId('home'); if (!root) return;
+    $$('span', root).forEach(function (e) {
+      if (/^[0-9]{1,2}[/]14$/.test(norm(e.textContent)) && !e.children.length) e.remove();
+    });
+  })();
+
   function kpiRefsGet() {
     if (kpiRefs) return kpiRefs;
     var home = byId('home'); if (!home) return null;
@@ -1698,19 +2010,183 @@
     {
       name: 'Randy Johnson', when: 'Today, 8:00 AM', brief: 'AC not cooling', type: 'Estimate',
       addr: '5010 N Cortez Ave, Tampa, FL 33614', away: '3.92 miles away', phone: '(813) 456-7890',
-      est: 'none', inv: 'none'
+      est: 'none', inv: 'none',
+      // no estimate on this one, so the job's own items are what it's worth
+      items: [jobLine('SV-2007', 1), jobLine('MT-2002', 2)], sold: null
     },
     {
       name: 'Brent Kenzie', when: 'Today, 11:30 AM', brief: 'System replacement', type: 'Install',
       addr: '4407 Main St, Brandon, FL 33594', away: '11.4 miles away', phone: '(727) 415-3481',
-      est: 'approved', inv: 'none'          // sold last week — go straight to the work
+      est: 'approved', inv: 'none',         // sold last week — go straight to the work
+      // sold as a package: the items came across with the approval
+      items: [groupLine('PB-4001', 1, 'estimate')],
+      sold: { option: 'Option A', total: groupPrice(GROUP['PB-4001']) }
     },
     {
       name: 'Joseph Lane', when: 'Today, 2:15 PM', brief: 'AC not cooling', type: 'Demand Service',
       addr: '255 Standish Drive, Tampa, FL 33615', away: '6.8 miles away', phone: '(352) 258-9710',
-      est: 'ready', inv: 'none'             // advisor quoted it, still to present
+      est: 'ready', inv: 'none',            // advisor quoted it, still to present
+      items: [jobLine('SV-2007', 1)], sold: null
     }
   ];
+
+  /* =========================================================
+     The job's items.
+
+     Two rules, both Marek's, when asked whether a job's price comes from
+     the estimate or from the items: "It should be both." With an approved
+     estimate the signed option is the price — the customer agreed to a
+     number, not to a shopping list. Without one, the job is worth what its
+     items are worth at their own unit prices.
+
+     A package stays a package here. One line for what was sold, with the
+     labour, materials, equipment, permit and crane still underneath it —
+     which is the whole reason for grouping them in the first place.
+     ========================================================= */
+  var jobItemsRefs = null;
+  (function () {
+    var root = byId('job-general'); if (!root) return;
+    var head = sel(root, 'Items')[0];
+    if (!head) { MISS.push('job-general :: items'); return; }
+    var headRow = head.parentElement, card = headRow.parentElement;
+    var addBtn = card && card.lastElementChild;
+    if (!card || !addBtn || addBtn === headRow) { MISS.push('job-general :: items card'); return; }
+    jobItemsRefs = { card: card, count: headRow.lastElementChild, add: addBtn };
+    // the design's two placeholder rows are a mock-up — real items replace them
+    $$(':scope > div', card).forEach(function (e) {
+      if (e !== headRow && e !== addBtn) e.remove();
+    });
+  })();
+
+  function jobLabor(j) {
+    return ((j && j.items) || []).reduce(function (a, it) { return a + it.labor * it.qty; }, 0);
+  }
+  function jobItemsTotal(j) {
+    return ((j && j.items) || []).reduce(function (a, it) { return a + it.price * it.qty; }, 0);
+  }
+  function mergeItems(into, add) {
+    add.forEach(function (it) {
+      var seen = it.sku && into.filter(function (o) { return o.sku === it.sku; })[0];
+      if (seen) seen.qty += it.qty || 1;
+      else into.push(it);
+    });
+    return into;
+  }
+  function jobAddPicked(picked) {
+    var j = JOBS[jobIdx];
+    if (!j) { back(); return; }
+    j.items = mergeItems(j.items || [], picked.map(function (it) {
+      return {
+        sku: it.sku, name: it.name, type: it.type, cat: it.cat,
+        price: it.price, labor: it.labor, qty: 1, from: 'manual', group: it.group
+      };
+    }));
+    renderJobItems();
+    back();
+    toast(picked.length
+      ? picked.length + (picked.length === 1 ? ' item' : ' items') + ' added to the job'
+      : 'Nothing selected', picked.length ? 'check_circle' : 'info');
+  }
+
+  var QTY_CHIP = 'display:inline-block;margin-top:6px;font:600 12.5px/1 Geist;color:#546478;' +
+    'background:#EDF0F5;border-radius:5px;padding:5px 8px';
+
+  function jobItemRow(it) {
+    var row = document.createElement('div');
+    row.setAttribute('data-jobitem', '1');
+    row.setAttribute('style', 'padding:12px 0;border-top:1px solid #EDF0F5');
+    var isGroup = it.type === 'group' && it.group && it.group.length;
+    var meta = [it.sku, it.cat].filter(Boolean).join(' · ');
+    if (it.from === 'estimate') meta += (meta ? ' · ' : '') + 'from the estimate';
+
+    row.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">' +
+      '<div style="flex:1">' +
+      '<div data-nm style="font:500 14.5px/1.3 Geist"></div>' +
+      '<div data-meta style="font:400 12.5px/1.35 Geist;color:#8A97A8;margin-top:4px"></div>' +
+      '<div data-chip style="margin-top:7px"></div>' +
+      '</div>' +
+      '<div style="text-align:right;flex:none">' +
+      '<div data-price style="font:600 14.5px/1 Geist"></div>' +
+      '<span style="' + QTY_CHIP + '">Qty: ' + it.qty + '</span>' +
+      '</div></div>';
+    $('[data-nm]', row).textContent = it.name;
+    $('[data-meta]', row).textContent = meta;
+    $('[data-price]', row).textContent = fmt(it.price * it.qty);
+    $('[data-chip]', row).innerHTML = isGroup
+      ? '<span style="display:inline-flex;align-items:center;gap:5px;font:600 10.5px/1 Geist;' +
+      'color:#4A6FA5;background:#EBF0F8;border-radius:5px;padding:5px 7px">' +
+      '<span class="mi" style="font-size:14px">inventory_2</span>PACKAGE · ' + it.group.length + ' items</span>'
+      : typeChip(it.type);
+
+    if (!isGroup) return row;
+
+    var body = document.createElement('div');
+    body.hidden = true;
+    body.setAttribute('style', 'margin-top:11px;padding-top:11px;border-top:1px dashed #DDE3EE;' +
+      'display:flex;flex-direction:column;gap:9px');
+    it.group.forEach(function (p) {
+      var r = document.createElement('div');
+      r.setAttribute('style', 'display:flex;align-items:flex-start;gap:9px');
+      r.innerHTML = typeChip(p.type, true) +
+        '<div style="flex:1"><div style="font:500 13.5px/1.35 Geist"></div>' +
+        '<div style="font:400 11.5px/1.3 Geist;color:#8A97A8;margin-top:3px"></div></div>' +
+        '<span style="font:600 13px/1 Geist;white-space:nowrap"></span>';
+      r.children[1].children[0].textContent = p.name;
+      r.children[1].children[1].textContent = p.sku + ' · ' + p.cat + (p.qty > 1 ? ' · Qty ' + p.qty : '');
+      r.children[2].textContent = fmt(p.price * p.qty * it.qty);
+      body.appendChild(r);
+    });
+    row.appendChild(body);
+
+    var toggle = document.createElement('div');
+    toggle.dataset.tap = '1';
+    toggle.setAttribute('style', 'display:flex;align-items:center;gap:4px;margin-top:10px;' +
+      'font:600 12.5px/1 Geist;color:#4A6FA5');
+    toggle.innerHTML = '<span data-glabel>What’s in it</span>' +
+      '<span class="mi" style="font-size:17px">expand_more</span>';
+    toggle.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      var open = body.hidden;
+      body.hidden = !open;
+      $('[data-glabel]', toggle).textContent = open ? 'Hide' : 'What’s in it';
+      $('.mi', toggle).textContent = open ? 'expand_less' : 'expand_more';
+    }, true);
+    row.appendChild(toggle);
+    return row;
+  }
+
+  function renderJobItems() {
+    if (!jobItemsRefs) return;
+    var R = jobItemsRefs, j = JOBS[jobIdx] || {}, items = j.items || [];
+    $$('[data-jobitem]', R.card).forEach(function (e) { e.remove(); });
+    if (R.count) R.count.textContent = String(items.length);
+
+    if (!items.length) {
+      var empty = document.createElement('div');
+      empty.setAttribute('data-jobitem', '1');
+      empty.setAttribute('style', 'padding:13px 0 3px;border-top:1px solid #EDF0F5;' +
+        'font:400 13.5px/1.5 Geist;color:#8A97A8');
+      empty.textContent = 'Nothing on this job yet. Whatever the customer approves on an estimate lands here on its own.';
+      R.card.insertBefore(empty, R.add);
+    }
+    items.forEach(function (it) { R.card.insertBefore(jobItemRow(it), R.add); });
+
+    var sold = j.sold;
+    var total = sold ? sold.total : jobItemsTotal(j);
+    var foot = document.createElement('div');
+    foot.setAttribute('data-jobitem', '1');
+    foot.setAttribute('style', 'display:flex;justify-content:space-between;align-items:flex-start;' +
+      'gap:10px;padding:13px 0 3px;border-top:1px solid #C8D5E8;margin-top:2px');
+    foot.innerHTML = '<div><div style="font:600 14.5px/1 Geist">Total</div>' +
+      '<div data-src style="font:400 11.5px/1.4 Geist;color:#8A97A8;margin-top:5px"></div></div>' +
+      '<span data-tot style="font:700 17px/1 Geist;white-space:nowrap"></span>';
+    $('[data-src]', foot).textContent = sold
+      ? sold.option + ' approved — the signed estimate sets the price'
+      : 'Job items at unit price — no estimate on this job';
+    $('[data-tot]', foot).textContent = fmt(total);
+    R.card.insertBefore(foot, R.add);
+  }
 
   if (recall('declined', false)) markDeclined();
 
@@ -1757,6 +2233,35 @@
      total comes from the option screen's own adjusted total ($1,089) —
      the design's number, not an invented one. */
   var OPTION_TOTALS = { 'Option A': 1089, 'Option B': 929, 'Option C': 1109 };
+
+  /* A price on its own can't be sold onto a job — the job needs the items.
+     The design's option cards already list them, so they are read back out
+     of the accepted markup rather than invented alongside it. */
+  var OPTION_ITEMS = {};
+  function seedOptionItems(screenId) {
+    var root = byId(screenId); if (!root) return;
+    var cards = $$('div', root).filter(function (e) {
+      return /border-radius:12px/.test(e.getAttribute('style') || '') && optionName(e);
+    });
+    cards = cards.filter(function (e) { return !cards.some(function (o) { return o !== e && o.contains(e); }); });
+    cards.forEach(function (c) {
+      var name = optionName(c);
+      if (!name || OPTION_ITEMS[name]) return;
+      var lines = $$('div', c).filter(function (e) { return /font:400 14px/.test(e.getAttribute('style') || ''); });
+      var items = lines.map(function (e) {
+        var q = $('span', e);
+        var nm = norm(e.textContent).replace(/^[0-9]+[ ]*/, '');
+        var reg = BY_NAME[nm];
+        var base = reg || { sku: '', name: nm, type: 'service', cat: '', price: 0, labor: 0 };
+        return {
+          sku: base.sku, name: base.name, type: base.type, cat: base.cat,
+          price: base.price, labor: base.labor,
+          qty: parseInt(norm(q ? q.textContent : '1'), 10) || 1, group: null
+        };
+      });
+      if (items.length) OPTION_ITEMS[name] = items;
+    });
+  }
 
   // the name is a <span> on the draft screen and a <div> on Ready to present
   function optionName(card) {
@@ -1842,6 +2347,7 @@
   /* US-M04-4 — En route is a status, so the button holds the pressed state
      and releases on a second tap. */
   var paintEnroute = function () { };
+  var paintDash = function () { };
   (function () {
     var btn = sel(byId('home'), '@navigation^1')[0];
     if (!btn) { MISS.push('home :: en route'); return; }
@@ -1856,6 +2362,48 @@
     paintEnroute();
   })();
 
+  /* Pressing Start swapped the whole home screen for the in-progress one
+     and took the technician's numbers away with it. A job runs for most of
+     the day, so that hid the dashboard for most of the day, with no way
+     back to it — the Home tab just landed on the same screen again.
+
+     The dashboard is one set of nodes, not two copies: it moves to
+     whichever home is on screen. Under the job while one is running,
+     back at the top of Home when there isn't. Every KPI reference,
+     the period menu and the Week/Month segment keep working because
+     nothing is rebuilt. */
+  (function () {
+    var home = byId('home'), active = byId('home-active');
+    if (!home || !active) return;
+    var hs = $('.sc', home), as = $('.sc', active);
+    // the collapse block above already appended a chevron into this
+    // heading, so only its own text nodes still identify it
+    var mark = sel(home, '~Overview')[0];
+    if (!hs || !as || !mark) { MISS.push('home :: dashboard'); return; }
+
+    // everything above the job heading is the dashboard
+    var top = function (el) { while (el && el.parentElement !== hs) el = el.parentElement; return el; };
+    var firstBlock = top(mark);
+    var blocks = [];
+    for (var b = firstBlock; b; b = b.nextElementSibling) {
+      if (sel(b, 'Next jobs').length || sel(b, 'Current job').length) break;
+      blocks.push(b);
+    }
+    var home1st = blocks.length ? blocks[blocks.length - 1].nextElementSibling : null;
+    if (!blocks.length) { MISS.push('home :: dashboard blocks'); return; }
+
+    paintDash = function () {
+      var onJob = !!state.onsite;
+      var target = onJob ? as : hs;
+      if (blocks[0].parentElement === target) return;
+      // same place either way: Home opens on your numbers, with the job
+      // under them, running or not. Nothing on screen changes position
+      // because a job started.
+      var before = onJob ? as.firstElementChild : home1st;
+      blocks.forEach(function (el) { target.insertBefore(el, before); });
+    };
+  })();
+
   var jobIdx = 0;
   var paintJob = function () { };
 
@@ -1865,6 +2413,7 @@
     var j = JOBS[jobIdx];
     state.est = j ? j.est : 'none';
     state.inv = j ? j.inv : 'none';
+    renderJobItems();
   }
   function wireCurrentJob() {
     var root = byId('home'); if (!root) return;
@@ -1961,7 +2510,10 @@
   // session flags — before the cards are painted
   jobIdx = recall('jobIdx', 0);
   (recall('jobs', []) || []).forEach(function (s, i) {
-    if (JOBS[i] && s) { JOBS[i].est = s.est; JOBS[i].inv = s.inv; }
+    if (!JOBS[i] || !s) return;
+    JOBS[i].est = s.est; JOBS[i].inv = s.inv;
+    if (s.items) JOBS[i].items = s.items;
+    if (s.sold !== undefined) JOBS[i].sold = s.sold;
   });
   loadJob();
   (function () {
@@ -2073,6 +2625,7 @@
     var pending = sel(root, 'Pending')[0];
     var when = sel(root, 'Oct 7, 2025, 9:09 AM')[0];
     signaturePad('est-customer', 'Sign here', function () {
+      estSigned = true;
       if (when) when.textContent = stamp();
       if (pending) {
         pending.textContent = 'Signed';
@@ -2084,6 +2637,8 @@
   })();
 
   // Report Card waiver (49–50) and the technician's own signature (54)
+  /* Confirm & order used to fire on an unsigned sheet. The signature is the
+     order — without it there is nothing to hold the customer to. */
   (function () {
     var root = byId('rc-customer'); if (!root) return;
     var dateEl = sel(root, 'Date: Oct 7, 2025')[0];
@@ -2193,6 +2748,7 @@
       if (f) optFooters.push(f); else MISS.push(id + ' :: options counter');
     });
     if (!optCard || !optList || !optFooters.length) { MISS.push('est-draft :: options'); return; }
+    ['est-ready', 'est-draft', 'est-review'].forEach(seedOptionItems);
     // rebuild the options the tech added before the reload
     addedOptions.slice().forEach(function (o) { addOption(o.total, o.items, true); });
     paintOptions();
@@ -2261,6 +2817,7 @@
     }
 
     // the new option carries the total the tech actually built
+    if (items && items.length) OPTION_ITEMS[name] = items;
     if (total) {
       OPTION_TOTALS[name] = total;
       var priceEl = $$('span', copy).filter(function (e) {
@@ -2588,11 +3145,6 @@
   }
   byId('li-go').addEventListener('click', signIn);
   byId('li-pw').addEventListener('keydown', function (e) { if (e.key === 'Enter') signIn(); });
-  byId('li-bio').addEventListener('click', function () {
-    toast('Face ID recognised', 'fingerprint');
-    remember('signedIn', true);
-    setTimeout(function () { go(homeScreen(), 'root'); }, 500);
-  });
 
   byId('fg-go').addEventListener('click', function () {
     var em = byId('fg-em');
@@ -2690,7 +3242,7 @@
   };
   var MY = [
     { id: 'splash', title: 'Splash', section: 'auth', desc: 'Boot screen' },
-    { id: 'login', title: 'Sign in', section: 'auth', desc: 'Email + password, Face ID' },
+    { id: 'login', title: 'Sign in', section: 'auth', desc: 'Email and password' },
     { id: 'forgot', title: 'Reset password', section: 'auth', desc: 'Request a code' },
     { id: 'otp', title: 'Enter code', section: 'auth', desc: '6-digit SMS code' },
     { id: 'newpass', title: 'New password', section: 'auth', desc: 'With strength meter' },
