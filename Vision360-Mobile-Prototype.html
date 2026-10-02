@@ -3058,6 +3058,13 @@ body.dev #indexBtn{display:flex}
   ];
   var planIdx = 0;
   var deposit = 0;                    // what the customer hands over on the day
+  // the invoice: what was done beyond the estimate, and when it was raised,
+  // sent and paid. Up here with the other boot-time data because the blocks
+  // that render them run long before the block that used to declare them.
+  var extraItems = recall('extraItems', []);
+  var invCreatedAt = recall('invCreatedAt', '');
+  var invSentAt = recall('invSentAt', '');
+  var invPaidAt = recall('invPaidAt', '');
 
   function plan() { return PLANS[planIdx]; }
   // payment per dollar financed — what the card calls the monthly factor
@@ -3219,7 +3226,11 @@ body.dev #indexBtn{display:flex}
     else { stack.push({ id: id, mode: 'push' }); animate(fromEl, el, 'push'); }
     if (id === 'image-desc') { paintSlotBanner(); paintMediaForm(); }
     if (id === 'closeout') paintCloseout();
-    if (PAY_SCREENS.indexOf(id) > -1) paintPayScreens();
+    // the invoice screens are painted from the same sum as the payment ones
+    if (PAY_SCREENS.indexOf(id) > -1 ||
+      ['fin-empty', 'inv-sent', 'inv-paid', 'add-empty', 'add-items'].indexOf(id) > -1) {
+      paintPayScreens();
+    }
     // a notes sheet opens at the top of its list, not where it was left
     if (id.indexOf('ov-note-') === 0) { var nl = $('.sc', el); if (nl) nl.scrollTop = 0; }
     chrome();
@@ -3867,8 +3878,11 @@ body.dev #indexBtn{display:flex}
         : 'Nothing selected', picked.length ? 'check_circle' : 'info');
     },
 
-    createInvoice: function () { state.inv = 'sent'; go('inv-sent', 'replace'); toast('Invoice INV-26-03-123 created & sent', 'receipt_long'); },
+    createInvoice: function () {
+      if (!invCreatedAt) { invCreatedAt = stamp(); remember('invCreatedAt', invCreatedAt); }
+      invSentAt = stamp(); remember('invSentAt', invSentAt); state.inv = 'sent'; go('inv-sent', 'replace'); toast('Invoice INV-26-03-123 created & sent', 'receipt_long'); },
     payDone: function () {
+      invPaidAt = stamp(); remember('invPaidAt', invPaidAt);
       if (curPage() === 'pay-card' && !net.online) {
         toast('No signal — the card can’t be charged yet', 'cloud_off');
         return;
@@ -3882,7 +3896,25 @@ body.dev #indexBtn{display:flex}
       toast(net.online ? 'Payment received · ' + fmt(payAmount)
         : 'Payment recorded offline · will post when you have signal');
     },
-    addItemsDone: function () { state.extra = true; go('add-items', 'replace'); toast('2 items added to the invoice'); },
+    addItemsDone: function () {
+      var picked = addCatalog ? addCatalog.selection() : [];
+      if (addCatalog) addCatalog.clear();
+      picked.forEach(function (it) {
+        var seen = extraItems.filter(function (o) { return o.name === it.name; })[0];
+        if (seen) seen.qty += (it.qty || 1);
+        else extraItems.push({
+          sku: it.sku, name: it.name, desc: it.desc, price: it.price,
+          type: it.type, cat: it.cat, labor: it.labor, qty: it.qty || 1
+        });
+      });
+      remember('extraItems', extraItems);
+      state.extra = extraItems.length > 0;
+      renderExtras();
+      go('add-items', 'replace');
+      var n = picked.reduce(function (a, it) { return a + (it.qty || 1); }, 0);
+      toast(n ? n + ' ' + (n === 1 ? 'item' : 'items') + ' added to the invoice'
+        : 'Nothing added', 'playlist_add');
+    },
 
     rcSave: function (el) {
       var scr = el.closest('.screen');
@@ -4842,12 +4874,18 @@ body.dev #indexBtn{display:flex}
   }
   function paintDeposit() {
     if (!depDrop) return;
-    paintTicks(depDrop.panel, 'dep', DEPOSIT_QUICK.indexOf(deposit) > -1 ? deposit : -1);
+    $$('[data-dep]', depDrop.panel).forEach(function (c) {
+      var on = +c.dataset.dep === deposit;
+      c.setAttribute('style', 'flex:1;text-align:center;border-radius:9px;padding:11px 0;' +
+        'font:600 13px/1 Geist;' + (on
+          ? 'background:#4A6FA5;color:#fff'
+          : 'background:#fff;border:1px solid #C8D5E8;color:#4A6FA5'));
+    });
     var hint = $('[data-dephint]', depDrop.panel);
     if (hint) hint.textContent = depositHint();
-    var other = $('[data-depinput]', depDrop.panel);
-    if (other && document.activeElement !== other) {
-      other.value = (deposit && DEPOSIT_QUICK.indexOf(deposit) < 0) ? deposit.toFixed(2) : '';
+    var inp = $('[data-depinput]', depDrop.panel);
+    if (inp && document.activeElement !== inp) {
+      inp.value = deposit ? deposit.toFixed(2) : '';
     }
   }
 
@@ -4856,7 +4894,111 @@ body.dev #indexBtn{display:flex}
     if (!depDrop) return;
     depDrop.toggle();
     paintDeposit();
+    var inp = $('[data-depinput]', depDrop.panel);
+    if (inp && !depDrop.panel.hidden) setTimeout(function () { inp.focus(); }, 30);
   };
+
+  /* =========================================================
+     Additional items — what was done on site beyond the estimate.
+
+     The section listed two rows called "Item name goes here", its steppers
+     did nothing, and the plus beside them opened the catalog rather than
+     adding one. Picking items in the catalog and pressing Done set a flag
+     and carried nothing.
+     ========================================================= */
+  var extraRefs = null;
+  (function () {
+    var root = byId('add-items'); if (!root) return;
+    var head = sel(root, 'Additional items')[0];
+    var card = head && head.parentElement && head.parentElement.parentElement;
+    if (!card) { MISS.push('add-items :: section'); return; }
+    var rows = $$('div', card).filter(function (e) {
+      return /^Item name goes here/.test(norm(e.textContent)) &&
+        /border-radius:1[12]px/.test(e.getAttribute('style') || '');
+    });
+    if (!rows.length) { MISS.push('add-items :: rows'); return; }
+    var box = rows[0].parentElement;
+    var tpl = rows[0].cloneNode(true);
+    var totalEl = valueFor(root, 'Section total');
+    var addBtn = sel(root, '~Add new items')[0] || sel(root, 'Add new items')[0];
+    // the rows sit above the section total and the add button, so new ones
+    // go in where the mock-up's were, not at the end of the card
+    var after = rows[rows.length - 1].nextElementSibling;
+    rows.forEach(function (r) { r.remove(); });
+    extraRefs = { box: box, tpl: tpl, total: totalEl, add: addBtn, after: after, empty: null };
+    renderExtras();
+  })();
+
+  function renderExtras() {
+    var R = extraRefs; if (!R) return;
+    $$('[data-extra]', R.box).forEach(function (e) { e.remove(); });
+
+    if (!R.empty) {
+      R.empty = document.createElement('div');
+      R.empty.setAttribute('style', 'padding:18px 2px;text-align:center;' +
+        'font:400 13.5px/1.5 Geist;color:#8A97A8');
+      R.empty.textContent = 'Nothing yet — anything done beyond the estimate goes here.';
+      R.box.insertBefore(R.empty, R.after || null);
+    }
+    R.empty.hidden = extraItems.length > 0;
+    R.empty.style.display = extraItems.length ? 'none' : '';
+
+    extraItems.forEach(function (it, i) {
+      var row = R.tpl.cloneNode(true);
+      row.dataset.extra = String(i);
+      // the mock-up's own words are the two slots to fill
+      $$('div,span', row).forEach(function (e) {
+        if (e.children.length) return;
+        var t = norm(e.textContent);
+        if (t === 'Item name goes here') e.textContent = it.name;
+        else if (t === 'Optional description goes here') { e.textContent = it.desc || ''; e.hidden = !it.desc; }
+      });
+      var qty = $$('div,span', row).filter(function (e) {
+        return !e.children.length && /^[0-9]+$/.test(norm(e.textContent));
+      })[0];
+      if (qty) { qty.textContent = String(it.qty); qty.dataset.exqty = '1'; }
+      var money = $$('div,span', row).filter(function (e) {
+        return /^\$[\d,]+\.\d\d$/.test(norm(e.textContent));
+      })[0];
+      if (money) money.textContent = fmt(it.price * it.qty);
+      byIcon(row, 'remove').forEach(function (e) { e.dataset.exminus = '1'; e.dataset.tap = '1'; });
+      byIcon(row, 'add').forEach(function (e) { e.dataset.explus = '1'; e.dataset.tap = '1'; e.removeAttribute('data-go'); });
+      R.box.insertBefore(row, R.after || null);
+    });
+
+    if (R.total) R.total.textContent = fmt(extrasTotal());
+    paintExtraCounts();
+    paintPayScreens();
+  }
+
+  (function () {
+    var R = extraRefs; if (!R) return;
+    R.box.addEventListener('click', function (ev) {
+      var row = ev.target.closest('[data-extra]'); if (!row) return;
+      var plus = ev.target.closest('[data-explus]'), minus = ev.target.closest('[data-exminus]');
+      if (!plus && !minus) return;
+      ev.stopPropagation();
+      var i = +row.dataset.extra, it = extraItems[i]; if (!it) return;
+      it.qty += plus ? 1 : -1;
+      if (it.qty < 1) extraItems.splice(i, 1);
+      remember('extraItems', extraItems);
+      renderExtras();
+    }, true);
+  })();
+
+  /* every badge that counts them says the same number */
+  function paintExtraCounts() {
+    var n = extrasCount();
+    ['fin-empty', 'inv-sent', 'add-empty', 'add-items'].forEach(function (id) {
+      var root = byId(id); if (!root) return;
+      var head = sel(root, 'Additional items')[0];
+      var badge = head && head.nextElementSibling;
+      if (badge && /^[0-9]+$/.test(norm(badge.textContent))) {
+        badge.textContent = String(n);
+        toggleDisplay(badge, n > 0);
+      }
+    });
+  }
 
   /* job tab strips */
   ['job-general', 'job-notes', 'rc-overview', 'est-empty', 'est-draft', 'est-review',
@@ -5086,6 +5228,31 @@ body.dev #indexBtn{display:flex}
     ['Thermostat Calibration', 'Adjust and calibrate thermostat for accurate temperature control', 90, 'Others'],
     ['Emergency HVAC Call', '24/7 emergency service visit fee', 150, 'Others']
   ];
+
+  /* The additional-items catalog is the same shelf as the estimate's, so it
+     carries the same items rather than the board's "Item name goes here". */
+  (function () {
+    var root = byId('add-catalog'); if (!root) return;
+    var sc = $$('.sc', root).pop();
+    var rows = sc ? $$(':scope > div', sc) : [];
+    var tpl = rows.filter(function (r) { return /Item name goes here/.test(norm(r.textContent)); })[0];
+    if (!tpl) { MISS.push('add-catalog :: rows'); return; }
+    function parts(row) {
+      var left = row.firstElementChild.children[0], right = row.firstElementChild.children[1];
+      return { name: left.children[0], desc: left.children[1], price: right.children[0] };
+    }
+    var mocks = rows.filter(function (r) { return /Item name goes here/.test(norm(r.textContent)); });
+    CATALOG_ROWS.forEach(function (spec, i) {
+      var row = mocks[i] || tpl.cloneNode(true);
+      if (!mocks[i]) sc.appendChild(row);
+      row.setAttribute('style', 'background:#fff;border:1px solid #DDE3EE;border-radius:12px;padding:13px 14px');
+      var p = parts(row);
+      p.name.textContent = spec[0];
+      p.desc.textContent = spec[1];
+      p.price.textContent = fmt(spec[2]);
+    });
+    mocks.slice(CATALOG_ROWS.length).forEach(function (r) { r.remove(); });
+  })();
 
   var catalogFilter = function () { };
   (function () {
@@ -5374,9 +5541,35 @@ body.dev #indexBtn{display:flex}
     return out.slice(0, 3);
   }
 
+  /* =========================================================
+     The invoice.
+
+     Everything on it was the mock-up's: $2,000 due on a $169 job, two
+     items called "Item name goes here", and a creation time in 2025 for an
+     invoice made a moment ago. The payment screens had already been wired
+     to the job, so the technician could watch the amount change between
+     one screen and the next.
+
+     One sum, made the way an invoice is made: what the job is worth, plus
+     anything done on site beyond it, less whatever was put down.
+     ========================================================= */
+
+  function extrasTotal() {
+    return extraItems.reduce(function (a, it) { return a + it.price * it.qty; }, 0);
+  }
+  function extrasCount() {
+    return extraItems.reduce(function (a, it) { return a + it.qty; }, 0);
+  }
+  function invoiceTotal() {
+    // the extras render before the job list exists, so this is asked early
+    var j = (typeof JOBS === 'undefined' ? null : JOBS[jobIdx]) || {};
+    return (j.sold ? j.sold.total : jobItemsTotal(j)) + extrasTotal();
+  }
+
   function paintPayScreens() {
+    if (typeof JOBS === 'undefined') return;
     var j = JOBS[jobIdx] || {};
-    var jobTotal = j.sold ? j.sold.total : jobItemsTotal(j);
+    var jobTotal = invoiceTotal();
     // A deposit only counts once the customer has signed for the option it
     // was quoted against. On an estimate nobody bought, no money changed
     // hands, so there is nothing to take off the invoice.
@@ -5395,6 +5588,31 @@ body.dev #indexBtn{display:flex}
     });
     paintTenders();
     paintCash(payAmount);
+    paintInvoice(jobTotal, paid);
+  }
+
+  /* The invoice screens carried the board's numbers and the board's clock. */
+  function paintInvoice(total, down) {
+    var due = Math.max(0, total - down);
+    ['inv-sent', 'inv-paid', 'fin-empty', 'add-empty', 'add-items'].forEach(function (id) {
+      var root = byId(id); if (!root) return;
+      var amount = valueFor(root, 'Amount due') || valueFor(root, 'Amount paid');
+      if (amount) amount.textContent = fmt(id === 'inv-paid' ? total - due + due : due);
+      /* The timeline rows are an icon and one run of text — "Created Oct 7,
+         2025, 9:09 AM" is a single text node, label and date together. */
+      [['Created', invCreatedAt], ['Sent', invSentAt], ['Paid', invPaidAt]].forEach(function (p) {
+        if (!p[1]) return;
+        $$('div', root).forEach(function (row) {
+          if (row.children.length !== 1) return;
+          var t = [].slice.call(row.childNodes).filter(function (n) {
+            return n.nodeType === 3 && norm(n.nodeValue);
+          })[0];
+          if (!t || norm(t.nodeValue).indexOf(p[0] + ' ') !== 0) return;
+          t.nodeValue = p[0] + ' ' + p[1];
+        });
+      });
+    });
+    paintExtraCounts();
   }
 
   function paintCash(received) {
@@ -5831,7 +6049,7 @@ body.dev #indexBtn{display:flex}
 
   /* catalogs + steppers */
   var estCatalog = catalog('est-catalog');
-  catalog('add-catalog');
+  var addCatalog = catalog('add-catalog');
 
   /* =========================================================
      Items ticked in the catalog land in the option being built, with a
@@ -7320,34 +7538,42 @@ body.dev #indexBtn{display:flex}
     paintPlanRows();
   })();
 
+  /* A deposit is a sum of money, so it is typed as one. Four round numbers
+     and a field for everything else was a list pretending to be a keypad —
+     three dollars is as likely a figure as five hundred. One field, the
+     common amounts beside it, and a line saying what it does to the price. */
   (function () {
     var row = planRefs && planRefs.down; if (!row) return;
     depDrop = dropdown(row);
     if (!depDrop) return;
-    DEPOSIT_QUICK.forEach(function (v, i) {
-      depDrop.panel.appendChild(pickRow(v, i === 0, v ? fmt(v) : 'No deposit',
-        v ? '' : 'The whole price is financed', 'dep'));
-    });
-    var other = document.createElement('div');
-    other.setAttribute('style', 'border-top:1px solid #EDF0F5;padding:13px 14px');
-    other.innerHTML =
-      '<div style="font:500 12.5px/1 Geist;color:#546478;margin-bottom:8px">Another amount</div>' +
-      '<div style="display:flex;align-items:center;gap:8px;height:46px;padding:0 12px;' +
-      'background:#fff;border:1px solid #C8D5E8;border-radius:9px">' +
-      '<span style="font:600 16px/1 Geist;color:#8A97A8">$</span>' +
+    depDrop.panel.setAttribute('style',
+      (depDrop.panel.getAttribute('style') || '') + ';padding:14px');
+    depDrop.panel.innerHTML =
+      '<div style="font:500 12.5px/1 Geist;color:#546478;margin-bottom:8px">Deposit amount</div>' +
+      '<div style="display:flex;align-items:center;gap:8px;height:48px;padding:0 12px;' +
+      'background:#fff;border:1.5px solid #4A6FA5;border-radius:10px">' +
+      '<span style="font:600 17px/1 Geist;color:#8A97A8">$</span>' +
       '<input data-depinput class="inp" inputmode="decimal" placeholder="0.00" ' +
-      'style="flex:1;height:auto;border:0;padding:0;background:transparent;font:600 16px/1 Geist"></div>' +
+      'style="flex:1;height:auto;border:0;padding:0;background:transparent;font:600 17px/1 Geist"></div>' +
+      '<div data-depchips style="display:flex;gap:7px;margin-top:9px"></div>' +
       '<div data-dephint style="font:400 12px/1.45 Geist;color:#8A97A8;margin-top:9px"></div>';
-    depDrop.panel.appendChild(other);
 
-    depDrop.panel.addEventListener('click', function (ev) {
-      var r = ev.target.closest('[data-dep]'); if (!r) return;
+    var chips = $('[data-depchips]', depDrop.panel);
+    DEPOSIT_QUICK.forEach(function (v) {
+      var c = document.createElement('span');
+      c.dataset.tap = '1';
+      c.dataset.dep = String(v);
+      c.textContent = v ? '$' + v.toLocaleString('en-US') : 'None';
+      chips.appendChild(c);
+    });
+    chips.addEventListener('click', function (ev) {
+      var c = ev.target.closest('[data-dep]'); if (!c) return;
       ev.stopPropagation();
-      deposit = +r.dataset.dep;
+      deposit = +c.dataset.dep;
+      var inp = $('[data-depinput]', depDrop.panel);
+      inp.value = deposit ? deposit.toFixed(2) : '';
       paintDeposit();
       paintPlanEverywhere();
-      depDrop.close();
-      toast(deposit ? fmt(deposit) + ' deposit' : 'No deposit', 'payments');
     }, true);
     $('[data-depinput]', depDrop.panel).addEventListener('input', function (ev) {
       deposit = Math.max(0, parseFloat(String(ev.target.value).replace(/[^0-9.]/g, '')) || 0);
@@ -7356,7 +7582,6 @@ body.dev #indexBtn{display:flex}
     });
     paintDeposit();
   })();
-
 
   function paintPlanCard() {
     if (!planRefs) return;
