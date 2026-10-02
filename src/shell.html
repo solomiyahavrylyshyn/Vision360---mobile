@@ -826,24 +826,45 @@
           </div>
         </div>
 
-        <!-- ============ PRICING PREVIEW TYPE ============ -->
-        <!-- Three radios took a third of the screen above the items they
-             were describing. The rows move in here; the screen keeps a
-             field saying which one is chosen. -->
-        <div class="overlay" id="ov-previewtype">
+<!-- ============ REJECTED OPTIONS ============ -->
+        <!-- The row said how many and had a chevron; this is what it opens. -->
+        <div class="overlay" id="ov-rejected">
+          <div style="position:absolute;inset:0;background:rgba(28,43,58,.40)" data-back></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;max-height:80%;display:flex;flex-direction:column;background:#fff;border-radius:22px 22px 0 0;box-shadow:0 -8px 30px rgba(26,35,50,.22)">
+            <div style="display:flex;justify-content:center;padding:10px 0 4px;flex:none">
+              <div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:6px 16px 12px;border-bottom:1px solid #EDF0F5;flex:none">
+              <span style="flex:1;font:600 18px/1.25 Geist">Options not taken</span>
+              <span class="mi" data-back style="font-size:22px;color:#546478">close</span>
+            </div>
+            <div class="sc" id="rejectedList" style="flex:1;overflow-y:auto;padding:12px 16px 20px"></div>
+          </div>
+        </div>
+
+        <!-- ============ ADJUST THE PRICE ============ -->
+        <!-- One slider. It used to be a whole screen you had to come back from. -->
+        <div class="overlay" id="ov-adjust">
           <div style="position:absolute;inset:0;background:rgba(28,43,58,.40)" data-back></div>
           <div style="position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:22px 22px 0 0;box-shadow:0 -8px 30px rgba(26,35,50,.22)">
             <div style="display:flex;justify-content:center;padding:10px 0 4px">
               <div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div>
             </div>
-            <div style="padding:6px 16px 10px;border-bottom:1px solid #EDF0F5">
-              <div style="display:flex;align-items:center;gap:10px">
-                <span style="flex:1;font:600 18px/1.25 Geist">Pricing preview type</span>
-                <span class="mi" data-back style="font-size:22px;color:#546478">close</span>
-              </div>
-              <div style="font:400 12.5px/1.45 Geist;color:#8A97A8;margin-top:5px">What the customer sees on the option card when you present it.</div>
+            <div style="display:flex;align-items:center;gap:10px;padding:6px 16px 12px;border-bottom:1px solid #EDF0F5">
+              <span style="flex:1;font:600 18px/1.25 Geist">Adjust the price</span>
+              <span class="mi" data-back style="font-size:22px;color:#546478">close</span>
             </div>
-            <div id="previewTypeList" style="padding:6px 0 18px"></div>
+            <div style="padding:18px 16px 24px">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;font:500 12.5px/1 Geist;color:#8A97A8;margin-bottom:12px">
+                <span>&minus;20%</span><span id="adjPct" style="font:700 17px/1 Geist;color:#4A6FA5">0%</span><span>+20%</span>
+              </div>
+              <input id="adjRange" class="rng" type="range" min="-20" max="20" step="1" value="0" style="width:100%">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px;padding-top:14px;border-top:1px solid #EDF0F5">
+                <span style="font:400 14px/1 Geist;color:#546478">Adjusted total</span>
+                <span id="adjTotal" style="font:700 19px/1 Geist">$0.00</span>
+              </div>
+              <div id="adjWas" style="font:400 12.5px/1 Geist;color:#8A97A8;margin-top:6px;text-align:right"></div>
+            </div>
           </div>
         </div>
 

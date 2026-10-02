@@ -216,3 +216,9 @@ body.dev #indexBtn{display:flex}
 @media (min-width:431px){
   .device{border-left:1px solid var(--line);border-right:1px solid var(--line)}
 }
+
+/* the one slider in the app — the board drew a bar and a dot, this is that
+   shape with a thumb you can actually drag */
+.rng{-webkit-appearance:none;appearance:none;height:8px;border-radius:4px;background:#EDF0F5;outline:none}
+.rng::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:26px;height:26px;border-radius:13px;background:#4A6FA5;border:3px solid #fff;box-shadow:0 2px 6px rgba(26,35,50,.25);cursor:pointer}
+.rng::-moz-range-thumb{width:26px;height:26px;border-radius:13px;background:#4A6FA5;border:3px solid #fff;box-shadow:0 2px 6px rgba(26,35,50,.25);cursor:pointer}

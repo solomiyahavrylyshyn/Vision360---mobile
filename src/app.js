@@ -741,6 +741,7 @@
         return;
       }
       optionItems = [];              // a new option starts empty
+      optAdjust = 0;
       renderOptionItems();
       paintOptionName();
       go('est-new-option', 'modal');
@@ -752,9 +753,14 @@
       }
       var first = state.est === 'none';
       state.est = 'draft';
-      var total = optionItems.reduce(function (a, it) { return a + it.price * it.qty; }, 0);
+      var total = optionAdjusted();
       var added = first ? true : addOption(total, optionItems);
+      if (optionNoteText) {
+        optionNotes['Option ' + String.fromCharCode(65 + Math.max(0, optCount - 1))] = optionNoteText;
+        optionNoteText = '';
+      }
       optionItems = [];
+      optAdjust = 0;
       renderOptionItems();
       paintOptionName();
       go('est-draft', 'root');
@@ -1123,7 +1129,7 @@
     'est-new-option': [
       ['Save', 'act:estSaveOption'],
       ['@add^1', 'act:optAddItem'],
-      ['@tune^1', 'est-option', 'modal'],
+      ['@tune^1', 'act:adjustPrice'],
       ['@note_add^1', 'act:optionNote']
     ],
     'est-catalog': [
@@ -2853,13 +2859,56 @@
     return l && l.nextElementSibling;
   }
 
+  /* The technician discounts a job at the kitchen table, with the customer
+     watching. "Adjust the price" opened a screen of its own that had to be
+     come back from; it is one slider, so it is a slider, under the thumb
+     that tapped it. */
+  var optAdjust = 0;                       // percent, −20…+20
+  function optionBase() {
+    return optionItems.reduce(function (a, it) { return a + it.price * it.qty; }, 0);
+  }
+  // the app already has an optionTotal() that reads a card; this one is the
+  // option being built, after whatever the slider did to it
+  function optionAdjusted() {
+    return Math.round(optionBase() * (1 + optAdjust / 100) * 100) / 100;
+  }
+
   function paintOptionSummary() {
-    var total = optionItems.reduce(function (a, it) { return a + it.price * it.qty; }, 0);
+    var total = optionAdjusted();
     var n = optionItems.reduce(function (a, it) { return a + it.qty; }, 0);
     if (optSummary.count) optSummary.count.textContent = String(n);
     if (optSummary.monthly) optSummary.monthly.textContent = fmt(monthlyFor(total));
     if (optSummary.total) optSummary.total.textContent = fmt(total);
   }
+
+  function paintAdjust() {
+    var pct = byId('adjPct'), tot = byId('adjTotal'), was = byId('adjWas');
+    var rng = byId('adjRange');
+    if (!pct || !tot || !rng) return;
+    rng.value = String(optAdjust);
+    pct.textContent = (optAdjust > 0 ? '+' : '') + optAdjust + '%';
+    pct.style.color = optAdjust < 0 ? '#DC2626' : optAdjust > 0 ? '#16A34A' : '#4A6FA5';
+    tot.textContent = fmt(optionAdjusted());
+    if (was) {
+      was.hidden = !optAdjust;
+      was.textContent = 'Was ' + fmt(optionBase());
+    }
+  }
+
+  (function () {
+    var rng = byId('adjRange'); if (!rng) return;
+    rng.addEventListener('input', function () {
+      optAdjust = parseInt(rng.value, 10) || 0;
+      paintAdjust();
+      paintOptionSummary();
+    });
+  })();
+
+  ACT.adjustPrice = function () {
+    if (!optionItems.length) { toast('Add an item before adjusting the price', 'info'); return; }
+    paintAdjust();
+    go('ov-adjust', 'overlay');
+  };
 
   function renderOptionItems() {
     if (!optItemsBox) return;
@@ -3949,8 +3998,18 @@
      field so it reads like the one under it, and it is not editable: the
      letter is what every card, total and signature refers to.
      ========================================================= */
-  var FIELD = 'display:block;background:#EDF0F5;border-radius:10px 10px 0 0;' +
-    'border-bottom:1.5px solid #8A97A8;padding:10px 14px 9px;margin-bottom:16px';
+  /* The app writes a field as a white card with a hairline border — the
+     closeout, the notes, the job card all do. A grey box with a heavy
+     underline is a different app's furniture, so these two wear the same
+     card as everything else.
+
+     And a dropdown drops down. A bottom sheet is for a choice that
+     deserves the whole screen; three words under the field you tapped do
+     not, and the sheet covers the items the choice is about. */
+  var FIELD = 'display:block;background:#fff;border:1px solid #DDE3EE;border-radius:11px;' +
+    'padding:12px 14px;margin-bottom:12px';
+  var FIELD_LABEL = 'font:500 12.5px/1 Geist;color:#546478';
+  var FIELD_VALUE = 'font:500 15.5px/1.2 Geist;color:#1A2332;margin-top:7px';
   var previewField = null;
 
   (function () {
@@ -3958,49 +4017,64 @@
     var head = sel(root, 'Pricing preview type')[0];
     var nameLabel = sel(root, 'Option name')[0];
     var nameBox = nameLabel && nameLabel.nextElementSibling;
-    var list = byId('previewTypeList');
-    if (!head || !list) { MISS.push('est-new-option :: preview type'); return; }
+    if (!head) { MISS.push('est-new-option :: preview type'); return; }
 
-    // the three rows, into the sheet
     var rows = ['Monthly payment + Total', 'Total only', 'Monthly payment only']
       .map(function (l) { var e = sel(root, l)[0]; return e && e.parentElement; });
     if (rows.some(function (r) { return !r; })) { MISS.push('est-new-option :: preview rows'); return; }
-    // the field takes the heading's place, not the rows' — they sit in a
-    // container of their own
-    var holder = head.parentElement;
-    rows.forEach(function (r) { list.appendChild(r); });
 
+    // the field takes the heading's place; the rows sit in a holder of their own
+    var holder = head.parentElement;
     var field = document.createElement('div');
     field.dataset.tap = '1';
-    field.dataset.go = 'ov-previewtype';
-    field.dataset.mode = 'overlay';
-    field.setAttribute('style', FIELD);
-    field.innerHTML = '<div style="display:flex;align-items:center;gap:10px">' +
-      '<div style="flex:1"><div style="font:400 12px/1 Geist;color:#546478">Pricing preview type</div>' +
-      '<div data-previewval style="font:400 16px/1.25 Geist;color:#1A2332;margin-top:5px"></div></div>' +
-      '<span class="mi" style="font-size:22px;color:#546478">expand_more</span></div>';
+    field.setAttribute('style', FIELD + ';position:relative');
+    field.innerHTML = '<div data-open style="display:flex;align-items:center;gap:10px">' +
+      '<div style="flex:1"><div style="' + FIELD_LABEL + '">Pricing preview type</div>' +
+      '<div data-previewval style="' + FIELD_VALUE + '"></div></div>' +
+      '<span class="mi" data-chev style="font-size:22px;color:#546478">expand_more</span></div>';
     holder.insertBefore(field, head);
     head.remove();
     previewField = $('[data-previewval]', field);
     previewField.textContent = 'Monthly payment + Total';
 
+    var panel = document.createElement('div');
+    panel.hidden = true;
+    panel.setAttribute('style', 'position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:40;' +
+      'background:#fff;border:1px solid #C8D5E8;border-radius:11px;padding:4px;' +
+      'box-shadow:0 10px 26px rgba(26,35,50,.18)');
+    rows.forEach(function (r) { panel.appendChild(r); });
+    field.appendChild(panel);
+
+    var chev = $('[data-chev]', field);
+    function close() { panel.hidden = true; chev.textContent = 'expand_more'; }
+    field.addEventListener('click', function (ev) {
+      if (ev.target.closest('[data-seg]')) return;        // a choice, not the field
+      ev.stopPropagation();
+      panel.hidden = !panel.hidden;
+      chev.textContent = panel.hidden ? 'expand_more' : 'expand_less';
+    }, true);
+    // anywhere else closes it, the way a dropdown does
+    document.addEventListener('click', function (ev) {
+      if (!panel.hidden && !field.contains(ev.target)) close();
+    }, true);
+
     if (nameBox) {
       nameLabel.remove();
       nameBox.setAttribute('style', FIELD);
       var was = norm(nameBox.textContent);
-      nameBox.innerHTML = '<div style="font:400 12px/1 Geist;color:#546478">Option name</div>' +
-        '<div data-optname style="font:400 16px/1.25 Geist;color:#1A2332;margin-top:5px"></div>';
+      nameBox.innerHTML = '<div style="' + FIELD_LABEL + '">Option name</div>' +
+        '<div data-optname style="' + FIELD_VALUE + '"></div>';
       $('[data-optname]', nameBox).textContent = was;
     }
 
     // the label is a span inside the row; the row is what carries the state
-    seg('ov-previewtype',
+    seg('est-new-option',
       ['Monthly payment + Total^1', 'Total only^1', 'Monthly payment only^1'], 0,
       function (i, label) {
         previewMode = PREVIEW[i];
         if (previewField) previewField.textContent = label.split('^')[0];
         paintPlanEverywhere();
-        closeOverlays(false);
+        close();
         toast(i === 0 ? 'Customer sees the monthly and the total'
           : i === 1 ? 'Customer sees the total only'
             : 'Customer sees the monthly only', 'visibility');
@@ -5375,7 +5449,16 @@
     if (!optCard || !optList) return false;
     if (optCount >= MAX_OPTIONS) return false;
     var copy = optCard.cloneNode(true);
-    var name = 'Option ' + String.fromCharCode(65 + optCount);
+    // the next free letter, not the next number: an option can be deleted
+    var taken = {};
+    $$(':scope > div', optList).forEach(function (c) {
+      var n = optionName(c); if (n) taken[n] = 1;
+    });
+    var name = '';
+    for (var li = 0; li < 26 && !name; li++) {
+      var cand = 'Option ' + String.fromCharCode(65 + li);
+      if (!taken[cand]) name = cand;
+    }
     var title = $$('span', copy).filter(function (e) { return /^Option [A-Z]$/.test(norm(e.textContent)); })[0];
     if (title) title.textContent = name;
 
@@ -5419,6 +5502,223 @@
     paintOptions();
     return true;
   }
+
+  /* =========================================================
+     The option menu, which only ever edited.
+
+     Eight rows, and seven of them closed the sheet and did nothing:
+     duplicate, the note and description toggles, email, SMS, print
+     preview and delete. On the screen where a technician builds the thing
+     the customer signs.
+
+     They work on the option the menu was opened from — which the sheet
+     did not know either, so it said "Option A" over whichever card you
+     had tapped.
+     ========================================================= */
+  var menuCard = null;
+  var optionNotes = { 'Option B': 'Includes the duct work the attic needs before the new unit goes in.' };
+  var showDesc = {};
+  var showNote = {};
+
+  function cardItems(card) {
+    var n = optionName(card);
+    return (OPTION_ITEMS[n] || []).slice();
+  }
+  function cardItemsBox(card) { return card.children[1]; }
+
+  /* The item lines on a card are a quantity and a name. The descriptions
+     live in the catalog, so they are looked up rather than stored twice. */
+  function descOf(name) {
+    var row = CATALOG_ROWS.filter(function (r) { return r[0] === name; })[0];
+    return row ? row[1] : '';
+  }
+
+  function paintCardExtras(card) {
+    var n = optionName(card); if (!n) return;
+    var box = cardItemsBox(card); if (!box) return;
+
+    $$('[data-optdesc]', box).forEach(function (e) { e.remove(); });
+    if (showDesc[n]) {
+      $$(':scope > div', box).forEach(function (line) {
+        if (line.dataset.optdesc) return;
+        var nm = norm(line.textContent).replace(/^[0-9]+[ ]*/, '');
+        var d = descOf(nm); if (!d) return;
+        var el = document.createElement('div');
+        el.dataset.optdesc = '1';
+        el.setAttribute('style', 'font:400 12.5px/1.45 Geist;color:#8A97A8;margin:-2px 0 2px 26px');
+        el.textContent = d;
+        box.insertBefore(el, line.nextSibling);
+      });
+    }
+
+    var note = $('[data-optnote]', card);
+    if (optionNotes[n] && showNote[n] !== false) {
+      if (!note) {
+        note = document.createElement('div');
+        note.dataset.optnote = '1';
+        note.setAttribute('style', 'margin:0 14px 12px;padding:10px 12px;background:#F5F7FA;' +
+          'border:1px solid #DDE3EE;border-radius:9px;font:400 12.5px/1.45 Geist;color:#546478');
+        card.insertBefore(note, card.lastElementChild);
+      }
+      note.textContent = optionNotes[n];
+      note.hidden = false;
+    } else if (note) {
+      note.hidden = true;
+    }
+  }
+
+  function paintAllCards() {
+    ['est-draft', 'est-review', 'est-ready'].forEach(function (id) {
+      var root = byId(id); if (!root) return;
+      var cards = $$('div', root).filter(function (e) {
+        return /border-radius:12px/.test(e.getAttribute('style') || '') && optionName(e);
+      });
+      cards = cards.filter(function (e) { return !cards.some(function (o) { return o !== e && o.contains(e); }); });
+      cards.forEach(paintCardExtras);
+    });
+  }
+
+  (function () {
+    // the kebab says which card it belongs to
+    ['est-draft', 'est-review', 'est-ready'].forEach(function (id) {
+      var root = byId(id); if (!root) return;
+      $$('[data-go="ov-option-menu"]', root).forEach(function (k) {
+        k.addEventListener('click', function () {
+          menuCard = k.closest('div[style*="border-radius:12px"]');
+          var title = byId('optMenuName');
+          var n = menuCard && optionName(menuCard);
+          if (title && n) title.textContent = n;
+          var noteRow = byId('optMenuNote'), descRow = byId('optMenuDesc');
+          // the label is the row's own text, next to the icon element
+          function relabel(row, text) {
+            if (!row) return;
+            var t = [].slice.call(row.childNodes).filter(function (x) {
+              return x.nodeType === 3 && norm(x.nodeValue);
+            })[0];
+            if (t) t.nodeValue = text;
+          }
+          relabel(noteRow, showNote[n] === false ? 'Show note' : 'Hide note');
+          if (noteRow) toggleDisplay(noteRow, !!optionNotes[n]);
+          relabel(descRow, showDesc[n] ? 'Hide description' : 'Show description');
+        }, true);
+      });
+    });
+
+    var menu = byId('ov-option-menu'); if (!menu) return;
+    var title = sel(menu, 'Option A')[0];
+    if (title) title.id = 'optMenuName';
+    // each row is an icon and a bare label, so the row itself is what owns
+    // the text — there is no element whose whole text is "Duplicate option"
+    function row(label) { return sel(menu, '~' + label)[0] || null; }
+    var rows = {
+      dup: row('Duplicate option'), note: row('Hide note'), desc: row('Show description'),
+      mail: row('Send by email'), sms: row('Send by SMS'),
+      print: row('Print preview'), del: row('Delete option')
+    };
+    if (rows.note) rows.note.id = 'optMenuNote';
+    if (rows.desc) rows.desc.id = 'optMenuDesc';
+    Object.keys(rows).forEach(function (k) {
+      if (!rows[k]) { MISS.push('ov-option-menu :: ' + k); return; }
+      rows[k].dataset.act = 'optMenu' + k.charAt(0).toUpperCase() + k.slice(1);
+      rows[k].removeAttribute('data-go');
+    });
+  })();
+
+  function menuName() { return menuCard ? optionName(menuCard) : ''; }
+
+  ACT.optMenuDup = function () {
+    var n = menuName();
+    closeOverlays(true);
+    if (!n) return;
+    if (!addOption(OPTION_TOTALS[n] || 0, cardItems(menuCard))) {
+      toast('Maximum ' + MAX_OPTIONS + ' options per job', 'block');
+      return;
+    }
+    paintAllCards();
+    toast(n + ' copied — edit the copy to make it different', 'content_copy');
+  };
+  ACT.optMenuNote = function () {
+    var n = menuName();
+    closeOverlays(true);
+    if (!n) return;
+    showNote[n] = showNote[n] === false;
+    paintAllCards();
+    toast(showNote[n] === false ? 'Note hidden from the card' : 'Note shown on the card', 'sticky_note_2');
+  };
+  ACT.optMenuDesc = function () {
+    var n = menuName();
+    closeOverlays(true);
+    if (!n) return;
+    showDesc[n] = !showDesc[n];
+    paintAllCards();
+    toast(showDesc[n] ? 'Item descriptions shown' : 'Item descriptions hidden', 'subject');
+  };
+  ACT.optMenuMail = function () {
+    var n = menuName();
+    closeOverlays(true);
+    queued('Estimate');
+    toast(net.online ? n + ' emailed to the customer' : n + ' will be emailed when there is signal', 'mail');
+  };
+  ACT.optMenuSms = function () {
+    var n = menuName();
+    closeOverlays(true);
+    queued('Estimate');
+    toast(net.online ? n + ' sent by SMS' : n + ' will be sent by SMS when there is signal', 'sms');
+  };
+  ACT.optMenuPrint = function () {
+    closeOverlays(true);
+    go('est-preview', 'modal');
+  };
+  ACT.optMenuDel = function () {
+    var n = menuName(), card = menuCard;
+    closeOverlays(true);
+    if (!card || !n) return;
+    if (optCount <= 1) { toast('An estimate needs at least one option', 'block'); return; }
+    card.remove();
+    delete OPTION_TOTALS[n];
+    delete OPTION_ITEMS[n];
+    addedOptions = addedOptions.filter(function (o) { return o.name !== n; });
+    remember('addedOptions', addedOptions);
+    optCount = Math.max(0, optCount - 1);
+    if (pickedOption === n) pickedOption = optionName($$(':scope > div', optList)[0]) || 'Option A';
+    paintOptions();
+    paintPlanEverywhere();
+    toast(n + ' deleted', 'delete_outline');
+  };
+
+  /* what the customer turned down, on the record that says how many */
+  (function () {
+    var root = byId('est-approved'); if (!root) return;
+    var rej = sel(root, 'Rejected options')[0];
+    var row = rej && rej.parentElement;
+    if (!row) { MISS.push('est-approved :: rejected row'); return; }
+    row.dataset.tap = '1';
+    row.dataset.go = 'ov-rejected';
+    row.dataset.mode = 'overlay';
+    row.addEventListener('click', function () {
+      var list = byId('rejectedList'); if (!list) return;
+      list.innerHTML = '';
+      Object.keys(OPTION_TOTALS).filter(function (n) { return n !== pickedOption; })
+        .forEach(function (n) {
+          var card = document.createElement('div');
+          card.setAttribute('style', 'background:#fff;border:1px solid #DDE3EE;border-radius:12px;' +
+            'padding:13px 14px;margin-bottom:9px');
+          card.innerHTML = '<div style="display:flex;align-items:baseline;gap:10px">' +
+            '<span data-n style="flex:1;font:600 15.5px/1.2 Geist"></span>' +
+            '<span data-t style="font:600 15px/1 Geist;color:#546478"></span></div>' +
+            '<div data-i style="margin-top:9px;font:400 13px/1.6 Geist;color:#8A97A8"></div>';
+          $('[data-n]', card).textContent = n;
+          $('[data-t]', card).textContent = fmt(OPTION_TOTALS[n] || 0);
+          $('[data-i]', card).textContent = (OPTION_ITEMS[n] || [])
+            .map(function (it) { return it.qty + ' × ' + it.name; }).join(' · ');
+          list.appendChild(card);
+        });
+      if (!list.children.length) {
+        list.innerHTML = '<div style="padding:24px 4px;text-align:center;font:400 14px/1.5 Geist;' +
+          'color:#8A97A8">This estimate had only the one option.</div>';
+      }
+    }, true);
+  })();
 
   /* =========================================================
      US-M05-1 — "Add note" actually adds one, stamped with the author
