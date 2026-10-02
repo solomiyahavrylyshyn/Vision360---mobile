@@ -4250,7 +4250,7 @@ body.dev #indexBtn{display:flex}
     'pay-card': [
       ['@expand_more^1', 'ov-pay-method'],   // the whole method box, not just the chevron
       ['@lock^1', 'act:payDone'],
-      ['@photo_camera', null]
+      ['@photo_camera', 'act:scanCard']
     ],
     'pay-cash': [
       ['@expand_more^1', 'ov-pay-method'],   // the whole method box, not just the chevron
@@ -4259,30 +4259,26 @@ body.dev #indexBtn{display:flex}
     'pay-check': [
       ['@expand_more^1', 'ov-pay-method'],   // the whole method box, not just the chevron
       ['@check_circle^1', 'act:payDone'],
-      ['@photo_camera^1', 'ov-media-source'],
-      ['@event', null]
+      ['@photo_camera^1', 'ov-media-source']
     ],
     'pay-apps': [
       ['@expand_more^1', 'ov-pay-method'],   // the whole method box, not just the chevron
-      ['@check_circle^1', 'act:payDone'],
-      ['@event', null]
+      ['@check_circle^1', 'act:payDone']
     ],
     'inv-paid': [
       ['@more_vert', 'ov-inv-share'],
       ['Change', 'inv-details', 'modal'],
-      ['@mail^1', null], ['@sms^1', null], ['@print^1', null]
+      ['@mail^1', 'act:invMail'], ['@sms^1', 'act:invSms'], ['@print^1', 'act:invPrint']
     ],
     'inv-sent': [
       ['@more_vert', 'ov-inv-share'],
       ['@send^1', 'ov-inv-share'],
       ['Additional items^1', 'add-items', 'replace'],
-      ['Payments^1', 'ov-pay-method'],
-      ['Approved estimate^1', null]
+      ['Payments^1', 'ov-pay-method']
     ],
     'ov-inv-share': [
       ['@edit^1', 'inv-details', 'modal'],
-      ['@mail^1', 'BACK'], ['@sms^1', 'BACK'],
-      ['@preview^1', 'BACK'], ['@print^1', 'BACK']
+      ['@mail^1', 'act:invMail'], ['@sms^1', 'act:invSms'], ['@print^1', 'act:invPrint']
     ],
     'history': [
       ['@search', 'hist-search'],
@@ -4804,12 +4800,19 @@ body.dev #indexBtn{display:flex}
     function place() {
       panel.style.top = 'calc(100% + 6px)';
       panel.style.bottom = 'auto';
+      panel.style.maxHeight = panel.dataset.maxh || '';
+      panel.style.overflowY = panel.dataset.maxh ? 'auto' : '';
       var box = anchor.closest('.sc'); if (!box) return;
-      var p = panel.getBoundingClientRect(), b = box.getBoundingClientRect();
-      if (p.bottom > b.bottom - 8 && p.height < b.height - 16) {
-        panel.style.top = 'auto';
-        panel.style.bottom = 'calc(100% + 6px)';
-      }
+      var a = anchor.getBoundingClientRect(), b = box.getBoundingClientRect();
+      var below = (b.bottom - 8) - (a.bottom + 6), above = (a.top - 6) - (b.top + 8);
+      var h = panel.getBoundingClientRect().height;
+      if (h <= below) return;
+      // it does not fit below: open above if it fits there, otherwise take
+      // whichever side has more room and scroll inside it
+      var up = h <= above || above > below;
+      if (up) { panel.style.top = 'auto'; panel.style.bottom = 'calc(100% + 6px)'; }
+      var room = up ? above : below;
+      if (h > room) { panel.style.maxHeight = Math.max(120, room) + 'px'; panel.style.overflowY = 'auto'; }
     }
     function toggle() {
       panel.hidden = !panel.hidden;
@@ -5093,11 +5096,13 @@ body.dev #indexBtn{display:flex}
       if (glyph) was = norm(was.replace(glyph, ''));
       var label = box.previousElementSibling;
       var hint = label && !label.children.length ? norm(label.textContent) : '';
+      // text drawn in the board's ghost grey is a hint of what goes there
+      var ghost = /color:#A9B4C2/.test(st);
 
       var inp = document.createElement('input');
       inp.className = 'inp';
-      inp.value = was;
-      inp.placeholder = hint || '';
+      inp.value = ghost ? '' : was;
+      inp.placeholder = ghost ? was : (hint || '');
       inp.setAttribute('style', 'flex:1;min-width:0;height:auto;border:0;padding:0;' +
         'background:transparent;font:500 15px/1 Geist;color:#1A2332');
       box.innerHTML = '';
@@ -5206,6 +5211,40 @@ body.dev #indexBtn{display:flex}
   }
   paintReceipt();
 
+  /* The State box had a chevron and nothing behind it. */
+  var billState = recall('billState', 'FL');
+  var US_STATES = [['FL', 'Florida'], ['GA', 'Georgia'], ['AL', 'Alabama'], ['SC', 'South Carolina'],
+    ['NC', 'North Carolina'], ['TN', 'Tennessee'], ['MS', 'Mississippi'], ['LA', 'Louisiana'],
+    ['TX', 'Texas'], ['VA', 'Virginia'], ['NY', 'New York'], ['CA', 'California']];
+  (function () {
+    var root = byId('inv-details'); if (!root) return;
+    var code = $$('span', root).filter(function (e) { return !e.children.length && norm(e.textContent) === 'FL'; })[0];
+    var box = code && code.parentElement; if (!box) { MISS.push('inv-details :: state'); return; }
+    var drop = dropdown(box); if (!drop) return;
+    drop.panel.dataset.maxh = '260px';
+    US_STATES.forEach(function (p, i) { drop.panel.appendChild(pickRow(i, i === 0, p[0] + ' — ' + p[1], '', 'ust')); });
+    function paint() {
+      code.textContent = billState;
+      var at = US_STATES.map(function (p) { return p[0]; }).indexOf(billState);
+      paintTicks(drop.panel, 'ust', at);
+    }
+    box.dataset.tap = '1';
+    box.addEventListener('click', function (ev) {
+      if (ev.target.closest('[data-ust]')) return;
+      ev.stopPropagation();
+      drop.toggle();
+    }, true);
+    drop.panel.addEventListener('click', function (ev) {
+      var r = ev.target.closest('[data-ust]'); if (!r) return;
+      ev.stopPropagation();
+      billState = US_STATES[+r.dataset.ust][0];
+      remember('billState', billState);
+      paint();
+      drop.close();
+    }, true);
+    paint();
+  })();
+
   // the name and address the invoice is made out to
   function paintBillTo() {
     if (!billTo) return;
@@ -5214,7 +5253,13 @@ body.dev #indexBtn{display:flex}
       var who = valueFor(root, 'Customer');
       var where = valueFor(root, 'Address');
       if (who && billTo[0]) who.textContent = billTo[0];
-      if (where && billTo[3]) where.textContent = billTo[3];
+      if (where && billTo[3]) {
+        where.innerHTML = '';
+        where.appendChild(document.createTextNode(billTo[3] + ','));
+        where.appendChild(document.createElement('br'));
+        where.appendChild(document.createTextNode(
+          [billTo[4], [billState, billTo[5]].filter(Boolean).join(' ')].filter(Boolean).join(', ')));
+      }
     });
   }
 
@@ -5309,6 +5354,106 @@ body.dev #indexBtn{display:flex}
             : 'color:#546478;background:#EDF0F5'));
     });
   }
+
+  /* =========================================================
+     Email, SMS and Print on the receipt did nothing; the share sheet's
+     rows closed it. The receipt goes where the button says, through the
+     same queue everything else leaves by. "Print preview" opened no
+     preview and is put away rather than left to disappoint.
+     ========================================================= */
+  (function () {
+    var menu = byId('ov-inv-share'); if (!menu) return;
+    var pv = byIcon(menu, 'preview')[0];
+    if (pv && pv.parentElement) toggleDisplay(pv.parentElement, false);
+  })();
+  function invNo() { return 'INV-26-03-123'; }
+  function sendReceipt(how, icon, verb) {
+    closeOverlays(true);
+    queued('Invoice');
+    var what = state.inv === 'paid' ? 'Receipt ' + invNo() : 'Invoice ' + invNo();
+    toast(net.online ? what + ' ' + verb : what + ' will be ' + how + ' when there is signal', icon);
+  }
+  ACT.invMail = function () { sendReceipt('emailed', 'mail', 'emailed to the customer'); };
+  ACT.invSms = function () { sendReceipt('sent by SMS', 'sms', 'sent by SMS'); };
+  ACT.invPrint = function () { sendReceipt('printed', 'print', 'sent to the printer'); };
+
+  /* The approved estimate on the Finance screens opens, when there is one. */
+  (function () {
+    ['fin-empty', 'add-empty', 'add-items', 'inv-sent'].forEach(function (id) {
+      var root = byId(id); if (!root) return;
+      var head = sel(root, 'Approved estimate')[0];
+      var row = head && head.parentElement; if (!row) return;
+      row.removeAttribute('data-go');
+      row.dataset.act = 'openApproved';
+      row.dataset.tap = '1';
+    });
+    ACT.openApproved = function () { if (state.est === 'approved') go('est-approved', 'push'); };
+  })();
+
+  /* =========================================================
+     The payment date on the cheque and transfer forms was "Apr 02, 2026"
+     with a calendar icon that opened nothing. It is today, and the
+     calendar offers the week around it — a cheque is sometimes dated
+     yesterday, a transfer sometimes lands tomorrow.
+     ========================================================= */
+  var payDateDays = 0;
+  var payDateBoxes = [];
+  // followDate() reads a negative as 'not set'; a cheque can be dated yesterday
+  function dayLabel(days) {
+    var d = new Date(); d.setDate(d.getDate() + days);
+    var M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return M[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+  }
+  (function () {
+    var DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    ['pay-check', 'pay-apps'].forEach(function (id) {
+      var root = byId(id); if (!root) return;
+      var icon = byIcon(root, 'event')[0];
+      var box = icon && icon.parentElement; if (!box) { MISS.push(id + ' :: date'); return; }
+      var text = $('span', box);
+      var drop = dropdown(box); if (!drop) return;
+      for (var i = -1; i <= 5; i++) {
+        var d = new Date(); d.setDate(d.getDate() + i);
+        var name = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : i === -1 ? 'Yesterday' : DAYS[d.getDay()];
+        drop.panel.appendChild(pickRow(i, i === -1, name, dayLabel(i), 'pdate'));
+      }
+      payDateBoxes.push({ text: text, drop: drop });
+      box.dataset.tap = '1';
+      box.addEventListener('click', function (ev) {
+        if (ev.target.closest('[data-pdate]')) return;
+        ev.stopPropagation();
+        drop.toggle();
+      }, true);
+      drop.panel.addEventListener('click', function (ev) {
+        var r = ev.target.closest('[data-pdate]'); if (!r) return;
+        ev.stopPropagation();
+        payDateDays = +r.dataset.pdate;
+        paintPayDate();
+        drop.close();
+      }, true);
+    });
+    paintPayDate();
+  })();
+  function paintPayDate() {
+    payDateBoxes.forEach(function (B) {
+      if (B.text) B.text.textContent = dayLabel(payDateDays);
+      paintTicks(B.drop.panel, 'pdate', payDateDays);
+    });
+  }
+
+  /* The camera on the card form reads the card. */
+  ACT.scanCard = function () {
+    var c = $$('input', byId('pay-card') || document.createElement('div'));
+    if (c.length < 3) return;
+    toast('Hold the card in the frame…', 'photo_camera');
+    setTimeout(function () {
+      c[1].value = '5425 2334 3010 9903';
+      c[2].value = '09 / 2029';
+      c[1].dispatchEvent(new Event('input', { bubbles: true }));
+      toast('Card read — check the number and add the CVV', 'credit_score');
+      if (c[3]) { c[3].value = ''; c[3].focus(); }
+    }, 1100);
+  };
 
   /* job tab strips */
   ['job-general', 'job-notes', 'rc-overview', 'est-empty', 'est-draft', 'est-review',
