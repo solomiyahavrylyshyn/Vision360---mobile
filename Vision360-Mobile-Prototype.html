@@ -3320,6 +3320,11 @@ body.dev #indexBtn{display:flex}
       e.dataset.seg = '1';
       e.addEventListener('click', function (ev) { ev.stopPropagation(); paint(i); }, true);
     });
+    /* A caller that keeps the control in step with something else needs to
+       be able to move it without being called back about it: fn(i) selects
+       silently, fn() puts it back where it started. The dashboard's period
+       has been asking for this and quietly getting undefined. */
+    return function (i) { paint(typeof i === 'number' ? i : active, true); };
   }
 
   /* ---------- icon toggle (checkbox / switch) ---------- */
@@ -3728,7 +3733,8 @@ body.dev #indexBtn{display:flex}
       var scr = el.closest('.screen');
       if (scr) hideSaveBar(scr.id);
       queued('Report Card');
-      back();
+      // the sections open where they are now, so saving one is not a way out
+      if (!scr || scr.id !== 'rc-overview') back();
       toast(net.online ? 'Report Card saved' : 'Report Card saved locally — will sync');
     },
     present: function () { estPresented = true; go('est-customer', 'modal'); },
@@ -4875,10 +4881,10 @@ body.dev #indexBtn{display:flex}
   // System Analysis rows had never been wired; only their sub-tabs were
   ['rc-section', 'rc-furnace', 'rc-condenser', 'rc-refrigerant'].forEach(ratingRows);
   paintRcBadges();
-  ['rc-furnace', 'rc-condenser', 'rc-refrigerant'].forEach(function (id) {
-    seg(id, ['Furnace', 'Condenser', 'Refrigerant'], ['rc-furnace', 'rc-condenser', 'rc-refrigerant'].indexOf(id),
-      function (i) { go(['rc-furnace', 'rc-condenser', 'rc-refrigerant'][i], 'replace'); });
-  });
+  // Furnace / Condenser / Refrigerant were three screens carrying a copy of
+  // the control each. One control now, swapping bodies inside the open section.
+  var rcSysPick = function () { };
+  seg('rc-furnace', ['Furnace', 'Condenser', 'Refrigerant'], 0, function (i) { rcSysPick(i); });
 
   /* checkbox / switch toggles */
   iconToggle('rc-customer', '@check_box_outline_blank', 'check_box_outline_blank', 'check_box', '#A9B4C2', '#4A6FA5');
@@ -7044,6 +7050,197 @@ body.dev #indexBtn{display:flex}
   })();
 
   /* =========================================================
+     The Report Card's key, said in one line.
+
+     Three ratings took three cards and a third of the first screen, and
+     said their meaning with a coloured dot — which is the one thing a
+     colour-blind technician cannot read, on the control they use most.
+     An icon carries the meaning whether or not the colour lands: a tick,
+     a warning triangle, an exclamation.
+
+     It stays where the board put it, above the sections and below the
+     stamp, with room of its own — three cards was too much furniture for
+     a key, but folding it into the stamp line made one crowded block out
+     of two separate things.
+
+     This runs before the sections fold, while the only "Good" on this
+     screen is still the one in the key.
+     ========================================================= */
+  (function () {
+    var root = byId('rc-overview'); if (!root) return;
+    var good = sel(root, 'Good')[0];
+    var card = good && good.parentElement;
+    var row = card && card.parentElement;
+    if (!row || row.children.length !== 3) { MISS.push('rc-overview :: rating key'); return; }
+
+    var KEY = [
+      ['check', '#16A34A', 'Good'],
+      ['warning', '#D97706', 'Needs Attention'],
+      ['error', '#DC2626', 'Needs Immediate Action']
+    ];
+    $$(':scope > div', row).forEach(function (chip, i) {
+      var spec = KEY[i];
+      var dot = chip.children[0], label = chip.children[1];
+      if (!dot || !label) { MISS.push('rc-overview :: key ' + i); return; }
+      chip.setAttribute('style', 'display:flex;align-items:center;gap:6px;flex:none');
+      dot.className = 'mif';
+      dot.setAttribute('style', 'width:20px;height:20px;border-radius:6px;flex:none;' +
+        'display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;' +
+        'background:' + spec[1]);
+      dot.textContent = spec[0];
+      label.setAttribute('style', 'font:500 12.5px/1.2 Geist;color:#546478;white-space:nowrap');
+      label.textContent = spec[2];
+    });
+
+    row.setAttribute('style', 'display:flex;align-items:center;gap:16px;flex-wrap:wrap;' +
+      'row-gap:9px;margin:2px 2px 18px');
+  })();
+
+  /* =========================================================
+     The Report Card opens where it is.
+
+     Fifty-four items in five sections, and every section was a screen of
+     its own: tap in, answer, save, come back out, find your place again.
+     That takes the overview away — the three colour counts and the bars
+     saying which sections still need attention — exactly while the tech is
+     working through them, and the only way to compare two sections is to
+     leave one.
+
+     The sections fold open in place instead, each on its own, so two
+     half-answered sections can be open at once and the counts above stay
+     on screen.
+
+     Nothing is rebuilt: each body is the one the board drew, moved out of
+     its screen into a panel under its own card, with its ratings, pickers,
+     cameras, switches and signature pads still bound to the same nodes.
+     ========================================================= */
+  (function () {
+    var root = byId('rc-overview'); if (!root) return;
+    var SECTIONS = [
+      ['Household Analysis', ['rc-section']],
+      ['Comfort Analysis', []],
+      ['System Analysis', ['rc-furnace', 'rc-condenser', 'rc-refrigerant']],
+      ['Customer Section', ['rc-customer']],
+      ['Technician Section', ['rc-tech']]
+    ];
+    var panels = [];
+
+    // it was the scrolling body of a screen; in a panel it is just a block
+    function loosen(sc) {
+      sc.classList.remove('sc');
+      var st = (sc.getAttribute('style') || '')
+        .split('flex:1;').join('')
+        .split('overflow-y:auto;').join('');
+      st = st.split(/padding:[^;]+;?/).join('');
+      sc.setAttribute('style', 'padding:13px 0 2px;' + st);
+      return sc;
+    }
+
+    SECTIONS.forEach(function (spec) {
+      var title = sel(root, spec[0])[0];
+      var card = title && title.closest('div[style*="border-radius:12px"]');
+      if (!card) { MISS.push('rc-overview :: ' + spec[0]); return; }
+
+      var head = title.parentElement;
+      if (head === card) {
+        /* Customer and Technician are a single flex row with no wrapper, so
+           a panel appended to them would land beside the title rather than
+           under it. They get a head of their own. */
+        var row = document.createElement('div');
+        row.setAttribute('style', 'display:flex;align-items:center;gap:10px');
+        while (card.firstChild) row.appendChild(card.firstChild);
+        card.appendChild(row);
+        card.setAttribute('style', (card.getAttribute('style') || '')
+          .split(';display:flex;align-items:center;gap:10px').join(''));
+        head = row;
+      }
+
+      var chev = byIcon(head, 'chevron_right')[0];
+      if (!chev) { MISS.push('rc-overview :: ' + spec[0] + ' chevron'); return; }
+
+      // the row opened a screen; now it opens itself
+      [card, head, title].forEach(function (e) {
+        if (e.dataset.go) { delete e.dataset.go; delete e.dataset.mode; }
+      });
+      chev.textContent = 'expand_more';
+
+      var panel = document.createElement('div');
+      panel.dataset.rcpanel = '1';
+      panel.hidden = true;
+      panel.setAttribute('style', 'margin-top:12px;border-top:1px solid #EDF0F5');
+
+      var bodies = [];
+      spec[1].forEach(function (id, i) {
+        var src = byId(id), sc = src && $('.sc', src);
+        if (!sc) { MISS.push(spec[0] + ' :: ' + id + ' body'); return; }
+        if (i === 0) {
+          // System Analysis brings its own three-way control across with it
+          var lbl = $('[data-seg]', src);
+          var ctl = lbl && lbl.parentElement;
+          if (ctl) {
+            ctl.setAttribute('style', (ctl.getAttribute('style') || '')
+              .split('margin:0 16px 12px;').join('margin:13px 0 0;'));
+            panel.appendChild(ctl);
+          }
+        }
+        panel.appendChild(loosen(sc));
+        if (i > 0) sc.hidden = true;
+        bodies.push(sc);
+      });
+
+      if (!bodies.length) {
+        var none = document.createElement('div');
+        none.setAttribute('style', 'padding:14px 2px 4px;font:400 13.5px/1.5 Geist;color:#8A97A8');
+        none.textContent = 'Items 8-19 are not drawn on the design board yet.';
+        panel.appendChild(none);
+      }
+
+      card.appendChild(panel);
+      var me = { card: card, panel: panel, chev: chev };
+      panels.push(me);
+
+      if (spec[0] === 'System Analysis') {
+        rcSysPick = function (i) {
+          bodies.forEach(function (b, k) { b.hidden = k !== i; });
+        };
+      }
+
+      head.dataset.tap = '1';
+      head.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        // each section is its own: two half-answered sections open at once is
+        // a thing a technician does, and shutting one to see another is how
+        // the screens behaved before
+        var opening = me.panel.hidden;
+        me.panel.hidden = !opening;
+        me.chev.textContent = opening ? 'expand_less' : 'expand_more';
+        if (opening) {
+          setTimeout(function () {
+            me.card.scrollIntoView({ block: 'start', behavior: 'smooth' });
+          }, 20);
+        }
+      }, true);
+    });
+
+    /* The "You made changes" bar belonged to each section screen. There is
+       one screen now, so there is one bar — and only an edit inside an open
+       section raises it, not the tap that opened the section. */
+    var bar = saveBars['rc-section'];
+    if (bar) {
+      root.appendChild(bar);
+      toggleDisplay(bar, false);
+      RC_SCREENS.concat(['rc-overview']).forEach(function (id) { saveBars[id] = bar; });
+      root.addEventListener('click', function (ev) {
+        var t = ev.target;
+        if (bar.contains(t) || !t.closest('[data-rcpanel]')) return;
+        if (t.closest('[data-seg]') || t.closest('.mi, .mif') || t.dataset.tap) {
+          showSaveBar('rc-overview');
+        }
+      }, true);
+    }
+  })();
+
+  /* =========================================================
      A customer saying no is a state the app has to hold. Without it the
      estimate is stuck "ready to present" forever and the tech has to
      rebuild the call when they change their mind on the doorstep.
@@ -7464,23 +7661,55 @@ body.dev #indexBtn{display:flex}
     }, true);
   }
 
+  /* =========================================================
+     A half-written note is the thing most likely to be interrupted.
+
+     The customer walks back in, the phone rings, the tech taps Photos to
+     check what they just shot — and every one of those repainted the list
+     and took the typing with it. A reload took it too. So the note got
+     rewritten from memory, or more often not written at all.
+
+     It is kept as a draft from the first keystroke, one per kind, the way
+     the close-out already keeps its twelve fields. Come back to the sheet
+     and the editor is open with the words still in it. Cancel is what
+     throws a draft away, because Cancel is the only thing that means "I
+     don't want this".
+     ========================================================= */
+  var noteDrafts = recall('notes.draft.v1', {}) || {};
+  // a draft the technician just asked for should take the keyboard; one put
+  // back by a repaint should not
+  var focusDraft = false;
+
+  function setDraft(kind, text) {
+    if (text) noteDrafts[kind] = text; else delete noteDrafts[kind];
+    remember('notes.draft.v1', noteDrafts);
+  }
+
   function addNote(kind, box) {
-    var editor = noteEditor('');
+    var editor = noteEditor(noteDrafts[kind] || '');
     box.appendChild(editor);
     var ta = $('textarea', editor);
-    setTimeout(function () { ta.focus(); }, 30);
+    if (focusDraft) {
+      setTimeout(function () {
+        ta.focus();
+        ta.selectionStart = ta.selectionEnd = ta.value.length;   // after what's there
+      }, 30);
+    }
+    ta.addEventListener('input', function () { setDraft(kind, ta.value); });
     editor.addEventListener('click', function (ev) {
       ev.stopPropagation();
-      if (ev.target.closest('[data-cancel]')) { paintNotes(kind); return; }
+      if (ev.target.closest('[data-cancel]')) { setDraft(kind, ''); paintNotes(kind); return; }
       if (!ev.target.closest('[data-save]')) return;
       var text = ta.value.trim();
       if (!text) { ta.focus(); return; }
       notes[kind].unshift({ text: text, stamp: noteStampNow(), author: 'Marek Stroz' });
       saveNotes();
+      setDraft(kind, '');
       paintNotes(kind);
       queued('Note');
       toast(net.online ? 'Note added' : 'Note saved — will sync', 'edit_note');
     }, true);
+    return editor;
   }
 
   /* repaint every surface showing this kind — the tab and the dialog are
@@ -7492,6 +7721,8 @@ body.dev #indexBtn{display:flex}
       var spec = NOTE_KINDS[k];
       $$('[data-note],[data-noteeditor]', sf.box).forEach(function (e) { e.remove(); });
       notes[k].forEach(function (rec, i) { sf.box.appendChild(noteRow(k, rec, i)); });
+      // a repaint is what used to lose the typing; now it puts it back
+      if (noteDrafts[k] && !NOTE_KINDS[k].readOnly) addNote(k, sf.box);
 
       if (sf.banner) {
         var fresh = noteBanner(k);
@@ -7529,8 +7760,11 @@ body.dev #indexBtn{display:flex}
         ev.stopPropagation();
         var k = sf.kind || tabNoteKind;
         if (NOTE_KINDS[k].readOnly) return;
-        if ($('[data-noteeditor]', sf.box)) return;
+        var open = $('[data-noteeditor]', sf.box);
+        if (open) { $('textarea', open).focus(); return; }
+        focusDraft = true;
         addNote(k, sf.box);
+        focusDraft = false;
       }, true);
     }
   }
