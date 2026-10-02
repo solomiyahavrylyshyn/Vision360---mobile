@@ -831,6 +831,32 @@
       toast(net.online ? 'Report Card saved' : 'Report Card saved locally — will sync');
     },
     present: function () { estPresented = true; go('est-customer', 'modal'); },
+    histMenu: function (el) {
+      histJob = el.dataset.job || '';
+      var nm = byId('histJobName');
+      if (nm) nm.textContent = histJob;
+      go('ov-histjob', 'overlay');
+    },
+    /* Closed out, and then the customer catches you at the fence. The work
+       that follows belongs to the visit that just ended, not to a new one,
+       so the job goes back on the list rather than being raised again. The
+       clock is not started for them — they may only be fetching a part. */
+    histReopen: function () {
+      var at = -1;
+      for (var i = 0; i < JOBS.length; i++) if (JOBS[i].name === histJob) at = i;
+      closeOverlays(true);
+      if (at < 0) { toast(histJob + ' is not on this device', 'info'); return; }
+      if (!JOBS[at].done) { toast(histJob + ' is already on your list', 'info'); return; }
+      JOBS[at].done = false;
+      jobIdx = at;
+      loadJob();
+      paintJob();
+      paintCard();
+      go('home', 'root');
+      queued('Job status');
+      toast(histJob + ' is back on your list — press Start when you are back inside',
+        'restart_alt');
+    },
     pickGallery: function () {
       galClear();
       closeOverlays(false);
@@ -1973,7 +1999,178 @@
   seg('est-customer', ['Option A^1', 'Option B^1', 'Option C^1'], 0, function (i, label) {
     pickedOption = label.split('^')[0];
   });
-  seg('history', ['Today', 'Week', 'Month', 'Quarter'], 0);
+  /* =========================================================
+     Jobs history.
+
+     The board draws it as pills over cards, and almost none of it did
+     anything: the period moved a highlight over a list that never changed,
+     the dates were three days in a December that has since gone by, and
+     "Job Details" was blue text that read like a link and was not one.
+
+     The dates are the technician's own recent days now, so the periods have
+     something true to say, and each card carries the one thing a closed job
+     still needs — the customer who catches you at the fence.
+     ========================================================= */
+  var HIST_DAYS = { Today: 0, Week: 7, Month: 31, Quarter: 92, Year: 366, 'All time': 36500 };
+  var HIST_AGO = [0, 4, 20];                    // today, this week, this month
+  var histPeriod = recall('histPeriod', 'Month');
+  var paintHistory = function () { };
+  var histJob = '';
+
+  (function () {
+    var root = byId('history'); if (!root) return;
+    var first = sel(root, 'Today')[0];
+    var strip = first && first.parentElement;
+    var list = $('.sc', root);
+    if (!strip || !list) { MISS.push('history :: strip'); return; }
+
+    var cards = $$(':scope > div', list);
+    if (cards.length !== HIST_AGO.length) { MISS.push('history :: cards'); return; }
+
+    var MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    function dayLabel(ago) {
+      var d = new Date();
+      d.setDate(d.getDate() - ago);
+      return MONTH[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+    }
+
+    // the board tints the type chips; the screen fills them
+    var TYPE_FILL = {
+      'Estimate': '#16A34A', 'Maintenance': '#D97706',
+      'Demand Service': '#4A6FA5', 'Install': '#6D28D9'
+    };
+    var rows = [];
+
+    cards.forEach(function (card, i) {
+      var head = card.children[0];
+      var name = head && head.children[0];
+      var date = head && head.children[1];
+      var typeRow = card.children[1];
+      var badge = typeRow && typeRow.children[1];
+      var foot = card.lastElementChild;
+      var link = foot && foot.children[0];
+      var price = foot && foot.children[1];
+      if (!name || !date || !badge || !link || !price) { MISS.push('history :: card ' + i); return; }
+
+      date.textContent = dayLabel(HIST_AGO[i]);
+
+      var t = norm(badge.textContent);
+      badge.setAttribute('style', 'font:600 11.5px/1 Geist;color:#fff;border-radius:5px;' +
+        'padding:5px 8px;white-space:nowrap;background:' + (TYPE_FILL[t] || '#546478'));
+
+      link.setAttribute('style', 'height:38px;padding:0 15px;display:flex;align-items:center;' +
+        'background:#fff;border:1px solid #C8D5E8;color:#4A6FA5;border-radius:9px;' +
+        'font:600 13.5px/1 Geist');
+      link.dataset.tap = '1';
+      link.dataset.go = 'job-general';
+
+      var money = norm(price.textContent);
+      // on a narrow phone the range used to break mid-number; the label gives
+      // way first and the figure stays in one piece
+      foot.setAttribute('style', 'display:flex;justify-content:space-between;align-items:center;' +
+        'gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid #EDF0F5');
+      link.style.flex = 'none';
+      price.setAttribute('style', 'text-align:right;font:500 13px/1.35 Geist;color:#546478');
+      price.innerHTML = '<span>Price range: </span>' +
+        '<span data-money style="font:600 13.5px/1.35 Geist;color:#1A2332;white-space:nowrap"></span>';
+      $('[data-money]', price).textContent = money;
+
+      var who = norm(name.textContent);
+      var kebab = document.createElement('span');
+      kebab.className = 'mi';
+      kebab.dataset.tap = '1';
+      kebab.dataset.act = 'histMenu';
+      kebab.dataset.job = who;
+      kebab.setAttribute('style', 'font-size:21px;color:#8A97A8;margin-left:2px');
+      kebab.textContent = 'more_vert';
+      head.appendChild(kebab);
+
+      rows.push({ el: card, ago: HIST_AGO[i], name: who });
+    });
+
+    /* The period was a segmented control over a list it could not change.
+       Pills, the way the board draws them, and they pick what is shown. */
+    var pills = $$(':scope > div', strip);
+    strip.setAttribute('style', 'display:flex;align-items:center;gap:7px;margin:0 16px 12px;flex:none');
+    var PILL_ON = 'flex:1;text-align:center;padding:10px 0;border-radius:18px;' +
+      'font:600 13px/1 Geist;color:#fff;background:#4A6FA5';
+    var PILL_OFF = 'flex:1;text-align:center;padding:10px 0;border-radius:18px;' +
+      'font:500 13px/1 Geist;color:#546478;background:#fff;border:1px solid #DDE3EE';
+
+    var more = document.createElement('div');
+    more.dataset.tap = '1';
+    more.dataset.go = 'ov-histperiod';
+    more.dataset.mode = 'overlay';
+    more.setAttribute('style', 'flex:none;width:38px;height:38px;display:flex;align-items:center;' +
+      'justify-content:center;border-radius:19px;background:#fff;border:1px solid #DDE3EE;color:#546478');
+    more.innerHTML = '<span class="mi" style="font-size:20px">more_vert</span>';
+    strip.appendChild(more);
+
+    var empty = document.createElement('div');
+    empty.setAttribute('style', 'padding:34px 20px;text-align:center;font:400 14px/1.5 Geist;color:#8A97A8');
+    empty.textContent = 'Nothing closed in this period.';
+    list.appendChild(empty);
+
+    paintHistory = function () {
+      var named = false;
+      pills.forEach(function (p) {
+        var on = norm(p.textContent) === histPeriod;
+        if (on) named = true;
+        p.setAttribute('style', on ? PILL_ON : PILL_OFF);
+      });
+      var cut = HIST_DAYS[histPeriod];
+      if (cut === undefined) cut = 31;
+      var shown = 0;
+      rows.forEach(function (c) {
+        c.el.hidden = c.ago > cut;
+        if (!c.el.hidden) shown++;
+      });
+      empty.hidden = shown > 0;
+      // a period the pills cannot name still has to look chosen
+      more.style.background = named ? '#fff' : '#EBF0F8';
+      more.style.borderColor = named ? '#DDE3EE' : '#C8D5E8';
+      $$('[data-histperiod]').forEach(function (r) {
+        var on = r.dataset.histperiod === histPeriod;
+        r.style.background = on ? '#F2F5F9' : '';
+        $('.mi,.mif', r).style.visibility = on ? 'visible' : 'hidden';
+      });
+    };
+
+    strip.addEventListener('click', function (ev) {
+      var p = ev.target.closest('div');
+      if (!p || pills.indexOf(p) < 0) return;
+      ev.stopPropagation();
+      histPeriod = norm(p.textContent);
+      remember('histPeriod', histPeriod);
+      paintHistory();
+    }, true);
+  })();
+
+  /* the periods that do not fit on the strip */
+  (function () {
+    var list = byId('histPeriodList'); if (!list) return;
+    ['Today', 'Week', 'Month', 'Quarter', 'Year', 'All time'].forEach(function (p) {
+      var r = document.createElement('div');
+      r.dataset.tap = '1';
+      r.dataset.histperiod = p;
+      r.setAttribute('style', 'display:flex;align-items:center;gap:12px;padding:16px 18px;' +
+        'font:500 15.5px/1 Geist;border-bottom:1px solid #EDF0F5');
+      r.innerHTML = '<span class="mif" style="font-size:20px;color:#4A6FA5;width:22px">check</span>' +
+        '<span></span>';
+      r.children[1].textContent = p;
+      list.appendChild(r);
+    });
+    list.addEventListener('click', function (ev) {
+      var r = ev.target.closest('[data-histperiod]'); if (!r) return;
+      ev.stopPropagation();
+      histPeriod = r.dataset.histperiod;
+      remember('histPeriod', histPeriod);
+      closeOverlays(false);
+      paintHistory();
+    }, true);
+  })();
+  paintHistory();
   seg('pay-apps', ['Zelle', 'Venmo', 'Cash App', 'Bank'], 0);
   /* =========================================================
      The money on the payment screens is the job's money.
@@ -2098,7 +2295,101 @@
   /* checkbox / switch toggles */
   iconToggle('rc-customer', '@check_box_outline_blank', 'check_box_outline_blank', 'check_box', '#A9B4C2', '#4A6FA5');
   iconToggle('rc-refrigerant', '@check_box', 'check_box', 'check_box_outline_blank', '#16A34A', '#A9B4C2');
-  var resetChips = chips('hist-filters', ['~Pending', '~Accepted'], ['Rejected']);
+  /* =========================================================
+     The history filter.
+
+     A two-handled slider is a poor way to ask for money on a phone: the
+     thumbs are 24px apart at the bottom of the range, where most jobs are,
+     and a technician who knows they are looking for something over two
+     thousand has to drag for it. Two fields take the answer directly, and
+     the range above them says what was understood.
+
+     The statuses were pills that looked like buttons; three of them, any
+     number selectable, which is a checkbox.
+     ========================================================= */
+  var resetPrice = function () { };
+  var resetChips = (function () {
+    var root = byId('hist-filters'); if (!root) return function () { };
+    var labels = ['Pending', 'Rejected', 'Accepted'];
+    var boxes = labels.map(function (l) { return sel(root, '~' + l)[0] || sel(root, l)[0]; });
+    if (boxes.some(function (b) { return !b; })) { MISS.push('hist-filters :: statuses'); return function () { }; }
+    var wrap = boxes[0].parentElement;
+    wrap.setAttribute('style', 'display:flex;flex-direction:column');
+    var START = { Pending: true, Rejected: false, Accepted: true };
+    function paint(b, on) {
+      b.dataset.on = on ? '1' : '0';
+      b.setAttribute('style', 'display:flex;align-items:center;gap:12px;padding:12px 2px;' +
+        'font:500 15px/1 Geist;color:#1A2332');
+      b.innerHTML = '<span class="mi" style="font-size:23px;color:' +
+        (on ? '#4A6FA5' : '#A9B4C2') + '">' +
+        (on ? 'check_box' : 'check_box_outline_blank') + '</span><span></span>';
+      b.lastElementChild.textContent = b.dataset.label;
+    }
+    boxes.forEach(function (b) {
+      b.dataset.label = norm(b.textContent).replace(/^check/, '');
+      b.dataset.tap = '1';
+      paint(b, START[b.dataset.label]);
+      b.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        paint(b, b.dataset.on !== '1');
+      }, true);
+    });
+    return function () { boxes.forEach(function (b) { paint(b, START[b.dataset.label]); }); };
+  })();
+
+  (function () {
+    var root = byId('hist-filters'); if (!root) return;
+    var title = sel(root, 'Price range')[0];
+    var head = title && title.parentElement;
+    var card = head && head.parentElement;
+    var value = head && head.children[1];
+    if (!card || !value || card.children.length < 3) { MISS.push('hist-filters :: price'); return; }
+
+    // the slider and the two numbers printed under it both go
+    card.removeChild(card.children[2]);
+    card.removeChild(card.children[1]);
+
+    var MIN = 0, MAX = 30000;
+    var row = document.createElement('div');
+    row.setAttribute('style', 'display:flex;align-items:center;gap:10px');
+    row.innerHTML =
+      '<label style="flex:1;display:block;background:#EDF0F5;border-radius:10px 10px 0 0;' +
+      'border-bottom:1.5px solid #8A97A8;padding:8px 12px 7px">' +
+      '<span style="display:block;font:400 11.5px/1 Geist;color:#546478">From</span>' +
+      '<input data-pmin class="inp" type="number" inputmode="numeric" min="0" ' +
+      'style="height:26px;padding:0;border:0;background:transparent;font:600 16px/1.3 Geist"></label>' +
+      '<span style="font:500 14px/1 Geist;color:#8A97A8">–</span>' +
+      '<label style="flex:1;display:block;background:#EDF0F5;border-radius:10px 10px 0 0;' +
+      'border-bottom:1.5px solid #8A97A8;padding:8px 12px 7px">' +
+      '<span style="display:block;font:400 11.5px/1 Geist;color:#546478">To</span>' +
+      '<input data-pmax class="inp" type="number" inputmode="numeric" min="0" ' +
+      'style="height:26px;padding:0;border:0;background:transparent;font:600 16px/1.3 Geist"></label>';
+    card.appendChild(row);
+
+    var lo = $('[data-pmin]', row), hi = $('[data-pmax]', row);
+    function money(n) { return '$' + Number(n).toLocaleString('en-US'); }
+    function paint() {
+      var a = lo.value === '' ? MIN : Math.max(MIN, +lo.value);
+      var b = hi.value === '' ? MAX : Math.min(MAX, +hi.value);
+      // a range that reads backwards is a typo, not a filter
+      value.textContent = b < a ? 'To is below From' : money(a) + ' – ' + money(b);
+      value.style.color = b < a ? '#DC2626' : '#4A6FA5';
+    }
+    [lo, hi].forEach(function (e) { e.addEventListener('input', paint); });
+    resetPrice = function () { lo.value = '6000'; hi.value = '15000'; paint(); };
+    resetPrice();
+  })();
+
+  /* the header says what Reset does, and leaves the way it came */
+  (function () {
+    var root = byId('hist-filters'); if (!root) return;
+    var back = byIcon(root, 'close')[0];
+    if (back) back.textContent = 'arrow_back';
+    var reset = sel(root, 'Reset')[0];
+    if (!reset) { MISS.push('hist-filters :: reset'); return; }
+    reset.setAttribute('style', 'display:flex;align-items:center;gap:5px;font:600 14px/1 Geist;color:#4A6FA5');
+    reset.innerHTML = '<span class="mi" style="font-size:18px">close</span>Reset filters';
+  })();
   switches('rc-tech');
   var resetSwitches = switches('hist-filters');
 
@@ -2275,6 +2566,7 @@
   ACT.filtersReset = function () {
     if (resetChips) resetChips();
     if (resetSwitches) resetSwitches();
+    resetPrice();
     toast('Filters reset', 'restart_alt');
   };
 

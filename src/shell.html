@@ -784,6 +784,44 @@
           </div>
         </div>
 
+        <!-- ============ A CLOSED JOB ============ -->
+        <!-- Closed out, and then the customer catches you at the fence. -->
+        <div class="overlay" id="ov-histjob">
+          <div style="position:absolute;inset:0;background:rgba(28,43,58,.40)" data-back></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:22px 22px 0 0;box-shadow:0 -8px 30px rgba(26,35,50,.22)">
+            <div style="display:flex;justify-content:center;padding:10px 0 4px">
+              <div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:6px 16px 12px;border-bottom:1px solid #EDF0F5">
+              <span style="flex:1;font:600 18px/1.25 Geist" id="histJobName">Job</span>
+              <span class="mi" data-back style="font-size:22px;color:#546478">close</span>
+            </div>
+            <div data-act="histReopen" data-tap="1" style="display:flex;align-items:flex-start;gap:12px;padding:16px 18px;font:500 15.5px/1.35 Geist;border-bottom:1px solid #EDF0F5">
+              <span class="mi" style="font-size:21px;color:#4A6FA5">restart_alt</span>
+              <span style="flex:1">Set back to active<span style="display:block;font:400 12.5px/1.35 Geist;color:#8A97A8;margin-top:3px">Puts the visit back on your list so the extra work goes on this job</span></span>
+            </div>
+            <div data-go="job-general" data-tap="1" style="display:flex;align-items:center;gap:12px;padding:16px 18px 22px;font:500 15.5px/1 Geist">
+              <span class="mi" style="font-size:21px;color:#4A6FA5">assignment</span>
+              <span style="flex:1">Job details</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ HISTORY PERIOD ============ -->
+        <div class="overlay" id="ov-histperiod">
+          <div style="position:absolute;inset:0;background:rgba(28,43,58,.40)" data-back></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:22px 22px 0 0;box-shadow:0 -8px 30px rgba(26,35,50,.22)">
+            <div style="display:flex;justify-content:center;padding:10px 0 4px">
+              <div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:6px 16px 12px;border-bottom:1px solid #EDF0F5">
+              <span style="flex:1;font:600 18px/1.25 Geist">Show jobs from</span>
+              <span class="mi" data-back style="font-size:22px;color:#546478">close</span>
+            </div>
+            <div id="histPeriodList" style="padding-bottom:18px"></div>
+          </div>
+        </div>
+
 <!--SCREENS-->
 
         <div class="toast" id="toast"><span class="mi">check_circle</span><span id="toastMsg"></span></div>
