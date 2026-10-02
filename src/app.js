@@ -1138,7 +1138,6 @@
     'est-new-option': [
       ['Save', 'act:estSaveOption'],
       ['@add^1', 'act:optAddItem'],
-      ['@tune^1', 'act:adjustPrice'],
       ['@note_add^1', 'act:optionNote']
     ],
     'est-catalog': [
@@ -2883,6 +2882,8 @@
   }
 
   function paintOptionSummary() {
+    paintAdjustVisible();
+    paintAdjust();
     var total = optionAdjusted();
     var n = optionItems.reduce(function (a, it) { return a + it.qty; }, 0);
     if (optSummary.count) optSummary.count.textContent = String(n);
@@ -2904,24 +2905,30 @@
     }
   }
 
-  /* It was a button, then a sheet over the numbers it changes. It is a line
-     of text with the slider under it, so the total two lines below moves
-     while the thumb is still under the finger. */
-  var adjustBox = null;
+  /* It was a button, then a sheet over the numbers it changes, then a link
+     that had to be tapped before the slider existed. It is a section of the
+     form, like Option items and Summary are: the same heading, and it
+     appears when there is an item to price. */
+  var adjustBox = null, adjustHead = null;
   (function () {
     var root = byId('est-new-option'); if (!root) return;
     var btn = sel(root, '~Adjust the price')[0] || sel(root, 'Adjust the price')[0];
+    var sum = sel(root, 'Summary')[0];
     if (!btn) { MISS.push('est-new-option :: adjust'); return; }
-    btn.setAttribute('style', 'display:flex;align-items:center;justify-content:center;gap:7px;' +
-      'padding:14px 0 4px;color:#4A6FA5;font:600 14.5px/1 Geist');
-    btn.dataset.act = 'adjustPrice';
+    btn.setAttribute('style', (sum && sum.getAttribute('style')) ||
+      'font:600 16px/1 Geist;margin-bottom:10px');
+    btn.style.marginTop = '20px';
+    btn.innerHTML = '';
+    btn.textContent = 'Adjust the price';
+    btn.removeAttribute('data-act');
+    btn.removeAttribute('data-tap');
     btn.removeAttribute('data-go');
     btn.removeAttribute('data-mode');
+    adjustHead = btn;
 
     adjustBox = document.createElement('div');
-    adjustBox.hidden = true;
     adjustBox.setAttribute('style', 'background:#fff;border:1px solid #DDE3EE;border-radius:11px;' +
-      'padding:14px;margin-top:10px');
+      'padding:14px');
     adjustBox.innerHTML =
       '<div style="display:flex;justify-content:space-between;align-items:baseline;' +
       'font:500 12.5px/1 Geist;color:#8A97A8;margin-bottom:11px">' +
@@ -2941,14 +2948,15 @@
       paintAdjust();
       paintOptionSummary();
     });
+    paintAdjustVisible();
   })();
 
-  ACT.adjustPrice = function () {
-    if (!adjustBox) return;
-    if (!optionItems.length) { toast('Add an item before adjusting the price', 'info'); return; }
-    adjustBox.hidden = !adjustBox.hidden;
-    paintAdjust();
-  };
+  // nothing to discount until something has a price
+  function paintAdjustVisible() {
+    var on = optionItems.length > 0;
+    toggleDisplay(adjustHead, on);
+    toggleDisplay(adjustBox, on);
+  }
 
   function renderOptionItems() {
     if (!optItemsBox) return;
@@ -4047,8 +4055,10 @@
      And a dropdown drops down. A bottom sheet is for a choice that
      deserves the whole screen; three words under the field you tapped do
      not, and the sheet covers the items the choice is about. */
+  // the form column already spaces its children by 16px; a margin on top of
+  // that is where the long gaps between the two fields came from
   var FIELD = 'display:block;background:#fff;border:1px solid #DDE3EE;border-radius:11px;' +
-    'padding:12px 14px;margin-bottom:12px';
+    'padding:12px 14px';
   var FIELD_LABEL = 'font:500 12.5px/1 Geist;color:#546478';
   var FIELD_VALUE = 'font:500 15.5px/1.2 Geist;color:#1A2332;margin-top:7px';
   var previewField = null;
