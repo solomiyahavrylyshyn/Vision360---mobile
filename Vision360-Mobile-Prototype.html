@@ -3844,6 +3844,7 @@ body.dev #indexBtn{display:flex}
         : 'Declined — estimate stays open, no follow-up date set',
         'history_toggle_off');
     },
+    openExtras: function () { go(extraItems.length ? 'add-items' : 'add-empty', 'replace'); },
     reinvoice: function () {
       state.inv = 'none';                  // a second invoice on the same job
       go('fin-empty', 'root');
@@ -4236,7 +4237,7 @@ body.dev #indexBtn{display:flex}
     'fin-empty': [
       ['@play_arrow^1', 'act:start'],
       ['@add^1', 'act:createInvoice'],
-      ['Additional items^1', 'add-empty', 'replace'],
+      ['Additional items^1', 'act:openExtras'],
       ['Payments^1', 'ov-pay-method'],
       ['Invoice details^1', 'inv-details', 'modal']
     ],
@@ -4322,9 +4323,7 @@ body.dev #indexBtn{display:flex}
       ['@play_arrow^1', 'act:start'],
       ['@add^1', 'add-catalog'],
       ['Payments^1', 'ov-pay-method'],
-      ['Invoice details^1', 'inv-details', 'modal'],
-      // without this the extras screen is a dead end: no invoice, no sale
-      ['Invoices^1', 'act:createInvoice']
+      ['Invoice details^1', 'inv-details', 'modal']
     ],
     'add-catalog': [
       ['Add custom item^1', 'est-custom-item', 'modal'],
@@ -4335,8 +4334,7 @@ body.dev #indexBtn{display:flex}
       ['@play_arrow^1', 'act:start'],
       ['@add^1', 'add-catalog'],
       ['Payments^1', 'ov-pay-method'],
-      ['Invoice details^1', 'inv-details', 'modal'],
-      ['Invoices^1', 'act:createInvoice']
+      ['Invoice details^1', 'inv-details', 'modal']
     ],
     'inv-details': [
       ['Save', 'BACK']
@@ -5226,8 +5224,89 @@ body.dev #indexBtn{display:flex}
     ['fin-empty', 'add-empty', 'add-items', 'inv-sent'].forEach(function (id) {
       var root = byId(id); if (!root) return;
       var head = sel(root, 'Approved estimate')[0];
-      var card = head && head.parentElement && head.parentElement.parentElement;
-      if (card) toggleDisplay(card, state.est === 'approved');
+      // the card is the nearest rounded box — on the extras screens the row
+      // itself is the card, and its parent is the whole scrolling column
+      var card = head && head.parentElement;
+      while (card && !card.classList.contains('sc') &&
+        !/border-radius:12px/.test(card.getAttribute('style') || '')) card = card.parentElement;
+      if (card && !card.classList.contains('sc')) toggleDisplay(card, state.est === 'approved');
+    });
+  }
+
+  /* =========================================================
+     Once anything was added on site, the Finance tab opened on the
+     Additional items screen, where "Invoices" was a collapsed row with no
+     button under it. Tapping the row created and sent an invoice on the
+     spot, and nothing said so. A technician looking for "Create invoice"
+     found no way to make one.
+
+     The row is a section like the others: open, it holds the same empty
+     state and the same button the Finance tab shows; once an invoice
+     exists it carries its status and leads to it.
+     ========================================================= */
+  var invRows = [];
+  (function () {
+    var fin = byId('fin-empty');
+    var finHead = fin && sel(fin, 'Invoices')[0];
+    var block = finHead && finHead.nextElementSibling;
+    if (!block || !$('[data-act="createInvoice"]', block)) { MISS.push('fin-empty :: invoice block'); return; }
+
+    ['add-empty', 'add-items'].forEach(function (id) {
+      var root = byId(id); if (!root) return;
+      var head = sel(root, 'Invoices')[0];
+      var row = head && head.parentElement;
+      if (!row) { MISS.push(id + ' :: Invoices row'); return; }
+      var chev = byIcon(row, 'expand_more')[0] || byIcon(row, 'expand_less')[0];
+      var badge = $$('span', row).filter(function (e) {
+        return e !== head && !e.classList.contains('mi') && !e.classList.contains('mif');
+      })[0];
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.setAttribute('style', 'font:600 12px/1 Geist;color:#546478;background:#EDF0F5;border-radius:5px;padding:5px 8px');
+        row.insertBefore(badge, chev || null);
+      }
+
+      // the card becomes a wrapper; the row keeps only its layout
+      var card = document.createElement('div');
+      card.setAttribute('style', 'background:#fff;border:1px solid #DDE3EE;border-radius:12px');
+      row.parentElement.insertBefore(card, row);
+      card.appendChild(row);
+      row.setAttribute('style', 'display:flex;align-items:center;gap:9px;padding:15px 14px');
+      row.removeAttribute('data-go'); row.removeAttribute('data-act');
+      row.dataset.tap = '1';
+
+      var panel = document.createElement('div');
+      panel.setAttribute('style', 'padding:0 14px 15px');
+      panel.appendChild(block.cloneNode(true));
+      card.appendChild(panel);
+
+      var R = { row: row, chev: chev, badge: badge, panel: panel, open: true };
+      invRows.push(R);
+      row.addEventListener('click', function (ev) {
+        if (state.inv === 'sent' || state.inv === 'paid') {
+          ev.stopPropagation();
+          go(finScreen(), 'replace');
+          return;
+        }
+        ev.stopPropagation();
+        R.open = !R.open;
+        paintInvRows();
+      }, true);
+    });
+    paintInvRows();
+  })();
+
+  function paintInvRows() {
+    var has = state.inv === 'sent' || state.inv === 'paid';
+    invRows.forEach(function (R) {
+      var open = !has && R.open;
+      R.panel.hidden = !open;
+      if (R.chev) R.chev.textContent = has ? 'chevron_right' : (open ? 'expand_less' : 'expand_more');
+      R.badge.textContent = has ? (state.inv === 'paid' ? 'Paid' : 'Sent') : 'None';
+      R.badge.setAttribute('style', 'font:600 12px/1 Geist;border-radius:5px;padding:5px 8px;' +
+        (state.inv === 'paid' ? 'color:#15803D;background:#E7F6EC'
+          : state.inv === 'sent' ? 'color:#4A6FA5;background:#EBF0F8'
+            : 'color:#546478;background:#EDF0F5'));
     });
   }
 
@@ -5825,6 +5904,7 @@ body.dev #indexBtn{display:flex}
     paintInvoice(jobTotal, paid);
     paintEstSection();
     paintBillTo();
+    paintInvRows();
   }
 
   /* The invoice screens carried the board's numbers and the board's clock. */
