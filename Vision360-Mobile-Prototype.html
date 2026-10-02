@@ -3888,7 +3888,8 @@ body.dev #indexBtn{display:flex}
         return;
       }
       state.inv = 'paid';
-      payMethod = PAY_LABEL[curPage()] || 'Card';
+      payMethod = curPage() === 'pay-apps' ? (appsMethod || appsPick) : (PAY_LABEL[curPage()] || 'Card');
+      paintReceipt(curPage());
       kpiPaid(payAmount);                           // what was actually collected lands in Revenue
       closeOverlays(true);
       go('inv-paid', 'root');
@@ -4064,6 +4065,7 @@ body.dev #indexBtn{display:flex}
       resetNtgb();
       estPresented = false;
       payMethod = '';
+      receipt = null;
       photosThisVisit = 0;
       state.onsite = false;
       state.paused = false;
@@ -4242,27 +4244,25 @@ body.dev #indexBtn{display:flex}
       ['Credit Card^1', 'pay-card'],
       ['Cash^1', 'pay-cash'],
       ['Check^1', 'pay-check'],
-      ['@smartphone^1', 'pay-apps'],
-      ['Consumer financing^1', 'BACK'],
-      ['@more_horiz^1', 'BACK']
+      ['@smartphone^1', 'pay-apps']
     ],
     'pay-card': [
-      ['@expand_more', 'ov-pay-method'],
+      ['@expand_more^1', 'ov-pay-method'],   // the whole method box, not just the chevron
       ['@lock^1', 'act:payDone'],
       ['@photo_camera', null]
     ],
     'pay-cash': [
-      ['@expand_more', 'ov-pay-method'],
+      ['@expand_more^1', 'ov-pay-method'],   // the whole method box, not just the chevron
       ['@check_circle^1', 'act:payDone']
     ],
     'pay-check': [
-      ['@expand_more', 'ov-pay-method'],
+      ['@expand_more^1', 'ov-pay-method'],   // the whole method box, not just the chevron
       ['@check_circle^1', 'act:payDone'],
       ['@photo_camera^1', 'ov-media-source'],
       ['@event', null]
     ],
     'pay-apps': [
-      ['@expand_more', 'ov-pay-method'],
+      ['@expand_more^1', 'ov-pay-method'],   // the whole method box, not just the chevron
       ['@check_circle^1', 'act:payDone'],
       ['@event', null]
     ],
@@ -5000,6 +5000,237 @@ body.dev #indexBtn{display:flex}
     });
   }
 
+  /* Consumer financing, and a card or debit run on a terminal of its own,
+     are all a payment taken somewhere else and recorded here with its
+     reference. They led nowhere; they lead to the same form the apps use,
+     under their own name and without the row of apps. */
+  var appsMethod = '';        // '' = one of the apps; otherwise an offline method's name
+  var appsPick = 'Zelle';     // the app chip in force on the apps form
+  var appsHead = null;        // { text, icon, chips } on the pay-apps form
+  function appsHeader() {
+    if (appsHead) return appsHead;
+    var apps = byId('pay-apps'); if (!apps) return null;
+    var icon = byIcon(apps, 'smartphone')[0];
+    var text = null;
+    if (icon) {
+      for (var n = icon.parentElement.firstChild; n; n = n.nextSibling) {
+        if (n.nodeType === 3 && norm(n.nodeValue)) { text = n; break; }
+      }
+    }
+    var zelle = sel(apps, 'Zelle')[0];
+    appsHead = { text: text, icon: icon, chips: zelle && zelle.parentElement };
+    return appsHead;
+  }
+  function paintAppsForm(name, icon, withApps) {
+    var H = appsHeader(); if (!H) return;
+    if (H.text) H.text.nodeValue = name;
+    if (H.icon) H.icon.textContent = icon;
+    if (H.chips) toggleDisplay(H.chips, withApps);
+  }
+  (function () {
+    var menu = byId('ov-pay-method'); if (!menu) return;
+    [['Consumer financing', 'account_balance'], ['Offline', 'more_horiz']].forEach(function (p) {
+      var icon = byIcon(menu, p[1])[0];
+      var row = icon && icon.parentElement;
+      if (!row) { MISS.push('ov-pay-method :: ' + p[0]); return; }
+      row.dataset.tap = '1';
+      row.dataset.act = 'payOffline';
+      row.dataset.method = p[0] === 'Offline' ? 'Card (offline)' : p[0];
+      row.dataset.icon = p[0] === 'Offline' ? 'credit_card' : p[1];
+      row.removeAttribute('data-go');
+    });
+    // the apps row itself puts the form back the way the board drew it
+    var appsRow = byIcon(menu, 'smartphone')[0];
+    appsRow = appsRow && appsRow.parentElement;
+    if (appsRow) {
+      appsRow.dataset.tap = '1';
+      appsRow.dataset.act = 'payApps';
+      appsRow.removeAttribute('data-go');
+    }
+    ACT.payApps = function () {
+      appsMethod = '';
+      paintAppsForm('Apps & transfers', 'smartphone', true);
+      closeOverlays(false);
+      go('pay-apps', 'replace');
+    };
+    ACT.payOffline = function (el) {
+      appsMethod = el.dataset.method || 'Offline';
+      paintAppsForm(appsMethod, el.dataset.icon || 'more_horiz', false);
+      closeOverlays(false);
+      go('pay-apps', 'replace');
+    };
+  })();
+
+  /* =========================================================
+     The forms money is taken on.
+
+     Every box on them was a drawing of a box: the card number, the name on
+     the cheque, the reference for a transfer, and the customer's own
+     address on the invoice were all text a technician could read and not
+     change. On the screens where a payment is actually taken.
+
+     A box the height of a field becomes a field, keeping whatever the
+     board put in it as its value and the label above it as its
+     placeholder. A box with a date or a chevron in it is a picker and is
+     left alone.
+     ========================================================= */
+  function fieldify(id) {
+    var root = byId(id); if (!root) return;
+    $$('div', root).forEach(function (box) {
+      var st = box.getAttribute('style') || '';
+      if (!/height:52px/.test(st)) return;
+      if ($('input,textarea', box)) return;
+      // a box that is itself a control, or that carries a picker glyph among
+      // its icons, is not a field — the method header is one icon, a label
+      // and a chevron, and the first icon is not the chevron
+      if (box.dataset.go || box.dataset.act) return;
+      var icons = $$('.mi,.mif', box);
+      if (icons.some(function (i) {
+        return /^(event|expand_more|expand_less|chevron_right|calendar_today)$/.test(norm(i.textContent));
+      })) return;
+      var icon = icons[0] || null;
+      var glyph = icon ? norm(icon.textContent) : '';
+
+      var was = norm(box.textContent);
+      if (glyph) was = norm(was.replace(glyph, ''));
+      var label = box.previousElementSibling;
+      var hint = label && !label.children.length ? norm(label.textContent) : '';
+
+      var inp = document.createElement('input');
+      inp.className = 'inp';
+      inp.value = was;
+      inp.placeholder = hint || '';
+      inp.setAttribute('style', 'flex:1;min-width:0;height:auto;border:0;padding:0;' +
+        'background:transparent;font:500 15px/1 Geist;color:#1A2332');
+      box.innerHTML = '';
+      if (!/display:flex/.test(st)) box.style.display = 'flex';
+      box.style.alignItems = 'center';
+      if (!/padding:/.test(st)) box.style.padding = '0 14px';
+      box.appendChild(inp);
+      if (icon) box.appendChild(icon);
+    });
+  }
+  ['pay-card', 'pay-check', 'pay-apps', 'inv-details'].forEach(fieldify);
+
+  /* The cash the customer actually hands over is a number the technician
+     types; the change due follows it. */
+  (function () {
+    var root = byId('pay-cash'); if (!root) return;
+    var head = sel(root, 'Cash received')[0];
+    var box = head && head.nextElementSibling;
+    if (!box) { MISS.push('pay-cash :: received'); return; }
+    var inp = document.createElement('input');
+    inp.className = 'inp';
+    inp.inputMode = 'decimal';
+    inp.setAttribute('style', 'flex:1;min-width:0;height:auto;border:0;padding:0;' +
+      'background:transparent;font:700 20px/1 Geist;color:#1A2332');
+    var wrap = document.createElement('div');
+    wrap.setAttribute('style', 'display:flex;align-items:center;gap:7px');
+    wrap.innerHTML = '<span style="font:700 20px/1 Geist;color:#8A97A8">$</span>';
+    wrap.appendChild(inp);
+    box.innerHTML = '';
+    box.appendChild(wrap);
+    cashInput = inp;
+    inp.addEventListener('input', function () {
+      var v = parseFloat(String(inp.value).replace(/[^0-9.]/g, '')) || 0;
+      var change = valueFor(root, 'Change due');
+      if (change) change.textContent = fmt(Math.max(0, v - payAmount));
+    });
+  })();
+
+  /* The customer's details are theirs to correct, and Save saved nothing. */
+  var billTo = recall('billTo', null);
+  (function () {
+    var root = byId('inv-details'); if (!root) return;
+    var inputs = $$('input', root);
+    if (!inputs.length) { MISS.push('inv-details :: fields'); return; }
+    if (billTo) inputs.forEach(function (i, k) { if (billTo[k] !== undefined) i.value = billTo[k]; });
+    var save = sel(root, 'Save')[0];
+    if (!save) { MISS.push('inv-details :: save'); return; }
+    save.dataset.act = 'saveBillTo';
+    save.removeAttribute('data-go');
+    ACT.saveBillTo = function () {
+      billTo = inputs.map(function (i) { return i.value; });
+      remember('billTo', billTo);
+      paintBillTo();
+      back();
+      toast('Invoice details saved', 'save');
+    };
+  })();
+
+  /* =========================================================
+     The receipt's PAYMENT card said "Credit Card · 4561 · Randy Johnson"
+     however the money came in — cash, a cheque, Zelle, financing. It
+     says what was actually used, and the one detail worth keeping.
+     ========================================================= */
+  var receipt = recall('receipt', null);
+  function receiptRefs() {
+    var root = byId('inv-paid'); if (!root) return null;
+    var head = $$('div,span', root).filter(function (e) {
+      return !e.children.length && /^payment$/i.test(norm(e.textContent));
+    })[0];
+    var row = head && head.nextElementSibling; if (!row) return null;
+    var icon = $('.mi,.mif', row);
+    var title = icon && icon.nextElementSibling && icon.nextElementSibling.firstElementChild;
+    return title ? { icon: icon, title: title, sub: title.nextElementSibling } : null;
+  }
+  function inputsOf(id) {
+    return $$('input', byId(id) || document.createElement('div')).map(function (i) { return norm(i.value); });
+  }
+  function paintReceipt(page) {
+    if (page) {
+      var r = { icon: 'credit_card', title: payMethod, sub: '' };
+      if (page === 'pay-card') {
+        var c = inputsOf('pay-card');
+        var digits = (c[1] || '').replace(/\D/g, '');
+        r.sub = (digits ? '•••• ' + digits.slice(-4) : 'Card') + (c[0] ? ' · ' + c[0] : '');
+      } else if (page === 'pay-cash') {
+        r.icon = 'payments';
+        var got = cashInput ? parseFloat(String(cashInput.value).replace(/[^0-9.]/g, '')) || 0 : 0;
+        var change = Math.max(0, got - payAmount);
+        r.sub = got > payAmount ? fmt(got) + ' received · ' + fmt(change) + ' change' : 'Paid in full';
+      } else if (page === 'pay-check') {
+        r.icon = 'receipt';
+        var k = inputsOf('pay-check');
+        r.sub = (k[2] ? 'Check #' + k[2] : 'Paper check') + (k[1] ? ' · ' + k[1] : '');
+      } else if (page === 'pay-apps') {
+        var ref = inputsOf('pay-apps')[0];
+        r.icon = appsMethod ? (appsMethod === 'Consumer financing' ? 'account_balance' : 'credit_card') : 'smartphone';
+        r.sub = (ref ? 'Ref ' + ref : 'No reference') + ' · recorded, not processed here';
+      }
+      receipt = r;
+      remember('receipt', receipt);
+    }
+    var R = receiptRefs(); if (!R || !receipt) return;
+    if (R.icon) R.icon.textContent = receipt.icon;
+    R.title.textContent = receipt.title;
+    if (R.sub) R.sub.textContent = receipt.sub;
+  }
+  paintReceipt();
+
+  // the name and address the invoice is made out to
+  function paintBillTo() {
+    if (!billTo) return;
+    ['inv-paid', 'inv-sent', 'fin-empty'].forEach(function (id) {
+      var root = byId(id); if (!root) return;
+      var who = valueFor(root, 'Customer');
+      var where = valueFor(root, 'Address');
+      if (who && billTo[0]) who.textContent = billTo[0];
+      if (where && billTo[3]) where.textContent = billTo[3];
+    });
+  }
+
+  /* The Finance tab showed an approved estimate — Option C, signed in 2025
+     — on a job where nothing had been approved. */
+  function paintEstSection() {
+    ['fin-empty', 'add-empty', 'add-items', 'inv-sent'].forEach(function (id) {
+      var root = byId(id); if (!root) return;
+      var head = sel(root, 'Approved estimate')[0];
+      var card = head && head.parentElement && head.parentElement.parentElement;
+      if (card) toggleDisplay(card, state.est === 'approved');
+    });
+  }
+
   /* job tab strips */
   ['job-general', 'job-notes', 'rc-overview', 'est-empty', 'est-draft', 'est-review',
     'est-ready', 'est-approved', 'fin-empty', 'add-empty', 'add-items', 'inv-paid', 'inv-sent']
@@ -5513,7 +5744,9 @@ body.dev #indexBtn{display:flex}
     }, true);
   })();
   paintHistory();
-  seg('pay-apps', ['Zelle', 'Venmo', 'Cash App', 'Bank'], 0);
+  seg('pay-apps', ['Zelle', 'Venmo', 'Cash App', 'Bank'], 0, function (i) {
+    appsPick = ['Zelle', 'Venmo', 'Cash App', 'Bank transfer'][i] || 'Zelle';
+  });
   /* =========================================================
      The money on the payment screens is the job's money.
 
@@ -5524,6 +5757,7 @@ body.dev #indexBtn{display:flex}
      reads out to the customer was the wrong one.
      ========================================================= */
   var PAY_SCREENS = ['pay-card', 'pay-cash', 'pay-check', 'pay-apps'];
+  var cashInput;             // assigned by the form block above; an initialiser here would reset it
   var payAmount = 0;
   var cashTenders = [];
   var paintTenders = function () { };
@@ -5589,6 +5823,8 @@ body.dev #indexBtn{display:flex}
     paintTenders();
     paintCash(payAmount);
     paintInvoice(jobTotal, paid);
+    paintEstSection();
+    paintBillTo();
   }
 
   /* The invoice screens carried the board's numbers and the board's clock. */
@@ -5617,9 +5853,7 @@ body.dev #indexBtn{display:flex}
 
   function paintCash(received) {
     var root = byId('pay-cash'); if (!root) return;
-    var head = sel(root, 'Cash received')[0];
-    var field = head && head.nextElementSibling;
-    if (field) field.textContent = fmt(received);
+    if (cashInput) cashInput.value = received.toFixed(2);
     var change = valueFor(root, 'Change due');
     if (change) change.textContent = fmt(Math.max(0, received - payAmount));
   }
