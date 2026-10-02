@@ -3867,6 +3867,8 @@ body.dev #indexBtn{display:flex}
       ['@attach_file^1', 'files'],
       ['@photo_camera^1', 'ov-media-source'],
       ['@edit_note^1', 'ov-note-tech'],
+      ['@build^1', 'ov-note-tech'],
+      ['@history^1', 'cust-jobs'],
       ['@fact_check^1', 'rc-overview'],
       ['@request_quote^1', 'act:jobEst']
     ],
@@ -4205,6 +4207,39 @@ body.dev #indexBtn{display:flex}
     sheet.remove();                                 // nothing routes to the sheet any more
   })();
 
+  /* The running job showed four chips where the same card on Home shows
+     six: the technician's notes and the customer's job history were simply
+     not drawn on this frame. They are the two a tech reaches for once they
+     are through the door — what we wrote here last time, and what we have
+     done here before — so they went missing exactly when they were wanted.
+
+     Copied from the card on Home, in the same order, before the links are
+     wired, so they lead where their twins lead. */
+  (function () {
+    var src = byId('home'), dst = byId('home-active');
+    if (!src || !dst) return;
+    var a = sel(src, 'Randy Johnson')[0], b = sel(dst, 'Randy Johnson')[0];
+    var srcCard = a && a.closest('div[style*="border-radius:14px"]');
+    var dstCard = b && b.closest('div[style*="border-radius:14px"]');
+    var srcChips = srcCard && srcCard.children[1];
+    var dstChips = dstCard && dstCard.children[1];
+    if (!srcChips || !dstChips) { MISS.push('home-active :: chip row'); return; }
+    function chip(icon) {
+      var i = byIcon(srcChips, icon)[0];
+      return i ? i.parentElement : null;
+    }
+    var tech = chip('build');
+    if (tech && !byIcon(dstChips, 'build').length) {
+      // after Private, where it sits on the other card
+      dstChips.insertBefore(tech.cloneNode(true), dstChips.children[2] || null);
+    }
+    var hist = chip('history');
+    if (hist && !byIcon(dstChips, 'history').length) dstChips.appendChild(hist.cloneNode(true));
+    if (!byIcon(dstChips, 'build').length || !byIcon(dstChips, 'history').length) {
+      MISS.push('home-active :: missing chips');
+    }
+  })();
+
   Object.keys(LINKS).forEach(function (id) {
     link(id, LINKS[id].filter(function (s) { return s[1] !== null && s[1] !== undefined; }));
     // explicit "inert" entries: mark as tappable but do nothing
@@ -4296,6 +4331,41 @@ body.dev #indexBtn{display:flex}
       chip.innerHTML = '<span class="mi" style="font-size:16px;color:#8A97A8">attach_file</span><span></span>';
       chip.lastElementChild.textContent = n;
       chip.title = n + ' photos and files on this job';
+    });
+  })();
+
+  /* Every job in the customer's history wore the same chip — "Estimate",
+     or "No estimate" on the one that billed nothing. That is not what the
+     chip says. It is the type of visit, and the types are Estimate,
+     Install, Maintenance and Demand Service. Whether an estimate exists is
+     a different question, and the money at the foot of the row answers it
+     already.
+
+     Four visits to one address, each a different kind of call, which is
+     what a history is for: the tune-up in June explains the install in
+     December. The June row was also dimmed for billing nothing — a
+     maintenance visit under agreement bills nothing and still happened. */
+  var PAST_VISITS = [
+    ['Install', 'System replacement'],
+    ['Demand Service', 'AC not cooling'],
+    ['Maintenance', 'Seasonal tune-up'],
+    ['Estimate', 'Ductwork and air handler']
+  ];
+  (function () {
+    var root = byId('cust-jobs'); if (!root) return;
+    var list = $('.sc', root);
+    var rows = list ? $$(':scope > div', list) : [];
+    if (rows.length !== PAST_VISITS.length) { MISS.push('cust-jobs :: visit rows'); return; }
+    var CHIP = 'font:600 11.5px/1 Geist;color:#4A6FA5;background:#EBF0F8;' +
+      'border:1px solid #C8D5E8;border-radius:5px;padding:3px 6px;white-space:nowrap';
+    rows.forEach(function (row, i) {
+      var line = row.children[1];
+      var brief = line && line.children[0], chip = line && line.children[1];
+      if (!brief || !chip) { MISS.push('cust-jobs :: visit ' + i); return; }
+      brief.textContent = PAST_VISITS[i][1];
+      chip.textContent = PAST_VISITS[i][0];
+      chip.setAttribute('style', CHIP);
+      row.style.opacity = '';
     });
   })();
 
@@ -5337,6 +5407,8 @@ body.dev #indexBtn{display:flex}
       // minutes only, so an hour on site read 61:20 and a long one 37255:53
       jobTimerEl.textContent = shortClock(work);
     }
+    // and so is the one on the card's own button
+    $$('[data-jobtime]').forEach(function (e) { e.textContent = shortClock(work); });
 
     $$('[data-tsmode]').forEach(function (b) {
       var on = b.dataset.tsmode === clock.mode || (b.dataset.tsmode === 'off' && clock.mode === 'off');
@@ -6379,7 +6451,9 @@ body.dev #indexBtn{display:flex}
   function paintStartButtons() {
     $$('.screen [data-act="start"],.screen [data-act="complete"]').forEach(function (b) {
       if (jobHeaderBtns.indexOf(b) > -1) return;
-      toggleDisplay(b, !state.onsite);
+      // Start before the job, Complete during it — one rule, read off
+      // whichever the button happens to be
+      toggleDisplay(b, b.dataset.act === 'complete' ? !!state.onsite : !state.onsite);
     });
     jobHeaderBtns.forEach(function (b) {
       if (!START_STYLE) START_STYLE = b.getAttribute('style') || '';
@@ -6632,6 +6706,39 @@ body.dev #indexBtn{display:flex}
   })();
   wireCurrentJob();
   wireActiveJobCard();
+
+  /* Driving puts the trip clock on the card's own button. Standing in the
+     house put it only in the bar at the top of the screen, which scrolls
+     away — so the card you are actually working from said nothing about
+     how long you had been there, and the way to finish the job was two
+     taps into a menu.
+
+     The same button, in the same place, counting the same way. It opens
+     the close-out, so a mis-tap costs a tap back and nothing else. */
+  (function () {
+    var root = byId('home-active'); if (!root) return;
+    var name = sel(root, 'Randy Johnson')[0];
+    var card = name && name.closest('div[style*="border-radius:14px"]');
+    var actions = card && card.lastElementChild;
+    var details = actions && byIcon(actions, 'assignment')[0];
+    if (!details) { MISS.push('home-active :: card actions'); return; }
+    details = details.parentElement;
+
+    var btn = document.createElement('div');
+    btn.dataset.tap = '1';
+    btn.dataset.act = 'complete';
+    btn.setAttribute('style', 'flex:1;height:52px;display:flex;align-items:center;' +
+      'justify-content:center;gap:7px;background:#16A34A;color:#fff;border-radius:10px;' +
+      'font:600 16px/1 Geist;font-variant-numeric:tabular-nums');
+    btn.innerHTML = '<span class="mif" style="font-size:17px">stop_circle</span>' +
+      '<span data-jobtime>0:00</span>';
+    actions.insertBefore(btn, actions.firstElementChild);
+
+    // one loud button to a card: finishing the job is now the loud one
+    details.setAttribute('style', 'flex:1;height:52px;display:flex;align-items:center;' +
+      'justify-content:center;gap:6px;background:#fff;border:1px solid #C8D5E8;color:#4A6FA5;' +
+      'border-radius:10px;font:600 15px/1 Geist');
+  })();
 
   /* The dashboard's period could only be changed from the Timesheet,
      three screens away from the numbers it governs. The control sits with
