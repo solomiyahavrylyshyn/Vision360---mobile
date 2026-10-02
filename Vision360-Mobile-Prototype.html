@@ -3746,7 +3746,26 @@ body.dev #indexBtn{display:flex}
       var first = state.est === 'none';
       state.est = 'draft';
       var total = optionAdjusted();
-      var added = first ? true : addOption(total, optionItems);
+      var wanted = typedOptionName();
+      if (first) {
+        /* The draft ships with Option A, B and C, and the export does not
+           keep them in the order the board shows them — so the first option
+           is found by its name, not by being first in the list. */
+        var firstCard = optList && $$(':scope > div', optList).filter(function (c) {
+          return optionName(c) === 'Option A';
+        })[0];
+        var t = firstCard && optionTitleEl(firstCard);
+        if (t && wanted && wanted !== norm(t.textContent)) {
+          var was = norm(t.textContent);
+          t.textContent = wanted;
+          if (OPTION_TOTALS[was] !== undefined) {
+            OPTION_TOTALS[wanted] = OPTION_TOTALS[was]; delete OPTION_TOTALS[was];
+          }
+          if (OPTION_ITEMS[was]) { OPTION_ITEMS[wanted] = OPTION_ITEMS[was]; delete OPTION_ITEMS[was]; }
+          if (pickedOption === was) pickedOption = wanted;
+        }
+      }
+      var added = first ? true : addOption(total, optionItems, false, wanted);
       if (optionNoteText) {
         optionNotes['Option ' + String.fromCharCode(65 + Math.max(0, optCount - 1))] = optionNoteText;
         optionNoteText = '';
@@ -7024,10 +7043,14 @@ body.dev #indexBtn{display:flex}
   var PREVIEW = ['both', 'total', 'monthly'];
   var previewMode = 'both';
   var PREVIEW_LABELS = ['Monthly payment + Total', 'Total only', 'Monthly payment only'];
+  // the letter the option gets if the technician leaves the field alone
+  var optionNameTyped = '';
   function paintOptionName() {
+    optionNameTyped = freeOptionName();
     var e = $('[data-optname]'); if (!e) return;
-    e.textContent = 'Option ' + String.fromCharCode(65 + Math.min(optCount, 25));
+    e.value = optionNameTyped;
   }
+  function typedOptionName() { return optionNameTyped; }
 
   /* =========================================================
      Two fields at the top of a new option.
@@ -7146,10 +7169,14 @@ body.dev #indexBtn{display:flex}
     if (nameBox) {
       nameLabel.remove();
       nameBox.setAttribute('style', FIELD);
-      var was = norm(nameBox.textContent);
       nameBox.innerHTML = '<div style="' + FIELD_LABEL + '">Option name</div>' +
-        '<div data-optname style="' + FIELD_VALUE + '"></div>';
-      $('[data-optname]', nameBox).textContent = was;
+        '<input data-optname class="inp" maxlength="24" ' +
+        'style="width:100%;height:auto;border:0;padding:0;background:transparent;' + FIELD_VALUE + '">';
+      // what was typed is kept as it is typed, not read back off the field at
+      // save time — the catalog trip in between makes that a guess
+      $('[data-optname]', nameBox).addEventListener('input', function (ev) {
+        optionNameTyped = norm(ev.target.value);
+      });
     }
 
   })();
@@ -7175,13 +7202,22 @@ body.dev #indexBtn{display:flex}
       shown.dataset.optnoteshown = '1';
       shown.dataset.tap = '1';
       shown.dataset.act = 'optionNote';
+      // a note you cannot take off again is a note you think twice about adding
+      shown.addEventListener('click', function (ev) {
+        if (!ev.target.closest('[data-notedel]')) return;
+        ev.stopPropagation();
+        optionNoteText = '';
+        paintOptionNote();
+        toast('Note removed', 'delete_outline');
+      }, true);
       shown.setAttribute('style', 'background:#fff;border:1px solid #DDE3EE;border-radius:11px;' +
         'padding:12px 14px;margin-bottom:12px');
       shown.innerHTML =
         '<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">' +
         '<span class="mi" style="font-size:17px;color:#4A6FA5">sticky_note_2</span>' +
         '<span style="flex:1;font:500 12.5px/1 Geist;color:#546478">Extra note</span>' +
-        '<span class="mi" style="font-size:17px;color:#A9B4C2">edit</span></div>' +
+        '<span class="mi" style="font-size:17px;color:#A9B4C2">edit</span>' +
+        '<span class="mi" data-notedel style="font-size:17px;color:#A9B4C2;margin-left:12px">delete_outline</span></div>' +
         '<div data-noteshow style="font:400 14.5px/1.5 Geist;color:#1A2332"></div>';
       btn.parentElement.insertBefore(shown, btn);
     }
@@ -7434,10 +7470,21 @@ body.dev #indexBtn{display:flex}
   }
 
   // the name is a <span> on the draft screen and a <div> on Ready to present
-  function optionName(card) {
-    var n = $$('span,div', card).filter(function (e) {
+  /* The name was found by matching "Option" and a letter, which is fine
+     until a technician calls one "Premium". The element is marked the first
+     time it is found and read by that mark afterwards, so a card answers to
+     whatever it has been called. */
+  function optionTitleEl(card) {
+    var n = $('[data-optitle]', card);
+    if (n) return n;
+    n = $$('span,div', card).filter(function (e) {
       return !e.children.length && /^Option [A-Z]$/.test(norm(e.textContent));
     })[0];
+    if (n) n.dataset.optitle = '1';
+    return n || null;
+  }
+  function optionName(card) {
+    var n = optionTitleEl(card);
     return n ? norm(n.textContent) : '';
   }
   function optionTotal(card) {
@@ -8650,7 +8697,7 @@ body.dev #indexBtn{display:flex}
     if (!optCard || !optList || !optFooters.length) { MISS.push('est-draft :: options'); return; }
     ['est-ready', 'est-draft', 'est-review'].forEach(seedOptionItems);
     // rebuild the options the tech added before the reload
-    addedOptions.slice().forEach(function (o) { addOption(o.total, o.items, true); });
+    addedOptions.slice().forEach(function (o) { addOption(o.total, o.items, true, o.name); });
     paintOptions();
 
     // the empty state quotes the limit too
@@ -8723,22 +8770,31 @@ body.dev #indexBtn{display:flex}
     });
   }
 
-  function addOption(total, items, replay) {
+  function freeOptionName() {
+    // the next free letter, not the next number: an option can be deleted
+    var taken = {};
+    if (optList) {
+      $$(':scope > div', optList).forEach(function (c) {
+        var n = optionName(c); if (n) taken[n] = 1;
+      });
+    }
+    for (var li = 0; li < 26; li++) {
+      var cand = 'Option ' + String.fromCharCode(65 + li);
+      if (!taken[cand]) return cand;
+    }
+    return 'Option';
+  }
+
+  function addOption(total, items, replay, wanted) {
     if (!optCard || !optList) return false;
     if (optCount >= MAX_OPTIONS) return false;
     var copy = optCard.cloneNode(true);
-    // the next free letter, not the next number: an option can be deleted
-    var taken = {};
-    $$(':scope > div', optList).forEach(function (c) {
-      var n = optionName(c); if (n) taken[n] = 1;
-    });
-    var name = '';
-    for (var li = 0; li < 26 && !name; li++) {
-      var cand = 'Option ' + String.fromCharCode(65 + li);
-      if (!taken[cand]) name = cand;
-    }
-    var title = $$('span', copy).filter(function (e) { return /^Option [A-Z]$/.test(norm(e.textContent)); })[0];
-    if (title) title.textContent = name;
+    var name = norm(wanted || '') || freeOptionName();
+    // the template is a clone of a card that may itself have been renamed,
+    // so the title is found by its mark and not by the letter it started with
+    var title = optionTitleEl(copy);
+    if (title) { title.textContent = name; title.dataset.optitle = '1'; }
+    else MISS.push('est-draft :: option title');
 
     // the clone arrives with Option A's line items — swap in the real ones
     if (items && items.length) {
