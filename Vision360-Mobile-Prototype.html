@@ -4740,6 +4740,12 @@ body.dev #indexBtn{display:flex}
       'background:#fff;border:1px solid #C8D5E8;border-radius:11px;overflow:hidden;' +
       'box-shadow:0 12px 28px rgba(26,35,50,.18)');
     anchor.appendChild(panel);
+    /* The panel sits inside the row, and the row is what opens it. A tap on
+       the panel's own padding — or on the amount field — therefore reached
+       the row and shut the list again, which from the other side of the
+       screen looks like nothing can be chosen. What happens in the list
+       stays in the list. */
+    panel.addEventListener('click', function (ev) { ev.stopPropagation(); }, true);
     var chev = $$('.mi,.mif', anchor).filter(function (e) {
       return /^(expand_more|expand_less|chevron_right)$/.test(norm(e.textContent));
     })[0];
@@ -7125,8 +7131,9 @@ body.dev #indexBtn{display:flex}
           : 'Customer sees the monthly only', 'visibility');
     }, true);
     paintPanel();
+    panel.addEventListener('click', function (ev) { ev.stopPropagation(); }, true);
     field.addEventListener('click', function (ev) {
-      if (ev.target.closest('[data-preview]')) return;    // a choice, not the field
+      if (panel.contains(ev.target)) return;             // a choice, not the field
       ev.stopPropagation();
       panel.hidden = !panel.hidden;
       chev.textContent = panel.hidden ? 'expand_more' : 'expand_less';
