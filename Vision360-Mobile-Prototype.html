@@ -3065,6 +3065,8 @@ body.dev #indexBtn{display:flex}
   var invCreatedAt = recall('invCreatedAt', '');
   var invSentAt = recall('invSentAt', '');
   var invPaidAt = recall('invPaidAt', '');
+  var invNum = recall('invNum', '');          // the current invoice's number
+  var invSeq = recall('invSeq', 122);         // the board's INV-26-03-123 was the 123rd
 
   function plan() { return PLANS[planIdx]; }
   // payment per dollar financed — what the card calls the monthly factor
@@ -3881,7 +3883,18 @@ body.dev #indexBtn{display:flex}
 
     createInvoice: function () {
       if (!invCreatedAt) { invCreatedAt = stamp(); remember('invCreatedAt', invCreatedAt); }
-      invSentAt = stamp(); remember('invSentAt', invSentAt); state.inv = 'sent'; go('inv-sent', 'replace'); toast('Invoice INV-26-03-123 created & sent', 'receipt_long'); },
+      invSentAt = stamp(); remember('invSentAt', invSentAt);
+      // a number of its own: year, month, running count
+      var d = new Date();
+      invSeq += 1; remember('invSeq', invSeq);
+      invNum = 'INV-' + String(d.getFullYear()).slice(-2) + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' + String(invSeq).padStart(3, '0');
+      remember('invNum', invNum);
+      state.inv = 'sent';
+      paintPayScreens();
+      go('inv-sent', 'replace');
+      toast('Invoice ' + invNum + ' created & sent', 'receipt_long');
+    },
     payDone: function () {
       invPaidAt = stamp(); remember('invPaidAt', invPaidAt);
       if (curPage() === 'pay-card' && !net.online) {
@@ -3892,6 +3905,7 @@ body.dev #indexBtn{display:flex}
       payMethod = curPage() === 'pay-apps' ? (appsMethod || appsPick) : (PAY_LABEL[curPage()] || 'Card');
       paintReceipt(curPage());
       kpiPaid(payAmount);                           // what was actually collected lands in Revenue
+      resetPayForms();
       closeOverlays(true);
       go('inv-paid', 'root');
       queued('Payment');
@@ -5115,6 +5129,33 @@ body.dev #indexBtn{display:flex}
   }
   ['pay-card', 'pay-check', 'pay-apps', 'inv-details'].forEach(fieldify);
 
+  /* A half-filled cheque form was blank again after a reload; a technician
+     who steps out to the truck comes back to type the bank name twice.
+     What is typed is kept until the payment is taken, then the form goes
+     back to the board's values for the next one. */
+  var payForms = [];
+  ['pay-card', 'pay-check', 'pay-apps'].forEach(function (id) {
+    var inputs = $$('input', byId(id) || document.createElement('div'));
+    if (!inputs.length) return;
+    var F = { id: id, inputs: inputs, defaults: inputs.map(function (i) { return i.value; }) };
+    payForms.push(F);
+    var saved = recall('payForm.' + id, null);
+    if (saved) inputs.forEach(function (i, k) { if (typeof saved[k] === 'string') i.value = saved[k]; });
+    inputs.forEach(function (i) {
+      i.addEventListener('input', function () {
+        remember('payForm.' + id, inputs.map(function (x) { return x.value; }));
+      });
+    });
+  });
+  function resetPayForms() {
+    payForms.forEach(function (F) {
+      F.inputs.forEach(function (i, k) { i.value = F.defaults[k]; });
+      remember('payForm.' + F.id, null);
+    });
+    payDateDays = 0;
+    paintPayDate();
+  }
+
   /* The cash the customer actually hands over is a number the technician
      types; the change due follows it. */
   (function () {
@@ -5366,7 +5407,7 @@ body.dev #indexBtn{display:flex}
     var pv = byIcon(menu, 'preview')[0];
     if (pv && pv.parentElement) toggleDisplay(pv.parentElement, false);
   })();
-  function invNo() { return 'INV-26-03-123'; }
+  function invNo() { return invNum || 'INV-26-03-123'; }
   function sendReceipt(how, icon, verb) {
     closeOverlays(true);
     queued('Invoice');
@@ -6059,6 +6100,13 @@ body.dev #indexBtn{display:flex}
       var root = byId(id); if (!root) return;
       var amount = valueFor(root, 'Amount due') || valueFor(root, 'Amount paid');
       if (amount) amount.textContent = fmt(id === 'inv-paid' ? total - due + due : due);
+      if (invNum && (id === 'inv-sent' || id === 'inv-paid')) {
+        $$('div,span', root).forEach(function (e) {
+          [].slice.call(e.childNodes).forEach(function (n) {
+            if (n.nodeType === 3 && /^INV-\d\d-\d\d-\d+$/.test(norm(n.nodeValue))) n.nodeValue = invNum;
+          });
+        });
+      }
       /* The timeline rows are an icon and one run of text — "Created Oct 7,
          2025, 9:09 AM" is a single text node, label and date together. */
       [['Created', invCreatedAt], ['Sent', invSentAt], ['Paid', invPaidAt]].forEach(function (p) {
@@ -10567,6 +10615,7 @@ body.dev #indexBtn{display:flex}
     stack = [{ id: 'splash', mode: 'root' }];
     $$('.screen,.overlay', phone).forEach(function (e) { e.classList.remove('on', 'leaving'); });
     byId('splash').classList.add('on');
+    paintPayScreens();          // the invoice screens carry the saved number and sums before anyone sees them
     chrome();
     setTimeout(function () { byId('splashBar').style.width = '100%'; }, 120);
     // "keep me signed in" means exactly that — no login every morning
