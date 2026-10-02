@@ -2144,6 +2144,15 @@
     var h = Math.floor(secs / 3600), m = Math.floor(secs % 3600 / 60);
     return h + 'h ' + String(m).padStart(2, '0') + 'm';
   }
+  // m:ss until the hour, then h:mm:ss — the shape the design's own 43:45 reads
+  function shortClock(secs) {
+    var t = Math.floor(Math.max(0, secs));
+    var m = String(Math.floor(t % 3600 / 60));
+    var ss = String(t % 60).padStart(2, '0');
+    return t >= 3600 ? Math.floor(t / 3600) + ':' + m.padStart(2, '0') + ':' + ss
+      : Math.floor(t / 60) + ':' + ss;
+  }
+
   function hhmmss(secs) {
     var h = Math.floor(secs / 3600), m = Math.floor(secs % 3600 / 60), s = Math.floor(secs % 60);
     return [h, m, s].map(function (n) { return String(n).padStart(2, '0'); }).join(':');
@@ -2169,6 +2178,7 @@
     set('tsDrive', (WEEK.drive + drive / 3600).toFixed(1) + 'h');
     set('tsRegular', (WEEK.regular + work / 3600).toFixed(1) + 'h');
     set('tsToday', hm(drive + work));
+    paintDriveTime(drive);
     set('tsVisits', clock.visits + ' · ' + fmt(clock.visits * VISIT_BASE) + ' base');
     set('tsSold', fmt(clock.sold));
     // labour earned on the work, commission earned on the sale — two numbers,
@@ -2178,14 +2188,8 @@
 
     // the header timer on the in-progress screen is the same work clock
     if (jobTimerEl) {
-      // minutes only, so an hour on site read 61:20 and a long one 37255:53.
-      // Past the hour it rolls over like a clock, the way the design's own
-      // 43:45 reads under it.
-      var t = Math.floor(work);
-      jobTimerEl.textContent = t >= 3600
-        ? Math.floor(t / 3600) + ':' + String(Math.floor(t % 3600 / 60)).padStart(2, '0') +
-          ':' + String(t % 60).padStart(2, '0')
-        : Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+      // minutes only, so an hour on site read 61:20 and a long one 37255:53
+      jobTimerEl.textContent = shortClock(work);
     }
 
     $$('[data-tsmode]').forEach(function (b) {
@@ -3147,6 +3151,15 @@
   /* US-M04-4 — En route is a status, so the button holds the pressed state
      and releases on a second tap. */
   var paintEnroute = function () { };
+  function paintDriveTime(secs) {
+    var el = $('[data-drivetime]');
+    if (!el) return;
+    if (secs === undefined) {
+      secs = clock.drive + (clock.mode === 'drive' && clock.since
+        ? (Date.now() - clock.since) / 1000 : 0);
+    }
+    el.textContent = shortClock(secs);
+  }
   var paintDash = function () { };
 
   /* Every job screen carries a Start button in its header, and it kept
@@ -3357,6 +3370,128 @@
   wireCurrentJob();
   wireActiveJobCard();
   paintJob();
+
+  /* =========================================================
+     The job card, in the order the technician reads it.
+
+     Who and when. What is wrong and whether it is quoted. Where it is
+     and the number to ring, side by side instead of a row each. What
+     notes exist, said to be notes. What is on file. And last, the three
+     things that can be done — with driving there first, because that is
+     what happens first; it had been sitting second behind Start.
+
+     Once they are driving, that button becomes the drive clock: a stop
+     square and the time, so the running trip is on the card rather than
+     only in the Timesheet.
+
+     Everything here is moved, not rebuilt, so every reference the rest
+     of the file holds on these nodes stays pointed at the same elements.
+     ========================================================= */
+  (function () {
+    var root = byId('home'); if (!root) return;
+    var nameEl = sel(root, 'Randy Johnson')[0];
+    var card = nameEl && nameEl.closest('div[style*="border-radius:14px"]');
+    if (!card || card.children.length < 3) { MISS.push('home :: job card'); return; }
+    var info = card.children[0], chips = card.children[1], actions = card.children[2];
+    var nameRow = info.children[0], briefRow = info.children[1];
+    var addrRow = info.children[2], phoneRow = info.children[3];
+    if (!nameRow || !briefRow || !addrRow || !phoneRow) { MISS.push('home :: card rows'); return; }
+
+    function icon(name, size, colour) {
+      var i = document.createElement('span');
+      i.className = 'mi';
+      i.setAttribute('style', 'font-size:' + size + 'px;color:' + colour + ';flex:none');
+      i.textContent = name;
+      return i;
+    }
+
+    var when = nameRow.children[1];
+    if (when) {
+      var w = document.createElement('span');
+      w.setAttribute('style', 'display:flex;align-items:center;gap:5px;white-space:nowrap');
+      nameRow.insertBefore(w, when);
+      w.appendChild(icon('schedule', 16, '#8A97A8'));
+      w.appendChild(when);
+    }
+
+    briefRow.insertBefore(icon('chat', 17, '#8A97A8'), briefRow.firstChild);
+    if (briefRow.children[1]) briefRow.children[1].style.flex = '1';
+
+    var pin = $('.mi', addrRow); if (pin) pin.remove();
+    var callIcon = $('.mi', phoneRow); if (callIcon) callIcon.remove();
+    var phone = phoneRow.firstElementChild;
+    var addrText = addrRow.firstElementChild;
+    if (addrText) addrText.style.flex = '1';
+    addrRow.setAttribute('style', 'display:flex;justify-content:space-between;align-items:flex-start;' +
+      'gap:12px;margin-top:12px;padding-top:12px;border-top:1px solid #EDF0F5');
+    if (phone) addrRow.appendChild(phone);
+    phoneRow.remove();
+
+    // the design lists photos, files, jobs; past work comes first here
+    var rest = $$(':scope > span', chips).slice(3);
+    var counts = [rest[2], rest[0], rest[1]].filter(Boolean);
+    chips.setAttribute('style', 'display:flex;flex-wrap:wrap;align-items:center;gap:7px;padding:0 15px 13px');
+    var label = document.createElement('span');
+    label.setAttribute('style', 'font:500 13px/1 Geist;color:#546478;flex:none');
+    label.textContent = 'Notes:';
+    chips.insertBefore(label, chips.firstChild);
+    // three note chips fit one line once the icons come off, and the words
+    // already say what each is
+    $$(':scope > span', chips).forEach(function (c) { var i = $('.mi', c); if (i) i.remove(); });
+
+    var shelf = document.createElement('div');
+    shelf.setAttribute('style', 'display:flex;gap:7px;padding:11px 15px;' +
+      'background:#F8FAFD;border-top:1px solid #EDF0F5');
+    counts.forEach(function (c) {
+      c.setAttribute('style', (c.getAttribute('style') || '')
+        .replace('display:flex', 'display:flex;flex:1;justify-content:center'));
+      var ci = $('.mi', c); if (ci) ci.remove();
+      shelf.appendChild(c);
+    });
+    card.insertBefore(shelf, actions);
+
+    // the label is a bare text node beside the icon, not a span of its own
+    var start = sel(actions, '~Start')[0];
+    var enroute = sel(actions, '~En route')[0];
+    // byIcon hands back the glyph; the button is the box around it
+    var kebab = (byIcon(actions, 'more_horiz')[0] || {}).parentElement;
+    if (!start || !enroute || !kebab) { MISS.push('home :: card actions'); return; }
+    var PRIMARY = 'flex:1;height:52px;display:flex;align-items:center;justify-content:center;gap:6px;' +
+      'background:#4A6FA5;color:#fff;border-radius:10px;font:600 15px/1 Geist';
+    var OUTLINE = 'flex:1;height:52px;display:flex;align-items:center;justify-content:center;gap:6px;' +
+      'background:#fff;border:1px solid #C8D5E8;color:#4A6FA5;border-radius:10px;font:600 15px/1 Geist';
+    // the amber this app already uses for Driving, everywhere else it appears
+    var DRIVING = 'flex:1;height:52px;display:flex;align-items:center;justify-content:center;gap:7px;' +
+      'background:#D97706;color:#fff;border-radius:10px;font:600 16px/1 Geist;' +
+      'font-variant-numeric:tabular-nums';
+
+    start.setAttribute('style', OUTLINE);
+    var si = $('.mi,.mif', start); if (si) si.className = 'mi';
+
+    kebab.setAttribute('style', OUTLINE);
+    kebab.textContent = 'Job Details';
+    kebab.dataset.go = 'job-general';
+    kebab.removeAttribute('data-mode');
+
+    actions.appendChild(enroute);
+    actions.appendChild(start);
+    actions.appendChild(kebab);
+
+    /* this replaces the earlier painter, which captured the outlined style
+       the button no longer wears */
+    paintEnroute = function () {
+      if (state.enroute) {
+        enroute.setAttribute('style', DRIVING);
+        enroute.innerHTML = '<span class="mif" style="font-size:17px">stop_circle</span>' +
+          '<span data-drivetime>0:00</span>';
+      } else {
+        enroute.setAttribute('style', PRIMARY);
+        enroute.innerHTML = '<span class="mif" style="font-size:18px">navigation</span>En route';
+      }
+      paintDriveTime();
+    };
+    paintEnroute();
+  })();
 
   /* =========================================================
      US-M12-9 — the unsaved-changes bar shows up only once
