@@ -1734,114 +1734,114 @@
     paintPhotoType();
   })();
 
-  (function () {
-    var list = byId('planList'); if (!list) return;
-    PLANS.forEach(function (p, i) {
-      var row = document.createElement('div');
-      row.dataset.tap = '1';
-      row.dataset.plan = String(i);
-      row.setAttribute('style', 'display:flex;align-items:center;gap:11px;padding:15px 18px;' +
-        'border-top:1px solid #EDF0F5;font:500 15.5px/1.35 Geist');
-      row.innerHTML = '<div style="flex:1"><div data-nm></div>' +
-        '<div data-sub style="font:400 12.5px/1.3 Geist;color:#8A97A8;margin-top:3px"></div></div>' +
-        '<span class="mi" data-tick style="font-size:20px;color:#C8D5E8">radio_button_unchecked</span>';
-      $('[data-nm]', row).textContent = p.name;
-      $('[data-sub]', row).textContent = p.months
-        ? p.rate.toFixed(2) + '% over ' + p.months + ' months · APR ' + p.apr.toFixed(2) + '%'
-        : 'The customer pays the total, no monthly';
-      list.appendChild(row);
-    });
-    list.addEventListener('click', function (ev) {
-      var row = ev.target.closest('[data-plan]'); if (!row) return;
-      ev.stopPropagation();
-      planIdx = +row.dataset.plan;
-      paintPlanRows();
-      paintPlanEverywhere();
-      setTimeout(back, 200);
-      toast(plan().months ? 'Plan: ' + plan().name : 'No financing — total only', 'account_balance');
-    }, true);
-    paintPlanRows();
-  })();
+  /* =========================================================
+     A dropdown drops down.
 
-  function paintPlanRows() {
-    var list = byId('planList'); if (!list) return;
-    $$('[data-plan]', list).forEach(function (r) {
-      var on = +r.dataset.plan === planIdx;
+     Both of these were sheets that slid up over the numbers they change —
+     the plan over the four tiles showing its factor and APR, the deposit
+     over the options whose monthly it moves. A list under the row you
+     tapped keeps the consequence on screen while you choose.
+     ========================================================= */
+  function dropdown(anchor) {
+    if (!anchor) return null;
+    anchor.style.position = 'relative';
+    var panel = document.createElement('div');
+    panel.hidden = true;
+    panel.setAttribute('style', 'position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:40;' +
+      'background:#fff;border:1px solid #C8D5E8;border-radius:11px;overflow:hidden;' +
+      'box-shadow:0 12px 28px rgba(26,35,50,.18)');
+    anchor.appendChild(panel);
+    var chev = $$('.mi,.mif', anchor).filter(function (e) {
+      return /^(expand_more|expand_less|chevron_right)$/.test(norm(e.textContent));
+    })[0];
+    function close() { panel.hidden = true; if (chev) chev.textContent = 'expand_more'; }
+    /* A row near the bottom of the form would drop its list under the
+       footer. If it does not fit below, it opens above. */
+    function place() {
+      panel.style.top = 'calc(100% + 6px)';
+      panel.style.bottom = 'auto';
+      var box = anchor.closest('.sc'); if (!box) return;
+      var p = panel.getBoundingClientRect(), b = box.getBoundingClientRect();
+      if (p.bottom > b.bottom - 8 && p.height < b.height - 16) {
+        panel.style.top = 'auto';
+        panel.style.bottom = 'calc(100% + 6px)';
+      }
+    }
+    function toggle() {
+      panel.hidden = !panel.hidden;
+      if (chev) chev.textContent = panel.hidden ? 'expand_more' : 'expand_less';
+      if (!panel.hidden) place();
+    }
+    document.addEventListener('click', function (ev) {
+      if (!panel.hidden && !anchor.contains(ev.target)) close();
+    }, true);
+    return { panel: panel, close: close, toggle: toggle };
+  }
+
+  function pickRow(value, first, title, sub, attr) {
+    var row = document.createElement('div');
+    row.dataset.tap = '1';
+    row.dataset[attr] = String(value);
+    row.setAttribute('style', 'display:flex;align-items:center;gap:11px;padding:13px 14px;' +
+      'font:500 15px/1.3 Geist' + (first ? '' : ';border-top:1px solid #EDF0F5'));
+    row.innerHTML = '<div style="flex:1"><div data-nm></div>' +
+      '<div data-sub style="font:400 12.5px/1.35 Geist;color:#8A97A8;margin-top:3px"></div></div>' +
+      '<span class="mi" data-tick style="font-size:20px;color:#C8D5E8">radio_button_unchecked</span>';
+    $('[data-nm]', row).textContent = title;
+    var sb = $('[data-sub]', row);
+    if (sub) sb.textContent = sub; else sb.remove();
+    return row;
+  }
+  function paintTicks(scope, attr, value) {
+    $$('[data-' + attr + ']', scope).forEach(function (r) {
+      var on = +r.dataset[attr] === value;
       var t = $('[data-tick]', r);
       t.textContent = on ? 'radio_button_checked' : 'radio_button_unchecked';
-      t.className = (on ? 'mif' : 'mi');
+      t.className = on ? 'mif' : 'mi';
       t.style.color = on ? '#4A6FA5' : '#C8D5E8';
-      r.style.background = on ? '#EBF0F8' : '';
+      r.style.background = on ? '#F5F8FC' : '';
     });
   }
 
-  /* The deposit is a sum of money, so it is typed as one. Round amounts
-     sit alongside for the common cases — nobody wants a number pad open
-     to say "five hundred". */
+  function paintPlanRows() {
+    if (!planDrop) return;
+    paintTicks(planDrop.panel, 'plan', planIdx);
+  }
+
+  /* The deposit was a row that opened an editor with an input and four
+     chips under it, no tick on the one in force and nothing to close. Two
+     ways to say the same number, and no answer to "what is it now".
+
+     It is the same list as the plan: the common amounts, the one in force
+     ticked, and a last row for a figure that is none of them. */
   var DEPOSIT_QUICK = [0, 250, 500, 1000];
-  ACT.deposit = function () {
-    var row = planRefs && planRefs.down; if (!row) return;
-    var host = row.parentElement;
-    if ($('[data-depositpick]', host)) return;
+  var depDrop = null;
 
-    var pick = document.createElement('div');
-    pick.setAttribute('data-depositpick', '1');
-    pick.setAttribute('style', 'margin-top:9px');
-    pick.innerHTML =
-      '<div style="display:flex;align-items:center;gap:9px;height:52px;padding:0 13px;' +
-      'background:#fff;border:1.5px solid #4A6FA5;border-radius:10px">' +
-      '<span style="font:600 17px/1 Geist;color:#8A97A8">$</span>' +
-      '<input data-depinput class="inp" inputmode="decimal" placeholder="0.00" ' +
-      'style="flex:1;height:auto;border:0;padding:0;background:transparent;font:600 17px/1 Geist">' +
-      '</div>' +
-      '<div data-depchips style="display:flex;gap:7px;margin-top:8px"></div>' +
-      '<div data-dephint style="font:400 12px/1.4 Geist;color:#8A97A8;margin-top:8px"></div>';
-
-    var chips = $('[data-depchips]', pick);
-    DEPOSIT_QUICK.forEach(function (v) {
-      var c = document.createElement('span');
-      c.dataset.tap = '1';
-      c.dataset.dep = String(v);
-      c.textContent = v ? '$' + v.toLocaleString('en-US') : 'None';
-      chips.appendChild(c);
-    });
-    host.insertBefore(pick, row.nextElementSibling);
-
-    var input = $('[data-depinput]', pick);
-    var hint = $('[data-dephint]', pick);
-    input.value = deposit ? deposit.toFixed(2) : '';
-
-    function paint() {
-      $$('[data-dep]', chips).forEach(function (c) {
-        var on = +c.dataset.dep === deposit;
-        c.setAttribute('style', 'flex:1;text-align:center;border-radius:9px;padding:12px 0;' +
-          'font:600 13.5px/1 Geist;' + (on
-            ? 'background:#4A6FA5;color:#fff'
-            : 'background:#fff;border:1px solid #C8D5E8;color:#4A6FA5'));
-      });
-      // a deposit bigger than an option pays that option off outright
-      var lowest = Math.min.apply(null, Object.keys(OPTION_TOTALS)
-        .slice(0, optCount).map(function (k) { return OPTION_TOTALS[k]; }).concat([Infinity]));
-      hint.textContent = !deposit ? 'Taken off the price before the monthly is worked out.'
-        : deposit >= lowest ? 'Covers the cheaper options outright — nothing left to finance on those.'
-          : fmt(deposit) + ' down, the rest financed.';
+  function depositHint() {
+    // OPTION_TOTALS is declared further down the file; var hoists the name
+    // and not the value
+    var lowest = Math.min.apply(null, Object.keys(OPTION_TOTALS || {})
+      .slice(0, optCount).map(function (k) { return OPTION_TOTALS[k]; }).concat([Infinity]));
+    return !deposit ? 'Taken off the price before the monthly is worked out.'
+      : deposit >= lowest ? 'Covers the cheaper options outright — nothing left to finance on those.'
+        : fmt(deposit) + ' down, the rest financed.';
+  }
+  function paintDeposit() {
+    if (!depDrop) return;
+    paintTicks(depDrop.panel, 'dep', DEPOSIT_QUICK.indexOf(deposit) > -1 ? deposit : -1);
+    var hint = $('[data-dephint]', depDrop.panel);
+    if (hint) hint.textContent = depositHint();
+    var other = $('[data-depinput]', depDrop.panel);
+    if (other && document.activeElement !== other) {
+      other.value = (deposit && DEPOSIT_QUICK.indexOf(deposit) < 0) ? deposit.toFixed(2) : '';
     }
-    paint();
-    paintPlanEverywhere();
+  }
 
-    input.addEventListener('input', function () {
-      deposit = Math.max(0, parseFloat(String(input.value).replace(/[^0-9.]/g, '')) || 0);
-      paint();
-      paintPlanEverywhere();
-    });
-    chips.addEventListener('click', function (ev) {
-      var c = ev.target.closest('[data-dep]'); if (!c) return;
-      ev.stopPropagation();
-      deposit = +c.dataset.dep;
-      input.value = deposit ? deposit.toFixed(2) : '';
-      paint();
-      paintPlanEverywhere();
-    }, true);
+  // the row keeps its data-act; it opens the list
+  ACT.deposit = function () {
+    if (!depDrop) return;
+    depDrop.toggle();
+    paintDeposit();
   };
 
   /* job tab strips */
@@ -4256,6 +4256,76 @@
     planRefs = { label: label, tiles: tiles, down: down || null };
   })();
 
+  var planDrop = null;
+  (function () {
+    // the row planRefs already holds; it was given a data-go to the sheet
+    // a moment ago, and the sheet is gone
+    var row = planRefs && planRefs.label && planRefs.label.parentElement;
+    if (!row) { MISS.push('est-draft :: plan row'); return; }
+    row.removeAttribute('data-go');
+    row.removeAttribute('data-mode');
+    planDrop = dropdown(row);
+    if (!planDrop) return;
+    PLANS.forEach(function (p, i) {
+      planDrop.panel.appendChild(pickRow(i, i === 0, p.name, p.months
+        ? p.rate.toFixed(2) + '% over ' + p.months + ' months · APR ' + p.apr.toFixed(2) + '%'
+        : 'The customer pays the total, no monthly', 'plan'));
+    });
+    row.addEventListener('click', function (ev) {
+      if (ev.target.closest('[data-plan]')) return;
+      ev.stopPropagation();
+      planDrop.toggle();
+    }, true);
+    planDrop.panel.addEventListener('click', function (ev) {
+      var r = ev.target.closest('[data-plan]'); if (!r) return;
+      ev.stopPropagation();
+      planIdx = +r.dataset.plan;
+      paintPlanRows();
+      paintPlanEverywhere();
+      planDrop.close();
+      toast(plan().months ? 'Plan: ' + plan().name : 'No financing — total only', 'account_balance');
+    }, true);
+    paintPlanRows();
+  })();
+
+  (function () {
+    var row = planRefs && planRefs.down; if (!row) return;
+    depDrop = dropdown(row);
+    if (!depDrop) return;
+    DEPOSIT_QUICK.forEach(function (v, i) {
+      depDrop.panel.appendChild(pickRow(v, i === 0, v ? fmt(v) : 'No deposit',
+        v ? '' : 'The whole price is financed', 'dep'));
+    });
+    var other = document.createElement('div');
+    other.setAttribute('style', 'border-top:1px solid #EDF0F5;padding:13px 14px');
+    other.innerHTML =
+      '<div style="font:500 12.5px/1 Geist;color:#546478;margin-bottom:8px">Another amount</div>' +
+      '<div style="display:flex;align-items:center;gap:8px;height:46px;padding:0 12px;' +
+      'background:#fff;border:1px solid #C8D5E8;border-radius:9px">' +
+      '<span style="font:600 16px/1 Geist;color:#8A97A8">$</span>' +
+      '<input data-depinput class="inp" inputmode="decimal" placeholder="0.00" ' +
+      'style="flex:1;height:auto;border:0;padding:0;background:transparent;font:600 16px/1 Geist"></div>' +
+      '<div data-dephint style="font:400 12px/1.45 Geist;color:#8A97A8;margin-top:9px"></div>';
+    depDrop.panel.appendChild(other);
+
+    depDrop.panel.addEventListener('click', function (ev) {
+      var r = ev.target.closest('[data-dep]'); if (!r) return;
+      ev.stopPropagation();
+      deposit = +r.dataset.dep;
+      paintDeposit();
+      paintPlanEverywhere();
+      depDrop.close();
+      toast(deposit ? fmt(deposit) + ' deposit' : 'No deposit', 'payments');
+    }, true);
+    $('[data-depinput]', depDrop.panel).addEventListener('input', function (ev) {
+      deposit = Math.max(0, parseFloat(String(ev.target.value).replace(/[^0-9.]/g, '')) || 0);
+      paintDeposit();
+      paintPlanEverywhere();
+    });
+    paintDeposit();
+  })();
+
+
   function paintPlanCard() {
     if (!planRefs) return;
     var p = plan();
@@ -4275,10 +4345,12 @@
       if (v && vals[i] !== undefined) v.textContent = vals[i];
     });
     if (planRefs.down) {
-      var txt = planRefs.down.childNodes[planRefs.down.childNodes.length - 1];
-      if (txt && txt.nodeType === 3) {
-        txt.nodeValue = deposit ? 'Deposit ' + fmt(deposit) : 'Add deposit';
-      }
+      // the row carries its own dropdown now, so the last child is the panel;
+      // the label is the row's own text
+      var txt = [].slice.call(planRefs.down.childNodes).filter(function (n) {
+        return n.nodeType === 3 && norm(n.nodeValue);
+      })[0];
+      if (txt) txt.nodeValue = deposit ? 'Deposit ' + fmt(deposit) : 'Add deposit';
     }
   }
 
