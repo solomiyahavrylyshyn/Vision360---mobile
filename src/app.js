@@ -742,8 +742,11 @@
       }
       optionItems = [];              // a new option starts empty
       optAdjust = 0;
+      optionNoteText = '';
       renderOptionItems();
       paintOptionName();
+      paintOptionNote();
+      paintAdjust();
       go('est-new-option', 'modal');
     },
     estSaveOption: function () {
@@ -2901,8 +2904,38 @@
     }
   }
 
+  /* It was a button, then a sheet over the numbers it changes. It is a line
+     of text with the slider under it, so the total two lines below moves
+     while the thumb is still under the finger. */
+  var adjustBox = null;
   (function () {
-    var rng = byId('adjRange'); if (!rng) return;
+    var root = byId('est-new-option'); if (!root) return;
+    var btn = sel(root, '~Adjust the price')[0] || sel(root, 'Adjust the price')[0];
+    if (!btn) { MISS.push('est-new-option :: adjust'); return; }
+    btn.setAttribute('style', 'display:flex;align-items:center;justify-content:center;gap:7px;' +
+      'padding:14px 0 4px;color:#4A6FA5;font:600 14.5px/1 Geist');
+    btn.dataset.act = 'adjustPrice';
+    btn.removeAttribute('data-go');
+    btn.removeAttribute('data-mode');
+
+    adjustBox = document.createElement('div');
+    adjustBox.hidden = true;
+    adjustBox.setAttribute('style', 'background:#fff;border:1px solid #DDE3EE;border-radius:11px;' +
+      'padding:14px;margin-top:10px');
+    adjustBox.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:baseline;' +
+      'font:500 12.5px/1 Geist;color:#8A97A8;margin-bottom:11px">' +
+      '<span>&minus;20%</span><span id="adjPct" style="font:700 16px/1 Geist;color:#4A6FA5">0%</span>' +
+      '<span>+20%</span></div>' +
+      '<input id="adjRange" class="rng" type="range" min="-20" max="20" step="1" value="0" style="width:100%">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;' +
+      'padding-top:12px;border-top:1px solid #EDF0F5">' +
+      '<span style="font:400 13.5px/1 Geist;color:#546478">Adjusted total</span>' +
+      '<span id="adjTotal" style="font:700 17px/1 Geist">$0.00</span></div>' +
+      '<div id="adjWas" style="font:400 12.5px/1 Geist;color:#8A97A8;margin-top:5px;text-align:right"></div>';
+    btn.parentElement.insertBefore(adjustBox, btn.nextElementSibling);
+
+    var rng = $('#adjRange', adjustBox);
     rng.addEventListener('input', function () {
       optAdjust = parseInt(rng.value, 10) || 0;
       paintAdjust();
@@ -2911,9 +2944,10 @@
   })();
 
   ACT.adjustPrice = function () {
+    if (!adjustBox) return;
     if (!optionItems.length) { toast('Add an item before adjusting the price', 'info'); return; }
+    adjustBox.hidden = !adjustBox.hidden;
     paintAdjust();
-    go('ov-adjust', 'overlay');
   };
 
   function renderOptionItems() {
@@ -3986,6 +4020,7 @@
      ========================================================= */
   var PREVIEW = ['both', 'total', 'monthly'];
   var previewMode = 'both';
+  var PREVIEW_LABELS = ['Monthly payment + Total', 'Total only', 'Monthly payment only'];
   function paintOptionName() {
     var e = $('[data-optname]'); if (!e) return;
     e.textContent = 'Option ' + String.fromCharCode(65 + Math.min(optCount, 25));
@@ -4043,18 +4078,56 @@
     previewField = $('[data-previewval]', field);
     previewField.textContent = 'Monthly payment + Total';
 
+    /* The board's three rows are cards, and three cards inside a dropdown
+       are three cards inside a dropdown. The control keeps its choices and
+       draws them as a list, which is what a dropdown is; the rows the board
+       drew go with the heading they belonged to. */
+    rows.forEach(function (r) { r.remove(); });
+
     var panel = document.createElement('div');
     panel.hidden = true;
     panel.setAttribute('style', 'position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:40;' +
-      'background:#fff;border:1px solid #C8D5E8;border-radius:11px;padding:4px;' +
-      'box-shadow:0 10px 26px rgba(26,35,50,.18)');
-    rows.forEach(function (r) { panel.appendChild(r); });
+      'background:#fff;border:1px solid #C8D5E8;border-radius:11px;overflow:hidden;' +
+      'box-shadow:0 12px 28px rgba(26,35,50,.18)');
+    PREVIEW_LABELS.forEach(function (label, i) {
+      var r = document.createElement('div');
+      r.dataset.preview = String(i);
+      r.dataset.tap = '1';
+      r.setAttribute('style', 'display:flex;align-items:center;gap:11px;padding:14px 14px;' +
+        'font:500 15px/1.2 Geist;color:#1A2332' + (i ? ';border-top:1px solid #EDF0F5' : ''));
+      r.innerHTML = '<span class="mif" data-tick style="font-size:19px;color:#4A6FA5;width:21px"></span>' +
+        '<span style="flex:1"></span>';
+      r.children[1].textContent = label;
+      panel.appendChild(r);
+    });
     field.appendChild(panel);
 
     var chev = $('[data-chev]', field);
     function close() { panel.hidden = true; chev.textContent = 'expand_more'; }
+    function paintPanel() {
+      $$('[data-preview]', panel).forEach(function (r) {
+        var on = PREVIEW[+r.dataset.preview] === previewMode;
+        $('[data-tick]', r).textContent = on ? 'radio_button_checked' : 'radio_button_unchecked';
+        $('[data-tick]', r).style.color = on ? '#4A6FA5' : '#C8D5E8';
+        r.style.background = on ? '#F5F8FC' : '';
+      });
+    }
+    panel.addEventListener('click', function (ev) {
+      var r = ev.target.closest('[data-preview]'); if (!r) return;
+      ev.stopPropagation();
+      var i = +r.dataset.preview;
+      previewMode = PREVIEW[i];
+      previewField.textContent = PREVIEW_LABELS[i];
+      paintPanel();
+      paintPlanEverywhere();
+      close();
+      toast(i === 0 ? 'Customer sees the monthly and the total'
+        : i === 1 ? 'Customer sees the total only'
+          : 'Customer sees the monthly only', 'visibility');
+    }, true);
+    paintPanel();
     field.addEventListener('click', function (ev) {
-      if (ev.target.closest('[data-seg]')) return;        // a choice, not the field
+      if (ev.target.closest('[data-preview]')) return;    // a choice, not the field
       ev.stopPropagation();
       panel.hidden = !panel.hidden;
       chev.textContent = panel.hidden ? 'expand_more' : 'expand_less';
@@ -4073,23 +4146,43 @@
       $('[data-optname]', nameBox).textContent = was;
     }
 
-    // the label is a span inside the row; the row is what carries the state
-    seg('est-new-option',
-      ['Monthly payment + Total^1', 'Total only^1', 'Monthly payment only^1'], 0,
-      function (i, label) {
-        previewMode = PREVIEW[i];
-        if (previewField) previewField.textContent = label.split('^')[0];
-        paintPlanEverywhere();
-        close();
-        toast(i === 0 ? 'Customer sees the monthly and the total'
-          : i === 1 ? 'Customer sees the total only'
-            : 'Customer sees the monthly only', 'visibility');
-      });
   })();
 
   /* A note the technician wants on the option — a reason, a caveat, what
      the price does not cover. It rides with the option to the customer. */
   var optionNoteText = '';
+
+  /* "Note added — tap to edit" tells you a note exists and hides what it
+     says. The note is three lines the customer will read; it is shown. */
+  function paintOptionNote() {
+    var root = byId('est-new-option'); if (!root) return;
+    var btn = sel(root, '~Add extra notes')[0] || sel(root, '~Note added')[0];
+    if (!btn) return;
+    var shown = $('[data-optnoteshown]', root);
+    if (!optionNoteText) {
+      if (shown) shown.remove();
+      toggleDisplay(btn, true);
+      return;
+    }
+    if (!shown) {
+      shown = document.createElement('div');
+      shown.dataset.optnoteshown = '1';
+      shown.dataset.tap = '1';
+      shown.dataset.act = 'optionNote';
+      shown.setAttribute('style', 'background:#fff;border:1px solid #DDE3EE;border-radius:11px;' +
+        'padding:12px 14px;margin-bottom:12px');
+      shown.innerHTML =
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">' +
+        '<span class="mi" style="font-size:17px;color:#4A6FA5">sticky_note_2</span>' +
+        '<span style="flex:1;font:500 12.5px/1 Geist;color:#546478">Extra note</span>' +
+        '<span class="mi" style="font-size:17px;color:#A9B4C2">edit</span></div>' +
+        '<div data-noteshow style="font:400 14.5px/1.5 Geist;color:#1A2332"></div>';
+      btn.parentElement.insertBefore(shown, btn);
+    }
+    $('[data-noteshow]', shown).textContent = optionNoteText;
+    toggleDisplay(btn, false);
+  }
+
   ACT.optionNote = function () {
     var root = byId('est-new-option'); if (!root) return;
     var btn = sel(root, '~Add extra notes')[0];
@@ -4118,10 +4211,7 @@
       optionNoteText = ta.value.trim();
       box.remove();
       toggleDisplay(btn, true);
-      var txt = btn.childNodes[btn.childNodes.length - 1];
-      if (txt && txt.nodeType === 3) {
-        txt.nodeValue = optionNoteText ? 'Note added — tap to edit' : 'Add extra notes';
-      }
+      paintOptionNote();
       toast(optionNoteText ? 'Note saved with the option' : 'Note cleared', 'sticky_note_2');
     }, true);
   };
