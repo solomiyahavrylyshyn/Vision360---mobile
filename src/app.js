@@ -2816,9 +2816,13 @@
      quota. What belongs in that corner is the one thing a single figure
      can never say: which way it is going.
 
-     Six periods, the last of them live — take a payment and Revenue's
-     line lifts under your thumb. Green when the metric is improving, red
-     when it is sliding, because up is the good direction on all four.
+     The design says this with one arrow, and it is right to: a polyline
+     46 pixels wide drawn through six points is a shape nobody can read at
+     arm's length — it only looks crooked. The arrow reads at a glance.
+
+     Six periods behind it, the last of them live, so taking a payment can
+     turn Revenue's arrow under your thumb. Green while a metric improves,
+     red while it slides, because up is the good direction on all four.
      ========================================================= */
   var TREND = {
     rev: [38, 44, 41, 52, 58, 65.2],            // $k
@@ -2835,28 +2839,15 @@
     return kpi.closed / kpi.estimates * 100;
   }
 
-  function sparkSVG(series) {
-    var w = 46, h = 18, pad = 2;
-    var lo = Math.min.apply(null, series), hi = Math.max.apply(null, series);
-    var span = hi - lo || 1;
-    var pts = series.map(function (v, i) {
-      var x = pad + i * (w - pad * 2) / (series.length - 1);
-      var y = h - pad - (v - lo) / span * (h - pad * 2);
-      return x.toFixed(1) + ',' + y.toFixed(1);
-    });
-    var c = series[series.length - 1] >= series[0] ? '#16A34A' : '#DC2626';
-    var end = pts[pts.length - 1].split(',');
-    return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" fill="none">' +
-      '<polyline points="' + pts.join(' ') + '" stroke="' + c + '" stroke-width="1.6" ' +
-      'stroke-linecap="round" stroke-linejoin="round"/>' +
-      '<circle cx="' + end[0] + '" cy="' + end[1] + '" r="2" fill="' + c + '"/></svg>';
-  }
-
   function paintSparks() {
     Object.keys(sparks).forEach(function (k) {
       var series = TREND[k].slice();
-      series[series.length - 1] = trendNow(k);
-      sparks[k].innerHTML = sparkSVG(series);
+      var now = trendNow(k), was = series[0];
+      var up = now >= was;
+      var el = sparks[k];
+      el.textContent = up ? 'trending_up' : 'trending_down';
+      el.style.color = up ? '#16A34A' : '#DC2626';
+      el.title = (up ? 'Up' : 'Down') + ' over the last ' + series.length + ' periods';
     });
   }
 
@@ -2873,8 +2864,8 @@
       KEYS.forEach(function (k) { if (!key && label.indexOf(k[0]) > -1) key = k[1]; });
       if (!key) { e.remove(); return; }
       var holder = document.createElement('span');
-      holder.setAttribute('style', 'flex:none;display:flex;align-items:center;margin-top:1px');
-      holder.title = 'Last 6 periods';
+      holder.className = 'mi';
+      holder.setAttribute('style', 'flex:none;font-size:19px;line-height:1');
       head.replaceChild(holder, e);
       sparks[key] = holder;
     });
