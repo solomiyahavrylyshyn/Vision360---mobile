@@ -1179,10 +1179,10 @@
       ['~Last year', 'act:pickPeriod'],
       ['~Last week', 'BACK'], ['~Last month', 'BACK'],
       ['~Last quarter', 'BACK'], ['~Last year', 'BACK'],
-      ['~Custom week', 'period-week'],
-      ['~Custom month', 'ov-period-month'],
-      ['~Custom quarter', 'period-quarter'],
-      ['~Custom year', 'period-quarter'],
+      ['~Custom week', 'act:pickWeek'],
+      ['~Custom month', 'act:pickMonth'],
+      ['~Custom quarter', 'act:pickQuarter'],
+      ['~Custom year', 'act:pickYear'],
       ['~This week', 'act:pickPeriod'],
       ['~This month', 'act:pickPeriod'],
       ['~This quarter', 'act:pickPeriod'],
@@ -1630,6 +1630,93 @@
     var m = /^This (week|month|quarter|year)$/.exec(period);
     if (m && setHomeSeg) setHomeSeg(['week', 'month', 'quarter', 'year'].indexOf(m[1]));
   }
+
+  /* =========================================================
+     Custom week, month, quarter and year are one screen.
+
+     Each is a title, a year to step through where that means anything,
+     and a list to pick from. Picking is the whole interaction — there is
+     no Apply, because there is nothing left to confirm once a row has
+     been tapped.
+     ========================================================= */
+  var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
+  var QUARTERS = ['January – March', 'April – June', 'July – September', 'October – December'];
+  var dpKind = 'month';
+  var dpYear = new Date().getFullYear();
+
+  function dpRows() {
+    if (dpKind === 'month') return MONTHS;
+    if (dpKind === 'quarter') return QUARTERS;
+    if (dpKind === 'week') {
+      var w = []; for (var i = 1; i <= 52; i++) w.push('Week ' + i); return w;
+    }
+    var y = [], now = new Date().getFullYear();
+    for (var k = 0; k < 8; k++) y.push(String(now - k));
+    return y;
+  }
+  function dpLabel(row) {
+    if (dpKind === 'year') return row;
+    if (dpKind === 'week') return row + ' · ' + dpYear;
+    return row + ' ' + dpYear;
+  }
+
+  function paintPicker() {
+    var list = byId('dpList'); if (!list) return;
+    byId('dpTitle').textContent = 'Pick custom ' + dpKind;
+    toggleDisplay(byId('dpYear'), dpKind !== 'year');
+    byId('dpYearVal').textContent = String(dpYear);
+    list.innerHTML = '';
+    dpRows().forEach(function (row) {
+      var on = period === dpLabel(row);
+      var r = document.createElement('div');
+      r.dataset.tap = '1';
+      r.dataset.dprow = row;
+      r.setAttribute('style', 'display:flex;align-items:center;gap:12px;padding:16px 18px;' +
+        'font:' + (on ? '600' : '500') + ' 15.5px/1 Geist;border-bottom:1px solid #EDF0F5' +
+        (on ? ';background:#F2F5F9' : ''));
+      r.innerHTML = '<span class="mif" style="font-size:20px;color:#4A6FA5;width:22px' +
+        (on ? '' : ';visibility:hidden') + '">check</span><span></span>';
+      r.children[1].textContent = row;
+      list.appendChild(r);
+    });
+  }
+
+  function openPicker(kind) {
+    dpKind = kind;
+    paintPicker();
+    // the sheet it came from is another overlay, and overlays stack in DOM
+    // order rather than by when they opened — so it takes the menu's place
+    closeOverlays(true);
+    go('ov-datepick', 'overlay');
+    var list = byId('dpList'); if (list) list.scrollTop = 0;
+  }
+
+  ACT.pickMonth = function () { openPicker('month'); };
+  ACT.pickQuarter = function () { openPicker('quarter'); };
+  ACT.pickYear = function () { openPicker('year'); };
+  ACT.pickWeek = function () { openPicker('week'); };
+
+  (function () {
+    var list = byId('dpList'); if (!list) return;
+    list.addEventListener('click', function (ev) {
+      var r = ev.target.closest('[data-dprow]'); if (!r) return;
+      ev.stopPropagation();
+      period = dpLabel(r.dataset.dprow);
+      closeOverlays(false);
+      paintPeriod();
+      toast('Showing ' + period, 'event');
+    }, true);
+    [['dpPrev', -1], ['dpNext', 1]].forEach(function (p) {
+      var b = byId(p[0]); if (!b) return;
+      b.dataset.tap = '1';
+      b.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        dpYear += p[1];
+        paintPicker();
+      }, true);
+    });
+  })();
 
   ACT.pickPeriod = function (el) {
     period = norm(el.textContent);

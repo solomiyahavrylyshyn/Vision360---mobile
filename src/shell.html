@@ -742,6 +742,30 @@
           </div>
         </div>
 
+        <!-- ============ DATE PICKER ============ -->
+        <!-- Month, quarter, year and week are the same screen: a title, a
+             year to step through where it applies, and a list you pick from.
+             Picking is the whole interaction, so there is nothing to apply. -->
+        <div class="overlay" id="ov-datepick">
+          <div style="position:absolute;inset:0;background:rgba(28,43,58,.40)" data-back></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;max-height:86%;display:flex;flex-direction:column;background:#fff;border-radius:22px 22px 0 0;box-shadow:0 -8px 30px rgba(26,35,50,.22)">
+            <div style="display:flex;justify-content:center;padding:10px 0 4px;flex:none">
+              <div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:6px 16px 12px;flex:none">
+              <span class="mi" data-back style="font-size:22px;color:#546478">arrow_back</span>
+              <span id="dpTitle" style="flex:1;font:600 19px/1.2 Geist">Pick custom month</span>
+              <span id="dpYear" style="display:flex;align-items:center;gap:4px">
+                <span class="mi" id="dpPrev" style="font-size:22px;color:#4A6FA5">chevron_left</span>
+                <span id="dpYearVal" style="font:600 15px/1 Geist;font-variant-numeric:tabular-nums;min-width:38px;text-align:center">2026</span>
+                <span class="mi" id="dpNext" style="font-size:22px;color:#4A6FA5">chevron_right</span>
+              </span>
+              <span class="mi" data-back style="font-size:22px;color:#546478">close</span>
+            </div>
+            <div class="sc" id="dpList" style="flex:1;overflow-y:auto;padding-bottom:20px;border-top:1px solid #EDF0F5"></div>
+          </div>
+        </div>
+
 <!--SCREENS-->
 
         <div class="toast" id="toast"><span class="mi">check_circle</span><span id="toastMsg"></span></div>
