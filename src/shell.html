@@ -238,12 +238,16 @@
                 </div>
                 <div style="width:10px;height:10px;border-radius:5px;background:#7E93B2;margin-top:5px" id="tsDot"></div>
               </div>
-              <!-- US-M15-1: drive and work are clocked separately -->
-              <div style="display:flex;gap:6px;background:rgba(255,255,255,.10);border-radius:10px;padding:4px;margin-top:15px">
-                <div data-tsmode="drive" style="flex:1;text-align:center;padding:10px 0;font:500 13.5px/1 Geist;color:#9DB4D6;border-radius:7px">Driving</div>
-                <div data-tsmode="work" style="flex:1;text-align:center;padding:10px 0;font:500 13.5px/1 Geist;color:#9DB4D6;border-radius:7px">On site</div>
-                <div data-tsmode="off" style="flex:1;text-align:center;padding:10px 0;font:600 13.5px/1 Geist;color:#1C2B3A;background:#fff;border-radius:7px">Stop</div>
-              </div>
+              <!-- US-M15-1: drive and work are clocked separately, and the Drive
+                   and Regular tiles below say how much of each.
+
+                   This card used to carry its own Driving / On site / Stop
+                   control. Every minute in this app belongs to a job — the
+                   drive out is En route, the break is the job's pause — so
+                   there was nothing for a second set of buttons to say that
+                   the job card was not already saying, and two controls over
+                   one clock only gave them room to disagree. It reads the
+                   clock now; the job card drives it. -->
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-bottom:18px">
               <div class="card" style="padding:13px 14px"><div style="font:500 12px/1 Geist;color:#546478">Regular</div><div style="font:600 19px/1.1 Geist;margin-top:7px" id="tsRegular">32.5h</div></div>
