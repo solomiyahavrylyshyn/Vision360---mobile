@@ -5714,16 +5714,78 @@ body.dev #indexBtn{display:flex}
     return '$' + (n / 1000).toFixed(1).replace('.', ',') + 'k';
   }
   var kpiRefs = null;
-  /* The n/14 chip on each KPI card is unexplained on the card and
-     unexplained anywhere else — a technician reading "7/14" cannot tell
-     whether it is a rank, a countdown or a quota, and nothing in the app
-     answers it. A number nobody can act on is noise on the one screen
-     that has to read at a glance. */
+
+  /* =========================================================
+     The corner of a KPI card.
+
+     It held an n/14 chip that nothing in the app explained — a technician
+     reading "7/14" cannot tell whether it is a rank, a countdown or a
+     quota. What belongs in that corner is the one thing a single figure
+     can never say: which way it is going.
+
+     Six periods, the last of them live — take a payment and Revenue's
+     line lifts under your thumb. Green when the metric is improving, red
+     when it is sliding, because up is the good direction on all four.
+     ========================================================= */
+  var TREND = {
+    rev: [38, 44, 41, 52, 58, 65.2],            // $k
+    est: [18.5, 20.1, 19.4, 21.8, 22.0, 22.5],  // conversion %
+    avg: [1.45, 1.38, 1.30, 1.26, 1.22, 1.20],  // $k per ticket
+    close: [31, 29, 33, 30, 28, 27]             // closing %
+  };
+  var sparks = {};
+
+  function trendNow(k) {
+    if (k === 'rev') return kpi.revenue / 1000;
+    if (k === 'est') return kpi.conv / kpi.estimates * 100;
+    if (k === 'avg') return kpi.avgTicket / 1000;
+    return kpi.closed / kpi.estimates * 100;
+  }
+
+  function sparkSVG(series) {
+    var w = 46, h = 18, pad = 2;
+    var lo = Math.min.apply(null, series), hi = Math.max.apply(null, series);
+    var span = hi - lo || 1;
+    var pts = series.map(function (v, i) {
+      var x = pad + i * (w - pad * 2) / (series.length - 1);
+      var y = h - pad - (v - lo) / span * (h - pad * 2);
+      return x.toFixed(1) + ',' + y.toFixed(1);
+    });
+    var c = series[series.length - 1] >= series[0] ? '#16A34A' : '#DC2626';
+    var end = pts[pts.length - 1].split(',');
+    return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" fill="none">' +
+      '<polyline points="' + pts.join(' ') + '" stroke="' + c + '" stroke-width="1.6" ' +
+      'stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<circle cx="' + end[0] + '" cy="' + end[1] + '" r="2" fill="' + c + '"/></svg>';
+  }
+
+  function paintSparks() {
+    Object.keys(sparks).forEach(function (k) {
+      var series = TREND[k].slice();
+      series[series.length - 1] = trendNow(k);
+      sparks[k].innerHTML = sparkSVG(series);
+    });
+  }
+
   (function () {
     var root = byId('home'); if (!root) return;
+    // the card is named by its own label, not by the order it was drawn in
+    var KEYS = [['Revenue', 'rev'], ['Conversions', 'est'],
+      ['per ticket', 'avg'], ['percentage', 'close']];
     $$('span', root).forEach(function (e) {
-      if (/^[0-9]{1,2}[/]14$/.test(norm(e.textContent)) && !e.children.length) e.remove();
+      if (!/^[0-9]{1,2}[/]14$/.test(norm(e.textContent)) || e.children.length) return;
+      var head = e.parentElement;
+      var label = head.firstElementChild ? norm(head.firstElementChild.textContent) : '';
+      var key = null;
+      KEYS.forEach(function (k) { if (!key && label.indexOf(k[0]) > -1) key = k[1]; });
+      if (!key) { e.remove(); return; }
+      var holder = document.createElement('span');
+      holder.setAttribute('style', 'flex:none;display:flex;align-items:center;margin-top:1px');
+      holder.title = 'Last 6 periods';
+      head.replaceChild(holder, e);
+      sparks[key] = holder;
     });
+    if (Object.keys(sparks).length < 4) MISS.push('home :: kpi trends');
   })();
 
   function kpiRefsGet() {
@@ -5738,6 +5800,7 @@ body.dev #indexBtn{display:flex}
       rev: card('$65,2k / $300k'),
       est: card('$420k'),
       avg: card('$1,2k / $2,0k'),
+      avgNote: sel(byId('home'), 'Below target')[0],
       close: card('27% / 45%'),
       convPct: sel(home, '22.5%')[0],
       estCount: sel(home, 'Of 14 estimates')[0]
@@ -5759,13 +5822,21 @@ body.dev #indexBtn{display:flex}
       if (r.convPct) r.convPct.textContent = cp.toFixed(1) + '%';
       if (r.est.bar) r.est.bar.style.width = pct(cp, 100) + '%';
     }
-    if (r.avg) { setLead(r.avg.value, kfmt(kpi.avgTicket)); if (r.avg.bar) r.avg.bar.style.width = pct(kpi.avgTicket, kpi.avgTarget) + '%'; }
+    if (r.avg) {
+      setLead(r.avg.value, kfmt(kpi.avgTicket));
+      if (r.avg.bar) r.avg.bar.style.width = pct(kpi.avgTicket, kpi.avgTarget) + '%';
+      // the caption was fixed at "Below target" however big the tickets got
+      if (r.avgNote) {
+        r.avgNote.textContent = kpi.avgTicket >= kpi.avgTarget ? 'On target' : 'Below target';
+      }
+    }
     if (r.close) {
       var cl = kpi.closed / kpi.estimates * 100;
       setLead(r.close.value, Math.round(cl) + '%');
       if (r.close.bar) r.close.bar.style.width = pct(cl, kpi.closeTarget) + '%';
       if (r.estCount) r.estCount.textContent = 'Of ' + kpi.estimates + ' estimates';
     }
+    paintSparks();
     remember('kpi', kpi);
   }
   function kpiSale(total) {
