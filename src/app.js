@@ -138,6 +138,7 @@
   /* ---------- flow state ---------- */
   var state = {
     onsite: false,
+    paused: false,      // on the job, off the clock — lunch, a parts run
     enroute: false,     // driving to the job — a status the button holds
     est: 'none',        // none draft review ready approved
     inv: 'none',        // none sent paid
@@ -278,6 +279,7 @@
       }));
     }
     paintDash();
+    paintCard();
     paintStartButtons();
     var m = INFO[pid] || {};
     phone.setAttribute('data-tabs', m.tabs ? 'on' : 'off');
@@ -650,8 +652,24 @@
     jobEst: function () { go(estScreen(), 'replace'); },
     jobFin: function () { go(finScreen(), 'replace'); },
 
+    /* Stopping the clock is not finishing the job. A tech breaks for lunch,
+       drives for a part, waits on the customer — and the old button went
+       straight to the close-out, which is a twelve-field form and the end of
+       the visit. Pause holds the job open with the clock stopped; the way
+       out is Complete, next to it. */
+    pauseJob: function () {
+      if (!state.onsite) return;
+      state.paused = !state.paused;
+      setClock(state.paused ? 'off' : 'work');
+      paintEnroute();
+      paintOnsiteBar();
+      queued('Job status');
+      toast(state.paused ? 'Paused — the clock has stopped' : 'Back on the clock',
+        state.paused ? 'pause_circle' : 'play_circle');
+    },
     start: function () {
       state.onsite = true;
+      state.paused = false;
       state.enroute = false;          // you've arrived — the en route state is spent
       paintEnroute();
       paintJob();
@@ -900,6 +918,7 @@
       payMethod = '';
       photosThisVisit = 0;
       state.onsite = false;
+      state.paused = false;
       state.enroute = false;
       state.extra = false;
       paintEnroute();
@@ -950,18 +969,11 @@
       // US-M03-2: the notifications row leads to the work it's telling you about
       ['@campaign^1', 'history']
     ],
+    // the card here is the one from Home, moved in while a job runs, so it
+    // arrives already wired — only Quick add belongs to this screen
     'home-active': [
-      ['Randy Johnson^2', 'job-general'],
-      ['@assignment^1', 'job-general'],
-      ['@more_horiz^1', 'ov-job-actions'],
-      ['@description^1', 'ov-note-detailed'],
-      ['@lock^1', 'ov-note-private'],
-      ['@photo_library^1', 'photos'],
-      ['@attach_file^1', 'files'],
       ['@photo_camera^1', 'ov-media-source'],
       ['@edit_note^1', 'ov-note-tech'],
-      ['@build^1', 'ov-note-tech'],
-      ['@history^1', 'cust-jobs'],
       ['@fact_check^1', 'rc-overview'],
       ['@request_quote^1', 'act:jobEst']
     ],
@@ -1300,37 +1312,32 @@
     sheet.remove();                                 // nothing routes to the sheet any more
   })();
 
-  /* The running job showed four chips where the same card on Home shows
-     six: the technician's notes and the customer's job history were simply
-     not drawn on this frame. They are the two a tech reaches for once they
-     are through the door — what we wrote here last time, and what we have
-     done here before — so they went missing exactly when they were wanted.
+  /* =========================================================
+     One card for the job, not two.
 
-     Copied from the card on Home, in the same order, before the links are
-     wired, so they lead where their twins lead. */
+     The board drew the job twice — once on Home, once on the in-progress
+     screen — and the second copy was not the same card. Four chips instead
+     of six, with the technician's notes and the job history missing, which
+     are the two a tech reaches for once they are through the door. Address
+     and phone in rows of their own. Different buttons. So pressing Start
+     rearranged the thing you were reading.
+
+     There is one card now, and it is the one from Home. It moves to the
+     in-progress screen while a job runs and comes back afterwards, the way
+     the dashboard already does. Being the same nodes, it cannot drift out
+     of step with itself again.
+
+     The second copy goes here, before the links are wired, so nothing is
+     ever bound to it.
+     ========================================================= */
+  var activeCardSlot = null;
   (function () {
-    var src = byId('home'), dst = byId('home-active');
-    if (!src || !dst) return;
-    var a = sel(src, 'Randy Johnson')[0], b = sel(dst, 'Randy Johnson')[0];
-    var srcCard = a && a.closest('div[style*="border-radius:14px"]');
-    var dstCard = b && b.closest('div[style*="border-radius:14px"]');
-    var srcChips = srcCard && srcCard.children[1];
-    var dstChips = dstCard && dstCard.children[1];
-    if (!srcChips || !dstChips) { MISS.push('home-active :: chip row'); return; }
-    function chip(icon) {
-      var i = byIcon(srcChips, icon)[0];
-      return i ? i.parentElement : null;
-    }
-    var tech = chip('build');
-    if (tech && !byIcon(dstChips, 'build').length) {
-      // after Private, where it sits on the other card
-      dstChips.insertBefore(tech.cloneNode(true), dstChips.children[2] || null);
-    }
-    var hist = chip('history');
-    if (hist && !byIcon(dstChips, 'history').length) dstChips.appendChild(hist.cloneNode(true));
-    if (!byIcon(dstChips, 'build').length || !byIcon(dstChips, 'history').length) {
-      MISS.push('home-active :: missing chips');
-    }
+    var dst = byId('home-active'); if (!dst) return;
+    var b = sel(dst, 'Randy Johnson')[0];
+    var old = b && b.closest('div[style*="border-radius:14px"]');
+    if (!old) { MISS.push('home-active :: job card'); return; }
+    activeCardSlot = document.createComment('job card');
+    old.parentElement.replaceChild(activeCardSlot, old);
   })();
 
   Object.keys(LINKS).forEach(function (id) {
@@ -3519,6 +3526,16 @@
   /* US-M04-4 — En route is a status, so the button holds the pressed state
      and releases on a second tap. */
   var paintEnroute = function () { };
+  var paintOnsiteBar = function () { };
+  var jobCard = null, homeCardSlot = null;
+  /* Home while no job is on, the in-progress screen while one is. The same
+     card either way — moved, never rebuilt. */
+  function paintCard() {
+    if (!jobCard) return;
+    var target = state.onsite ? activeCardSlot : homeCardSlot;
+    if (!target || jobCard.nextSibling === target) return;
+    target.parentElement.insertBefore(jobCard, target);
+  }
   function paintDriveTime(secs) {
     var el = $('[data-drivetime]');
     if (!el) return;
@@ -3544,6 +3561,7 @@
   function paintStartButtons() {
     $$('.screen [data-act="start"],.screen [data-act="complete"]').forEach(function (b) {
       if (jobHeaderBtns.indexOf(b) > -1) return;
+      if (b.dataset.cardbtn) return;        // the card paints its own row
       // Start before the job, Complete during it — one rule, read off
       // whichever the button happens to be
       toggleDisplay(b, b.dataset.act === 'complete' ? !!state.onsite : !state.onsite);
@@ -3738,34 +3756,27 @@
 
   /* The in-progress screen is the same job — it can't keep showing the
      customer from the design mockup once the tech has moved on. */
-  function wireActiveJobCard() {
-    var root = byId('home-active'); if (!root) return;
-    var refs = {
-      name: sel(root, 'Randy Johnson')[0],
-      when: sel(root, 'Today, 8:00 AM')[0],
-      brief: sel(root, 'AC not cooling')[0],
-      type: sel(root, 'Estimate')[0],
-      phone: sel(root, '(123) 456-7890')[0],
-      banner: sel(phone, 'On site · Randy Johnson')[0]   // now phone chrome
-    };
-    var addrRow = sel(root, '@place^1')[0];
-    var addr = addrRow ? $('div', addrRow) : null;
-    var away = addr ? $('span', addr) : null;
-    if (!refs.name || !addr || !away) { MISS.push('home-active :: job card'); return; }
+  /* The in-progress screen has no card of its own any more. What is left
+     to keep current is the green bar in the phone's chrome, which names the
+     house you are standing in — and goes grey while the job is paused, so
+     a stopped clock never looks like a running one.
 
-    var prev = paintJob;
-    paintJob = function () {
-      prev();
-      var j = JOBS[jobIdx]; if (!j) return;
-      refs.name.textContent = j.name;
-      if (refs.banner) refs.banner.textContent = 'On site · ' + j.name;
-      if (refs.when) refs.when.textContent = j.when;
-      if (refs.brief) refs.brief.textContent = j.brief;
-      if (refs.type) refs.type.textContent = j.type;
-      if (refs.phone) setPhone(refs.phone, j.phone);
-      addr.childNodes[0].nodeValue = j.addr;
-      away.textContent = j.away;
+     It writes the name into the bar's own text node rather than over the
+     whole label, which had been quietly deleting the little white dot
+     beside it on the first paint. */
+  function wireActiveJobCard() {
+    var lbl = onsiteBar && onsiteBar.children[0];
+    var txt = lbl && [].slice.call(lbl.childNodes).filter(function (n) {
+      return n.nodeType === 3 && norm(n.nodeValue);
+    })[0];
+    if (!txt) { MISS.push('phone :: on-site bar'); return; }
+    paintOnsiteBar = function () {
+      var j = JOBS[jobIdx];
+      txt.nodeValue = (state.paused ? 'Paused · ' : 'On site · ') + (j ? j.name : '');
+      onsiteBar.style.background = state.paused ? '#546478' : '#16A34A';
     };
+    var prev = paintJob;
+    paintJob = function () { prev(); paintOnsiteBar(); };
   }
 
   // pick up where the tech left off: which job, each job's stage, and the
@@ -3795,43 +3806,13 @@
   loadJob();
   (function () {
     var s = recall('state', null);
-    if (s) { state.onsite = !!s.onsite; state.enroute = !!s.enroute; state.extra = !!s.extra; }
+    if (s) {
+      state.onsite = !!s.onsite; state.enroute = !!s.enroute;
+      state.extra = !!s.extra; state.paused = !!s.paused;
+    }
   })();
   wireCurrentJob();
   wireActiveJobCard();
-
-  /* Driving puts the trip clock on the card's own button. Standing in the
-     house put it only in the bar at the top of the screen, which scrolls
-     away — so the card you are actually working from said nothing about
-     how long you had been there, and the way to finish the job was two
-     taps into a menu.
-
-     The same button, in the same place, counting the same way. It opens
-     the close-out, so a mis-tap costs a tap back and nothing else. */
-  (function () {
-    var root = byId('home-active'); if (!root) return;
-    var name = sel(root, 'Randy Johnson')[0];
-    var card = name && name.closest('div[style*="border-radius:14px"]');
-    var actions = card && card.lastElementChild;
-    var details = actions && byIcon(actions, 'assignment')[0];
-    if (!details) { MISS.push('home-active :: card actions'); return; }
-    details = details.parentElement;
-
-    var btn = document.createElement('div');
-    btn.dataset.tap = '1';
-    btn.dataset.act = 'complete';
-    btn.setAttribute('style', 'flex:1;height:52px;display:flex;align-items:center;' +
-      'justify-content:center;gap:7px;background:#16A34A;color:#fff;border-radius:10px;' +
-      'font:600 16px/1 Geist;font-variant-numeric:tabular-nums');
-    btn.innerHTML = '<span class="mif" style="font-size:17px">stop_circle</span>' +
-      '<span data-jobtime>0:00</span>';
-    actions.insertBefore(btn, actions.firstElementChild);
-
-    // one loud button to a card: finishing the job is now the loud one
-    details.setAttribute('style', 'flex:1;height:52px;display:flex;align-items:center;' +
-      'justify-content:center;gap:6px;background:#fff;border:1px solid #C8D5E8;color:#4A6FA5;' +
-      'border-radius:10px;font:600 15px/1 Geist');
-  })();
 
   /* The dashboard's period could only be changed from the Timesheet,
      three screens away from the numbers it governs. The control sits with
@@ -3959,18 +3940,55 @@
     actions.appendChild(start);
     actions.appendChild(kebab);
 
-    /* this replaces the earlier painter, which captured the outlined style
-       the button no longer wears */
+    jobCard = card;
+    homeCardSlot = document.createComment('job card');
+    card.parentElement.insertBefore(homeCardSlot, card.nextSibling);
+
+    // on site, the green the bar at the top of the screen wears; paused,
+    // the slate the bar turns
+    var ONSITE = 'flex:1;height:52px;display:flex;align-items:center;justify-content:center;gap:7px;' +
+      'background:#16A34A;color:#fff;border-radius:10px;font:600 16px/1 Geist;' +
+      'font-variant-numeric:tabular-nums';
+    var PAUSED = ONSITE.split('background:#16A34A').join('background:#546478');
+
+    /* Three slots, and they never move or empty out.
+
+       The first is whatever is live: where you are going, how long you have
+       been driving, how long you have been here. The second is the state
+       change — Start before the visit, Complete during it. The third is
+       always Job Details.
+
+       This also replaces the earlier painter, which captured the outlined
+       style the first button no longer wears. */
     paintEnroute = function () {
-      if (state.enroute) {
+      if (state.onsite) {
+        enroute.dataset.act = 'pauseJob';
+        enroute.setAttribute('style', state.paused ? PAUSED : ONSITE);
+        enroute.innerHTML = '<span class="mif" style="font-size:18px">' +
+          (state.paused ? 'play_arrow' : 'pause') + '</span><span data-jobtime>0:00</span>';
+      } else if (state.enroute) {
+        enroute.dataset.act = 'enroute';
         enroute.setAttribute('style', DRIVING);
         enroute.innerHTML = '<span class="mif" style="font-size:17px">stop_circle</span>' +
           '<span data-drivetime>0:00</span>';
       } else {
+        enroute.dataset.act = 'enroute';
         enroute.setAttribute('style', PRIMARY);
         enroute.innerHTML = '<span class="mif" style="font-size:18px">navigation</span>En route';
       }
+
+      start.dataset.cardbtn = '1';
+      start.dataset.act = state.onsite ? 'complete' : 'start';
+      start.setAttribute('style', OUTLINE);
+      // 'Complete' plus an icon is the widest this row ever gets: at 375px
+      // the three buttons are 96px each, so the glyph gives back the slack
+      start.innerHTML = '<span class="mi" style="font-size:18px">' +
+        (state.onsite ? 'task_alt' : 'play_arrow') + '</span>' +
+        (state.onsite ? 'Complete' : 'Start');
+      toggleDisplay(start, true);
+
       paintDriveTime();
+      paintClock();
     };
     paintEnroute();
   })();
