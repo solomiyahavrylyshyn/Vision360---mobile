@@ -782,6 +782,8 @@
     estApprove: function () { state.est = 'ready'; go('est-ready', 'replace'); toast('Manager approved — ready to present', 'verified'); },
     estOrder: function () {
       if (!estSigned) {
+        // the button already says this; the toast says why
+
         toast('The customer signs first — that signature is the order', 'draw');
         return;
       }
@@ -814,7 +816,11 @@
       closeOverlays(true);
       go('est-ready', 'root');
       queued('Estimate');
-      toast('Declined — estimate stays open to present again', 'history_toggle_off');
+      // a decline with a date on it is a visit; without one it is a shrug
+      toast(followUpDays >= 0
+        ? 'Declined — follow up on ' + followDate(followUpDays)
+        : 'Declined — estimate stays open, no follow-up date set',
+        'history_toggle_off');
     },
     reinvoice: function () {
       state.inv = 'none';                  // a second invoice on the same job
@@ -4590,6 +4596,32 @@
     paintJob = function () { prev(); paintOnsiteBar(); };
   }
 
+  /* The order button read "Confirm & order" before anything had been
+     signed, and said so only after it was pressed. The board has the
+     other label for that state: until the pad is signed this completes
+     the presentation, and once it is signed it places the order. */
+  var orderBtn = null;
+  function paintOrderBtn() {
+    if (!orderBtn) return;
+    var on = estSigned;
+    orderBtn.setAttribute('style', orderBtn.dataset.base +
+      (on ? '' : ';background:#EDF0F5;color:#A9B4C2;border-color:#DDE3EE'));
+    var icon = $('.mi,.mif', orderBtn);
+    if (icon) icon.textContent = on ? 'check_circle' : 'task_alt';
+    [].slice.call(orderBtn.childNodes).forEach(function (n) {
+      if (n.nodeType === 3 && norm(n.nodeValue)) {
+        n.nodeValue = on ? 'Confirm & order' : 'Complete estimate';
+      }
+    });
+  }
+  (function () {
+    var root = byId('est-customer'); if (!root) return;
+    orderBtn = $$('[data-act="estOrder"]', root)[0];
+    if (!orderBtn) { MISS.push('est-customer :: order button'); return; }
+    orderBtn.dataset.base = orderBtn.getAttribute('style') || '';
+    paintOrderBtn();
+  })();
+
   // pick up where the tech left off: which job, each job's stage, and the
   // session flags — before the cards are painted
   jobIdx = recall('jobIdx', 0);
@@ -4909,6 +4941,7 @@
     signaturePad('est-customer', 'Sign here', function () {
       estSigned = true;
       estSignedAt = stamp();
+      paintOrderBtn();
       if (when) when.textContent = estSignedAt;
       if (pending) {
         pending.textContent = 'Signed';
@@ -5159,7 +5192,9 @@
      ========================================================= */
   (function () {
     var root = byId('est-customer'); if (!root) return;
-    var confirm = sel(root, '@check_circle^1')[0];
+    // the order button's icon changes with the signature, so it is found
+    // by what it does rather than by the glyph it is wearing
+    var confirm = $('[data-act="estOrder"]', root);
     var footer = confirm && confirm.parentElement;
     if (!footer) { MISS.push('est-customer :: footer'); return; }
 
@@ -5170,6 +5205,65 @@
       'padding:11px 16px 2px;text-align:center;font:600 14px/1 Geist;color:#8A97A8;background:#fff;flex:none');
     decline.textContent = 'Customer declined';
     footer.parentElement.insertBefore(decline, footer);
+  })();
+
+  /* =========================================================
+     A customer who is thinking about it.
+
+     The board puts a follow-up date on the screen the estimate is
+     presented from, and it was not built. Without it "they'll think about
+     it" is a conversation nobody wrote down — the tech drives away and
+     the estimate goes quiet.
+
+     Four answers, because a technician standing at a door picks a rough
+     day and not a calendar square, and the date each one means is shown
+     so it is a date and not a phrase.
+     ========================================================= */
+  var FOLLOW_UP = [['Tomorrow', 1], ['In three days', 3], ['Next week', 7],
+    ['In two weeks', 14], ['No follow-up', -1]];
+  var followUpDays = -1;
+  var followField = null;
+
+  function followDate(days) {
+    if (days < 0) return 'Not set';
+    var d = new Date();
+    d.setDate(d.getDate() + days);
+    var M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return M[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+  }
+  function paintFollowUp() {
+    if (followField) followField.textContent = followDate(followUpDays);
+    $$('[data-follow]').forEach(function (r) {
+      var on = +r.dataset.follow === followUpDays;
+      r.style.background = on ? '#F2F5F9' : '';
+      $('.mi,.mif', r).style.visibility = on ? 'visible' : 'hidden';
+    });
+  }
+
+  (function () {
+    var list = byId('followList'); if (!list) return;
+    FOLLOW_UP.forEach(function (spec) {
+      var r = document.createElement('div');
+      r.dataset.tap = '1';
+      r.dataset.follow = String(spec[1]);
+      r.setAttribute('style', 'display:flex;align-items:center;gap:12px;padding:15px 18px;' +
+        'font:500 15.5px/1.2 Geist;border-bottom:1px solid #EDF0F5');
+      r.innerHTML = '<span class="mif" style="font-size:20px;color:#4A6FA5;width:22px">check</span>' +
+        '<span style="flex:1"></span><span data-when style="font:400 13px/1 Geist;color:#8A97A8"></span>';
+      r.children[1].textContent = spec[0];
+      $('[data-when]', r).textContent = spec[1] < 0 ? '' : followDate(spec[1]);
+      list.appendChild(r);
+    });
+    list.addEventListener('click', function (ev) {
+      var r = ev.target.closest('[data-follow]'); if (!r) return;
+      ev.stopPropagation();
+      followUpDays = +r.dataset.follow;
+      remember('followUpDays', followUpDays);
+      closeOverlays(false);
+      paintFollowUp();
+      toast(followUpDays < 0 ? 'No follow-up set'
+        : 'Follow up on ' + followDate(followUpDays), 'event');
+    }, true);
   })();
 
   /* =========================================================
@@ -5259,6 +5353,22 @@
       return norm(e.textContent) === 'Write additional special notes';
     })[0];
     if (!box) { MISS.push('est-customer :: special notes'); return; }
+
+    // the date sits with the note, above the signature it may replace
+    var fu = document.createElement('div');
+    fu.dataset.tap = '1';
+    fu.dataset.go = 'ov-followup';
+    fu.dataset.mode = 'overlay';
+    fu.setAttribute('style', 'display:flex;align-items:center;gap:12px;background:#fff;' +
+      'border:1px solid #DDE3EE;border-radius:11px;padding:12px 14px;margin-top:12px');
+    fu.innerHTML = '<span class="mi" style="font-size:20px;color:#4A6FA5">event</span>' +
+      '<div style="flex:1"><div style="font:500 12.5px/1 Geist;color:#546478">Follow-up date</div>' +
+      '<div data-followval style="font:500 15.5px/1.2 Geist;margin-top:6px"></div></div>' +
+      '<span class="mi" style="font-size:21px;color:#A9B4C2">chevron_right</span>';
+    box.parentElement.insertBefore(fu, box.nextSibling);
+    followField = $('[data-followval]', fu);
+    followUpDays = recall('followUpDays', -1);
+    paintFollowUp();
     var ta = document.createElement('textarea');
     ta.className = 'inp';
     ta.placeholder = 'Write additional special notes';
@@ -5615,6 +5725,18 @@
       mail: row('Send by email'), sms: row('Send by SMS'),
       print: row('Print preview'), del: row('Delete option')
     };
+    /* The board offers a preview and a print; only the preview came across.
+       A technician with a van printer wants the paper, not a picture of it. */
+    if (rows.print) {
+      var paper = rows.print.cloneNode(true);
+      paper.dataset.act = 'optMenuPaper';
+      paper.removeAttribute('data-go');
+      var icon = $('.mi,.mif', paper); if (icon) icon.textContent = 'print';
+      [].slice.call(paper.childNodes).forEach(function (n) {
+        if (n.nodeType === 3 && norm(n.nodeValue)) n.nodeValue = 'Print';
+      });
+      rows.print.parentElement.insertBefore(paper, rows.print.nextSibling);
+    }
     if (rows.note) rows.note.id = 'optMenuNote';
     if (rows.desc) rows.desc.id = 'optMenuDesc';
     Object.keys(rows).forEach(function (k) {
@@ -5668,6 +5790,12 @@
   ACT.optMenuPrint = function () {
     closeOverlays(true);
     go('est-preview', 'modal');
+  };
+  ACT.optMenuPaper = function () {
+    var n = menuName();
+    closeOverlays(true);
+    queued('Estimate');
+    toast(net.online ? n + ' sent to the printer' : n + ' will print when there is signal', 'print');
   };
   ACT.optMenuDel = function () {
     var n = menuName(), card = menuCard;
