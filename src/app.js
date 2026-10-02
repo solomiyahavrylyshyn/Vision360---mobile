@@ -229,6 +229,8 @@
     if (id === 'image-desc') { paintSlotBanner(); paintMediaForm(); }
     if (id === 'closeout') paintCloseout();
     if (PAY_SCREENS.indexOf(id) > -1) paintPayScreens();
+    // a notes sheet opens at the top of its list, not where it was left
+    if (id.indexOf('ov-note-') === 0) { var nl = $('.sc', el); if (nl) nl.scrollTop = 0; }
     chrome();
   }
 
@@ -4436,6 +4438,55 @@
   noteSurface('ov-note-private', 'private');
   noteSurface('job-notes', null);
   paintNotes();
+
+  /* =========================================================
+     The notes opened as a card floating in the middle of the screen,
+     sized to whatever was inside it. Two notes fitted. A job with ten —
+     which is the job these were drawn for, a customer with history — ran
+     off the bottom of the screen with nothing to scroll and no Add button
+     left in reach.
+
+     They are sheets now, the same ones the date picker uses: pinned to
+     the bottom edge where a thumb is, the title and the Add button held
+     still, and only the notes moving between them.
+     ========================================================= */
+  noteSurfaces.forEach(function (sf) {
+    if (sf.screen.indexOf('ov-note-') !== 0) return;
+    var card = sf.box.parentElement;
+    var head = card.firstElementChild;
+    if (!head) { MISS.push(sf.screen + ' :: note sheet'); return; }
+
+    // the private sheet is bordered in amber; whatever a sheet was given,
+    // it keeps
+    var edge = (card.getAttribute('style') || '').match(/border:[^;]+/);
+    card.setAttribute('style',
+      'position:absolute;left:0;right:0;bottom:0;max-height:86%;display:flex;' +
+      'flex-direction:column;background:#fff;border-radius:22px 22px 0 0;overflow:hidden;' +
+      'box-shadow:0 -8px 30px rgba(26,35,50,.22)' + (edge ? ';' + edge[0] : ''));
+
+    var grip = document.createElement('div');
+    grip.setAttribute('style', 'display:flex;justify-content:center;padding:10px 0 4px;flex:none');
+    grip.innerHTML = '<div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div>';
+    card.insertBefore(grip, head);
+
+    // a way back on the left, where every other sheet in the app keeps one
+    var back = document.createElement('span');
+    back.className = 'mi';
+    back.setAttribute('style', 'font-size:22px;color:#546478');
+    back.textContent = 'arrow_back';
+    head.insertBefore(back, head.firstElementChild);
+    // the kind had an icon of its own next to it; the banner right below
+    // already says who reads these, so the icon was only crowding the title
+    var kindIcon = head.children[1];
+    if (kindIcon && kindIcon.classList.contains('mi') &&
+      !/arrow_back|close/.test(kindIcon.textContent)) kindIcon.remove();
+
+    $$(':scope > div', card).forEach(function (el) { el.style.flex = 'none'; });
+    sf.box.className = 'sc';
+    sf.box.style.flex = '1';
+    sf.box.style.overflowY = 'auto';
+    sf.box.style.paddingBottom = '16px';
+  });
 
   /* =========================================================
      Calling the customer on the way is what techs did before it was taken
