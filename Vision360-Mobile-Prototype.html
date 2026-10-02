@@ -1058,6 +1058,27 @@ body.dev #indexBtn{display:flex}
           </div>
         </div>
 
+        <!-- ============ PRICING PREVIEW TYPE ============ -->
+        <!-- Three radios took a third of the screen above the items they
+             were describing. The rows move in here; the screen keeps a
+             field saying which one is chosen. -->
+        <div class="overlay" id="ov-previewtype">
+          <div style="position:absolute;inset:0;background:rgba(28,43,58,.40)" data-back></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:22px 22px 0 0;box-shadow:0 -8px 30px rgba(26,35,50,.22)">
+            <div style="display:flex;justify-content:center;padding:10px 0 4px">
+              <div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div>
+            </div>
+            <div style="padding:6px 16px 10px;border-bottom:1px solid #EDF0F5">
+              <div style="display:flex;align-items:center;gap:10px">
+                <span style="flex:1;font:600 18px/1.25 Geist">Pricing preview type</span>
+                <span class="mi" data-back style="font-size:22px;color:#546478">close</span>
+              </div>
+              <div style="font:400 12.5px/1.45 Geist;color:#8A97A8;margin-top:5px">What the customer sees on the option card when you present it.</div>
+            </div>
+            <div id="previewTypeList" style="padding:6px 0 18px"></div>
+          </div>
+        </div>
+
 <div class="screen" id="home" data-tabs="on">
 <div style="display:flex;gap:10px;align-items:flex-start;padding:12px 16px;background:#1C2B3A;color:#fff;flex:none">
     <span class="mi" style="font-size:19px;color:#9DB4D6;margin-top:1px">campaign</span>
@@ -3501,27 +3522,68 @@ body.dev #indexBtn{display:flex}
       if (cEl) cEl.textContent = base.n + (base.n === 1 ? ' item added' : ' items added');
       if (sEl) sEl.textContent = 'Subtotal ' + fmt(Math.max(0, base.sum));
     }
+    /* Add / Added answered the wrong question. Four filters is a quantity,
+       and the only place to say four was the option screen, two taps back —
+       so the technician added the filter, left, changed the number, and came
+       back for the next item. Adding gives you the number to change, where
+       you are; taking it to zero puts the item back on the shelf. */
+    var STEP = 'display:inline-flex;align-items:center;gap:1px;background:#E7F6EC;' +
+      'border:1px solid #16A34A;border-radius:9px;padding:2px';
+    var STEPBTN = 'width:30px;height:30px;display:flex;align-items:center;justify-content:center;' +
+      'color:#15803D;font-size:19px';
+    var QTYSTYLE = 'min-width:24px;text-align:center;font:700 14px/1 Geist;color:#15803D;' +
+      'font-variant-numeric:tabular-nums';
+
+    function rowOf(p) {
+      return p.closest('div[style*="border-radius:12px"]');
+    }
+    function qtyOf(p) { return parseInt(p.dataset.qty || '0', 10) || 0; }
+    function recount() {
+      var n = 0, sum = 0;
+      pills.forEach(function (p) { var q = qtyOf(p); n += q; sum += q * priceOf(p); });
+      base.n = n; base.sum = sum;
+      render();
+    }
+    function setQty(p, q) {
+      q = Math.max(0, q);
+      p.dataset.qty = String(q);
+      p.dataset.on = q > 0 ? '1' : '0';
+      if (q > 0) {
+        p.setAttribute('style', STEP);
+        p.innerHTML = '<span class="mi" data-qminus style="' + STEPBTN + '">remove</span>' +
+          '<span data-qty style="' + QTYSTYLE + '">' + q + '</span>' +
+          '<span class="mi" data-qplus style="' + STEPBTN + '">add</span>';
+      } else {
+        p.setAttribute('style', ADD.style);
+        p.innerHTML = ADD.html;
+      }
+      var row = rowOf(p);
+      // the board left a green border on rows whose pill had gone back to Add
+      if (row) row.style.border = q > 0 ? '1.5px solid #16A34A' : '1px solid #DDE3EE';
+      recount();
+    }
+
     pills.forEach(function (p) {
-      p.dataset.on = donePills.indexOf(p) > -1 ? '1' : '0';
       p.dataset.tap = '1';
+      // nothing is in the option until the technician puts it there
+      setQty(p, 0);
       p.addEventListener('click', function (ev) {
         ev.stopPropagation();
-        var on = p.dataset.on === '1';
-        p.dataset.on = on ? '0' : '1';
-        p.innerHTML = on ? ADD.html : DONE.html;
-        p.setAttribute('style', on ? ADD.style : DONE.style);
+        var q = qtyOf(p);
+        if (q === 0) q = 1;
+        else if (ev.target.closest('[data-qplus]')) q += 1;
+        else if (ev.target.closest('[data-qminus]')) q -= 1;
+        else return;                       // the number itself is not a button
         p.classList.add('press');
         setTimeout(function () { p.classList.remove('press'); }, 200);
-        base.n = Math.max(0, base.n + (on ? -1 : 1));
-        base.sum += (on ? -1 : 1) * priceOf(p);
-        render();
+        setQty(p, q);
       }, true);
     });
 
     /* What the tech actually ticked, so it can be carried into the option. */
     return {
       selection: function () {
-        return pills.filter(function (p) { return p.dataset.on === '1'; }).map(function (p) {
+        return pills.filter(function (p) { return qtyOf(p) > 0; }).map(function (p) {
           var row = p.parentElement.parentElement;      // right column → the flex row
           var left = row.firstElementChild;
           var texts = $$('div', left).map(function (d) { return norm(d.textContent); });
@@ -3535,19 +3597,12 @@ body.dev #indexBtn{display:flex}
             // every item carries its own type and category — Marek, Sep 10
             type: known ? known.type : 'service',
             cat: known ? known.cat : '',
-            labor: known ? known.labor : 0
+            labor: known ? known.labor : 0,
+            qty: qtyOf(p)
           };
         });
       },
-      clear: function () {
-        pills.forEach(function (p) {
-          if (p.dataset.on !== '1') return;
-          p.dataset.on = '0';
-          p.innerHTML = ADD.html;
-          p.setAttribute('style', ADD.style);
-        });
-        base.n = 0; base.sum = 0; render();
-      }
+      clear: function () { pills.forEach(function (p) { setQty(p, 0); }); }
     };
   }
 
@@ -3675,6 +3730,7 @@ body.dev #indexBtn{display:flex}
       }
       optionItems = [];              // a new option starts empty
       renderOptionItems();
+      paintOptionName();
       go('est-new-option', 'modal');
     },
     estSaveOption: function () {
@@ -3688,6 +3744,7 @@ body.dev #indexBtn{display:flex}
       var added = first ? true : addOption(total, optionItems);
       optionItems = [];
       renderOptionItems();
+      paintOptionName();
       go('est-draft', 'root');
       queued('Estimate');
       toast(added ? 'Option saved to draft estimate' : 'Maximum ' + MAX_OPTIONS + ' options per job');
@@ -3760,12 +3817,13 @@ body.dev #indexBtn{display:flex}
       if (estCatalog) estCatalog.clear();
       if (catalogTarget === 'job') { jobAddPicked(picked); return; }
       picked.forEach(function (it) {
+        var n = it.qty || 1;
         var seen = optionItems.filter(function (o) { return o.name === it.name; })[0];
-        if (seen) seen.qty++;                       // same item twice = quantity, not a duplicate row
+        if (seen) seen.qty += n;                    // the same item again is a quantity, not a row
         else optionItems.push({
           sku: it.sku, name: it.name, desc: it.desc, warranty: it.warranty,
           price: it.price, type: it.type, cat: it.cat, labor: it.labor,
-          qty: 1
+          qty: n
         });
       });
       renderOptionItems();
@@ -4958,7 +5016,115 @@ body.dev #indexBtn{display:flex}
     tabNoteKind = NOTE_ORDER[i];
     paintNotes();
   });
-  seg('est-catalog', ['Repairs', 'Equipment', 'Ductwork', 'IAQ', 'Others'], 0);
+  /* =========================================================
+     The item catalog.
+
+     Five category tabs that all showed the same six items, and a search
+     box that was a drawing of a search box. Six items is also most of the
+     reason: the board names sixteen, and the export brought the first
+     screenful.
+
+     The other ten are added from the board's own list, at the board's own
+     prices and wording, each tab is given something to hold, and both the
+     tabs and the search decide what the list shows.
+     ========================================================= */
+  var CATALOG_ROWS = [
+    ['AC Tune-Up', 'Routine inspection and cleaning of air conditioning system', 129, 'Repairs'],
+    ['Blower Motor Repair', 'Diagnose and repair blower motor malfunction', 350, 'Repairs'],
+    ['Capacitor Replacement', 'Replace faulty run/start capacitor in AC system', 180, 'Repairs'],
+    ['Condenser Coil Cleaning', 'Deep clean outdoor condenser coils for optimal performance', 250, 'Repairs'],
+    ['Drain Pan Replacement', 'Replace rusted or leaking condensate drain pan', 260, 'Repairs'],
+    ['Refrigerant Recharge', 'Refill refrigerant and check for leaks', 350, 'Repairs'],
+    ['Air Handler Replacement', 'Replace indoor air handler unit including labor', 2800, 'Equipment'],
+    ['HVAC System Installation', 'Install complete HVAC system in residential property', 8900, 'Equipment'],
+    ['Mini-Split System Install', 'Install ductless mini-split system for room or zone', 4200, 'Equipment'],
+    ['Thermostat Replacement', 'Replace existing thermostat with programmable or smart unit', 220, 'Equipment'],
+    ['Duct Cleaning', 'Clean air ducts to improve air quality and efficiency', 450, 'Ductwork'],
+    ['HVAC Zoning Setup', 'Install zoning dampers and controls for multi-zone climate', 3500, 'Ductwork'],
+    ['HVAC Filter Replacement', 'Replace standard air filter', 40, 'IAQ'],
+    ['Attic Insulation Top-Up', 'Add insulation to attic to improve efficiency', 1800, 'IAQ'],
+    ['Thermostat Calibration', 'Adjust and calibrate thermostat for accurate temperature control', 90, 'Others'],
+    ['Emergency HVAC Call', '24/7 emergency service visit fee', 150, 'Others']
+  ];
+
+  var catalogFilter = function () { };
+  (function () {
+    var root = byId('est-catalog'); if (!root) return;
+    var sc = $$('.sc', root).pop();
+    var rows = sc ? $$(':scope > div', sc) : [];
+    // the first row is "Add custom item"; the rest are the board's six
+    var tpl = rows[1];
+    if (!sc || !tpl) { MISS.push('est-catalog :: rows'); return; }
+
+    function parts(row) {
+      var left = row.firstElementChild.children[0];
+      var right = row.firstElementChild.children[1];
+      return {
+        name: left.children[0], desc: left.children[1],
+        price: right.children[0], row: row
+      };
+    }
+    var byName = {};
+    rows.slice(1).forEach(function (r) { byName[norm(parts(r).name.textContent)] = r; });
+
+    CATALOG_ROWS.forEach(function (spec) {
+      var row = byName[spec[0]];
+      if (!row) {
+        row = tpl.cloneNode(true);
+        // a clone of an added row would arrive already ticked
+        row.setAttribute('style', 'background:#fff;border:1px solid #DDE3EE;border-radius:12px;padding:13px 14px');
+        sc.appendChild(row);
+        var p0 = parts(row);
+        p0.name.textContent = spec[0];
+        p0.desc.textContent = spec[1];
+        p0.price.textContent = fmt(spec[2]);
+      }
+      row.dataset.cat = spec[3];
+      row.dataset.name = spec[0];
+    });
+
+    var search = null;
+    (function () {
+      var label = $$('span', root).filter(function (e) {
+        return norm(e.textContent) === 'Search for item';
+      })[0];
+      var box = label && label.parentElement;
+      if (!box) { MISS.push('est-catalog :: search'); return; }
+      var inp = document.createElement('input');
+      inp.className = 'inp';
+      inp.placeholder = 'Search for item';
+      inp.setAttribute('style', 'flex:1;height:auto;padding:0;border:0;background:transparent;' +
+        'font:500 15px/1 Geist');
+      box.replaceChild(inp, label);
+      inp.addEventListener('input', function () { catalogFilter(); });
+      search = inp;
+    })();
+
+    var cat = 'Repairs';
+    var empty = document.createElement('div');
+    empty.setAttribute('style', 'padding:30px 16px;text-align:center;font:400 14px/1.5 Geist;color:#8A97A8');
+    sc.appendChild(empty);
+
+    catalogFilter = function () {
+      var q = search ? norm(search.value).toLowerCase() : '';
+      var shown = 0;
+      $$(':scope > div[data-cat]', sc).forEach(function (r) {
+        // a search looks through the whole catalog, not just the open tab
+        var on = q ? r.dataset.name.toLowerCase().indexOf(q) > -1 : r.dataset.cat === cat;
+        r.hidden = !on;
+        if (on) shown++;
+      });
+      empty.hidden = shown > 0;
+      empty.textContent = q ? 'Nothing matches “' + norm(search.value) + '”.' : 'Nothing in this category yet.';
+    };
+
+    seg('est-catalog', ['Repairs', 'Equipment', 'Ductwork', 'IAQ', 'Others'], 0, function (i, label) {
+      cat = label;
+      if (search) search.value = '';
+      catalogFilter();
+    });
+    catalogFilter();
+  })();
   seg('est-new-option', ['Monthly payment + Total', 'Total only', 'Monthly payment only'], 0);
   seg('est-option', ['−20%', '0%', '+20%'], 1);
   /* The radio the customer actually taps. Everything downstream used to
@@ -5653,6 +5819,13 @@ body.dev #indexBtn{display:flex}
     var heading = sel(root, 'Option items')[0];
     optItemsBox = heading && heading.parentElement;
     optEmptyState = heading && heading.nextElementSibling;
+    /* "Add new items" was drawn inside the empty state, so the moment the
+       first item landed the empty state was hidden and the way to add a
+       second went with it. The button is not part of the empty state — it
+       is how the list grows — so it sits outside it. */
+    var addItems = optEmptyState && sel(optEmptyState, '@add^1')[0];
+    if (addItems) optItemsBox.insertBefore(addItems, optEmptyState.nextSibling);
+    else MISS.push('est-new-option :: add new items');
     optSummary = {
       count: valueNextTo(root, '# of items'),
       monthly: valueNextTo(root, 'Monthly payment'),
@@ -6746,22 +6919,76 @@ body.dev #indexBtn{display:flex}
      ========================================================= */
   var PREVIEW = ['both', 'total', 'monthly'];
   var previewMode = 'both';
+  function paintOptionName() {
+    var e = $('[data-optname]'); if (!e) return;
+    e.textContent = 'Option ' + String.fromCharCode(65 + Math.min(optCount, 25));
+  }
+
+  /* =========================================================
+     Two fields at the top of a new option.
+
+     Three radio rows took a third of the screen to say one thing, above
+     the items they were describing — the board draws a field with the
+     answer in it and a chevron. The rows themselves are good rows, so
+     they move into a sheet rather than being redrawn, and keep the wiring
+     they already had.
+
+     The name beside them is the letter the option will be given. It is a
+     field so it reads like the one under it, and it is not editable: the
+     letter is what every card, total and signature refers to.
+     ========================================================= */
+  var FIELD = 'display:block;background:#EDF0F5;border-radius:10px 10px 0 0;' +
+    'border-bottom:1.5px solid #8A97A8;padding:10px 14px 9px;margin-bottom:16px';
+  var previewField = null;
 
   (function () {
     var root = byId('est-new-option'); if (!root) return;
     var head = sel(root, 'Pricing preview type')[0];
-    if (!head) { MISS.push('est-new-option :: preview type'); return; }
-    var why = document.createElement('div');
-    why.setAttribute('style', 'font:400 12.5px/1.45 Geist;color:#8A97A8;margin:-3px 0 9px');
-    why.textContent = 'What the customer sees on the option card when you present it.';
-    head.parentElement.insertBefore(why, head.nextElementSibling);
+    var nameLabel = sel(root, 'Option name')[0];
+    var nameBox = nameLabel && nameLabel.nextElementSibling;
+    var list = byId('previewTypeList');
+    if (!head || !list) { MISS.push('est-new-option :: preview type'); return; }
+
+    // the three rows, into the sheet
+    var rows = ['Monthly payment + Total', 'Total only', 'Monthly payment only']
+      .map(function (l) { var e = sel(root, l)[0]; return e && e.parentElement; });
+    if (rows.some(function (r) { return !r; })) { MISS.push('est-new-option :: preview rows'); return; }
+    // the field takes the heading's place, not the rows' — they sit in a
+    // container of their own
+    var holder = head.parentElement;
+    rows.forEach(function (r) { list.appendChild(r); });
+
+    var field = document.createElement('div');
+    field.dataset.tap = '1';
+    field.dataset.go = 'ov-previewtype';
+    field.dataset.mode = 'overlay';
+    field.setAttribute('style', FIELD);
+    field.innerHTML = '<div style="display:flex;align-items:center;gap:10px">' +
+      '<div style="flex:1"><div style="font:400 12px/1 Geist;color:#546478">Pricing preview type</div>' +
+      '<div data-previewval style="font:400 16px/1.25 Geist;color:#1A2332;margin-top:5px"></div></div>' +
+      '<span class="mi" style="font-size:22px;color:#546478">expand_more</span></div>';
+    holder.insertBefore(field, head);
+    head.remove();
+    previewField = $('[data-previewval]', field);
+    previewField.textContent = 'Monthly payment + Total';
+
+    if (nameBox) {
+      nameLabel.remove();
+      nameBox.setAttribute('style', FIELD);
+      var was = norm(nameBox.textContent);
+      nameBox.innerHTML = '<div style="font:400 12px/1 Geist;color:#546478">Option name</div>' +
+        '<div data-optname style="font:400 16px/1.25 Geist;color:#1A2332;margin-top:5px"></div>';
+      $('[data-optname]', nameBox).textContent = was;
+    }
 
     // the label is a span inside the row; the row is what carries the state
-    seg('est-new-option',
+    seg('ov-previewtype',
       ['Monthly payment + Total^1', 'Total only^1', 'Monthly payment only^1'], 0,
-      function (i) {
+      function (i, label) {
         previewMode = PREVIEW[i];
+        if (previewField) previewField.textContent = label.split('^')[0];
         paintPlanEverywhere();
+        closeOverlays(false);
         toast(i === 0 ? 'Customer sees the monthly and the total'
           : i === 1 ? 'Customer sees the total only'
             : 'Customer sees the monthly only', 'visibility');
