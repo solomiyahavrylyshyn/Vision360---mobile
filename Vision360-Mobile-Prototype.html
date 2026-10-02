@@ -6435,6 +6435,27 @@ body.dev #indexBtn{display:flex}
        route or on site: "Current job", and the pager goes, because there is
        nothing to browse while one job is yours. */
     var pager = counter.parentElement;
+
+    /* When the last job was closed the heading said "Nothing left today"
+       over the card of the customer the tech had just left — name, address,
+       phone and a live En route button for a call that no longer existed.
+       An empty day is its own state, so it gets its own card. */
+    var card = refs.name.closest('div[style*="border-radius:14px"]');
+    var empty = document.createElement('div');
+    empty.hidden = true;
+    empty.setAttribute('style', 'display:flex;flex-direction:column;align-items:center;gap:9px;' +
+      'background:#fff;border:1px solid #DDE3EE;border-radius:14px;padding:30px 22px;text-align:center');
+    empty.innerHTML =
+      '<span class="mif" style="font-size:32px;color:#16A34A">task_alt</span>' +
+      '<div style="font:600 16.5px/1.3 Geist">Every job closed</div>' +
+      '<div style="font:400 13.5px/1.5 Geist;color:#546478">' +
+      'Nothing else is scheduled for you today. Anything dispatch adds shows up here.</div>' +
+      '<div data-tap="1" data-go="timesheet" data-mode="tab" style="margin-top:5px;height:46px;' +
+      'display:flex;align-items:center;justify-content:center;gap:7px;padding:0 20px;background:#fff;' +
+      'border:1px solid #C8D5E8;color:#4A6FA5;border-radius:10px;font:600 14.5px/1 Geist">' +
+      '<span class="mi" style="font-size:19px">schedule</span>See today&rsquo;s hours</div>';
+    card.parentElement.insertBefore(empty, card.nextSibling);
+
     function arrow(el, by) {
       el.dataset.tap = '1';
       el.addEventListener('click', function (ev) { ev.stopPropagation(); jobStep(by); }, true);
@@ -6452,8 +6473,12 @@ body.dev #indexBtn{display:flex}
       if (!j) {
         heading.textContent = 'Nothing left today';
         pager.style.display = 'none';
+        card.hidden = true;
+        empty.hidden = false;
         return;
       }
+      card.hidden = false;
+      empty.hidden = true;
       var open = openJobs(), at = open.indexOf(jobIdx), live = jobActive();
       heading.textContent = live ? 'Current job' : 'Next jobs';
       pager.style.display = (!live && open.length > 1) ? 'flex' : 'none';
