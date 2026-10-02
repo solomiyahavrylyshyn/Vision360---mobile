@@ -5895,13 +5895,39 @@ body.dev #indexBtn{display:flex}
     });
   }
 
+  /* The Timesheet's three buttons moved the clock and nothing else, so
+     pressing Stop there left the card still counting and the green bar
+     still saying "On site" — two answers to the same question.
+
+     It is one clock with two sets of controls. Driving means you have left
+     the house, on site means you are in it, and Stop is the pause the card
+     offers: the job stays yours either way, because leaving for a part is
+     not closing a visit. */
+  function clockMode(m) {
+    if (m === 'drive') { state.enroute = true; state.onsite = false; state.paused = false; }
+    else if (m === 'work') { state.enroute = false; state.onsite = true; state.paused = false; }
+    else { state.enroute = false; state.paused = !!state.onsite; }
+    setClock(m);
+    paintEnroute();
+    paintOnsiteBar();
+    paintJob();
+    paintCard();
+    // the green bar and the Start/Complete buttons are painted on navigation,
+    // and this changes the job without navigating anywhere
+    paintStartButtons();
+    remember('state', state);
+    queued('Job status');
+  }
+
   $$('[data-tsmode]').forEach(function (b) {
     b.dataset.tap = '1';
     b.addEventListener('click', function (ev) {
       ev.stopPropagation();
       var m = b.dataset.tsmode;
-      setClock(m);
-      toast(m === 'off' ? 'Clocked out' : 'Clocked in — ' + MODE_LABEL[m][0].toLowerCase(),
+      clockMode(m);
+      toast(m === 'off'
+        ? (state.paused ? 'Paused — the job is still yours' : 'Clocked out')
+        : 'Clocked in — ' + MODE_LABEL[m][0].toLowerCase(),
         m === 'drive' ? 'navigation' : m === 'work' ? 'play_circle' : 'stop_circle');
     }, true);
   });
