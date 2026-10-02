@@ -5934,11 +5934,14 @@ body.dev #indexBtn{display:flex}
       var n = Math.max(1, mediaBatch);
       mediaCaption.hidden = n < 2;
       mediaCaption.textContent = n + ' ' + plural(n) +
-        ' — one description for all of them';
+        ' — one description for all of them, and a type each afterwards';
     }
-    // the type belongs to a photo, so it is asked for when one is being
-    // described and not when a batch is being filed
-    if (mediaTypeField) toggleDisplay(mediaTypeField, mediaEditing);
+    /* The type belongs to a photo. What could not be asked was one type
+       for a batch of four — but a single shot is one photo, so it is asked
+       the moment there is only one to ask about: straight off the camera,
+       a gallery pick of one, or a photo being described later. A batch of
+       several is typed per photo afterwards, in the viewer. */
+    if (mediaTypeField) toggleDisplay(mediaTypeField, mediaEditing || Math.max(1, mediaBatch) === 1);
     if (mediaHeading) {
       mediaHeading.textContent = mediaEditing
         ? 'Change image description'
