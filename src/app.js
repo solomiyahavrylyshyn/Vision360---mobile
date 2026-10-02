@@ -272,7 +272,7 @@
       remember('state', state);
       remember('jobIdx', jobIdx);
       remember('jobs', JOBS.map(function (j) {
-        return { est: j.est, inv: j.inv, items: j.items, sold: j.sold };
+        return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done };
       }));
     }
     paintDash();
@@ -652,6 +652,7 @@
       state.onsite = true;
       state.enroute = false;          // you've arrived — the en route state is spent
       paintEnroute();
+      paintJob();
       setClock('work');
       go('home-active', 'root');
       queued('Job status');
@@ -660,6 +661,7 @@
     enroute: function () {
       state.enroute = !state.enroute;
       paintEnroute();
+      paintJob();
       setClock(state.enroute ? 'drive' : (state.onsite ? 'work' : 'off'));
       closeOverlays(false);
       queued('Job status');
@@ -899,7 +901,11 @@
       state.enroute = false;
       state.extra = false;
       paintEnroute();
-      jobIdx++;
+      // the queue can be browsed now, so a finished job is struck off it
+      // rather than left behind a cursor
+      if (JOBS[jobIdx]) JOBS[jobIdx].done = true;
+      var left = openJobs();
+      jobIdx = left.length ? left[0] : JOBS.length;
       loadJob();
       paintJob();
       closeOverlays(true);
@@ -2842,10 +2848,11 @@
   paintKPI();
 
   /* =========================================================
-     US-M03-9 (policy) — a technician sees only the job in front of
-     them. The next one unlocks when the current one is closed out, so
-     every call is treated as the only call and nobody cherry-picks.
-     This is why the design's "2 of 3" pager is not wired as a pager.
+     US-M03-9 (policy) — a technician works one job at a time: the one
+     they are driving to or standing on. The queue is still theirs to look
+     at before the day starts, which is what the design's "2 of 3" pager
+     does, but the moment a job goes live the pager leaves and the card is
+     the current job until it is closed out.
      ========================================================= */
   /* A job doesn't always start blank. An install visit arrives with the
      estimate the sales advisor already sold, so the tech's job is the work
@@ -3464,6 +3471,25 @@
   var jobIdx = 0;
   var paintJob = function () { };
 
+  /* A job is live from the moment the tech sets off, not from the moment
+     they arrive — that is when the dispatcher, the customer and the clock
+     all start treating it as the job in hand. Until then it is just the
+     next one on the list. */
+  function jobActive() { return !!(state.onsite || state.enroute); }
+  function openJobs() {
+    var o = [];
+    for (var i = 0; i < JOBS.length; i++) if (!JOBS[i].done) o.push(i);
+    return o;
+  }
+  function jobStep(by) {
+    if (jobActive()) return;
+    var o = openJobs(), at = o.indexOf(jobIdx), to = at + by;
+    if (at < 0 || to < 0 || to >= o.length) return;
+    jobIdx = o[to];
+    loadJob();
+    paintJob();
+  }
+
   /* The job's own estimate/invoice stage becomes the session state, so the
      Estimate and Finance tabs open where this job actually is. */
   function loadJob() {
@@ -3493,13 +3519,21 @@
       MISS.push('home :: current job'); return;
     }
 
-    // The whole pager goes: the arrows let a tech look ahead, and even a bare
-    // "2 of 3" says more work is queued. Neither survives the policy — the
-    // screen shows one job and says nothing about what comes after it.
-    prev.style.display = 'none';
-    next.style.display = 'none';
-    counter.style.display = 'none';
-    heading.textContent = 'Current job';
+    /* The card said "Next jobs" over one job that could not be left, and the
+       pager counted a queue the arrows would not move through.
+
+       Both halves work now, and the heading tells the tech which half they
+       are looking at. Nothing live: "Next jobs", with the arrows walking the
+       calls still open so the day can be seen before it starts. Live — en
+       route or on site: "Current job", and the pager goes, because there is
+       nothing to browse while one job is yours. */
+    var pager = counter.parentElement;
+    function arrow(el, by) {
+      el.dataset.tap = '1';
+      el.addEventListener('click', function (ev) { ev.stopPropagation(); jobStep(by); }, true);
+    }
+    arrow(prev, -1);
+    arrow(next, 1);
 
     // a chip so the tech knows there's already an estimate before opening it
     var estBadge = document.createElement('span');
@@ -3510,8 +3544,15 @@
       var j = JOBS[jobIdx];
       if (!j) {
         heading.textContent = 'Nothing left today';
+        pager.style.display = 'none';
         return;
       }
+      var open = openJobs(), at = open.indexOf(jobIdx), live = jobActive();
+      heading.textContent = live ? 'Current job' : 'Next jobs';
+      pager.style.display = (!live && open.length > 1) ? 'flex' : 'none';
+      counter.textContent = (at + 1) + ' of ' + open.length;
+      prev.style.color = at > 0 ? '#4A6FA5' : '#A9B4C2';
+      next.style.color = at < open.length - 1 ? '#4A6FA5' : '#A9B4C2';
       var b = EST_BADGE[j.est];
       estBadge.hidden = !b;
       if (b) {
@@ -3528,7 +3569,6 @@
       addr.childNodes[0].nodeValue = j.addr;
       awaySpan.textContent = j.away;
     };
-    paintJob();
   }
 
   /* The in-progress screen is the same job — it can't keep showing the
@@ -3568,7 +3608,7 @@
   jobIdx = recall('jobIdx', 0);
   (recall('jobs', []) || []).forEach(function (s, i) {
     if (!JOBS[i] || !s) return;
-    JOBS[i].est = s.est; JOBS[i].inv = s.inv;
+    JOBS[i].est = s.est; JOBS[i].inv = s.inv; JOBS[i].done = !!s.done;
     if (s.items) JOBS[i].items = s.items;
     if (s.sold !== undefined) JOBS[i].sold = s.sold;
   });
@@ -3579,7 +3619,6 @@
   })();
   wireCurrentJob();
   wireActiveJobCard();
-  paintJob();
 
   /* The dashboard's period could only be changed from the Timesheet,
      three screens away from the numbers it governs. The control sits with
@@ -3722,6 +3761,8 @@
     };
     paintEnroute();
   })();
+
+  paintJob();
 
   /* =========================================================
      US-M12-9 — the unsaved-changes bar shows up only once
