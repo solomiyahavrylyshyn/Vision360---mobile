@@ -4671,6 +4671,19 @@
     });
   })();
 
+  /* The line saying when the Report Card last changed is the thing you
+     reach for when you wonder who changed it — and the only part of it that
+     opened anything was the icon at the far end, a 23px target on a line
+     the width of the screen. The line is the control. */
+  (function () {
+    var root = byId('rc-overview'); if (!root) return;
+    var stamp = sel(root, 'Latest change: Oct 7, 2025, 9:09 AM (Marek Stroz)')[0];
+    var strip = stamp && stamp.parentElement;
+    if (!strip) { MISS.push('rc-overview :: latest change'); return; }
+    strip.dataset.tap = '1';
+    strip.dataset.go = 'rc-changes';
+  })();
+
   /* =========================================================
      The Report Card's key, said in one line.
 
