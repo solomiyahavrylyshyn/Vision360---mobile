@@ -4278,6 +4278,27 @@ body.dev #indexBtn{display:flex}
     card.insertBefore(row, nameRow.nextElementSibling);
   })();
 
+  /* Every past job carried a blue chip reading "7 items" in its corner.
+     "Items" means something exact in this app now — the lines that make up
+     what a job is worth — and these are not those: they are the photos and
+     files left on the visit. A paperclip and a number, which is what the
+     number has always been. */
+  (function () {
+    var root = byId('cust-jobs'); if (!root) return;
+    var chips = $$('span', root).filter(function (e) {
+      return /^[0-9]+ items$/.test(norm(e.textContent));
+    });
+    if (!chips.length) { MISS.push('cust-jobs :: attachment counts'); return; }
+    chips.forEach(function (chip) {
+      var n = norm(chip.textContent).split(' ')[0];
+      chip.setAttribute('style', 'display:flex;align-items:center;gap:5px;' +
+        'font:600 12.5px/1 Geist;color:#546478;white-space:nowrap');
+      chip.innerHTML = '<span class="mi" style="font-size:16px;color:#8A97A8">attach_file</span><span></span>';
+      chip.lastElementChild.textContent = n;
+      chip.title = n + ' photos and files on this job';
+    });
+  })();
+
   /* The row said "Additional information · 2" and opened a menu. It now
      discloses the two the customer actually has — the address for sending
      paperwork, and what the technician needs to get through the gate. */
@@ -7363,13 +7384,29 @@ body.dev #indexBtn{display:flex}
     var head = card.firstElementChild;
     if (!head) { MISS.push(sf.screen + ' :: note sheet'); return; }
 
-    // the private sheet is bordered in amber; whatever a sheet was given,
-    // it keeps
-    var edge = (card.getAttribute('style') || '').match(/border:[^;]+/);
     card.setAttribute('style',
       'position:absolute;left:0;right:0;bottom:0;max-height:86%;display:flex;' +
       'flex-direction:column;background:#fff;border-radius:22px 22px 0 0;overflow:hidden;' +
-      'box-shadow:0 -8px 30px rgba(26,35,50,.22)' + (edge ? ';' + edge[0] : ''));
+      'box-shadow:0 -8px 30px rgba(26,35,50,.22)');
+
+    /* The private sheet was amber three times over — its edge, its title bar
+       and the banner under them. The banner is the one saying the thing, so
+       it keeps the colour and the chrome around it goes quiet. */
+    var hs = head.getAttribute('style') || '';
+    head.setAttribute('style', hs
+      .split('background:#FEF3E2;').join('')
+      .split('border-bottom:1px solid #F3D9AE').join('border-bottom:1px solid #EDF0F5'));
+    // the count chip and the close were drawn amber to sit on an amber bar;
+    // off it they are just more orange, so they match the other two sheets
+    $$('span', head).forEach(function (e) {
+      var st = e.getAttribute('style') || '';
+      if (!/#B45309|#D97706|#8A6114/.test(st)) return;
+      e.setAttribute('style', st
+        .split('#B45309').join('#4A6FA5')
+        .split('#D97706').join('#4A6FA5')
+        .split('#8A6114').join('#546478')
+        .split('background:#fff').join('background:#EBF0F8'));
+    });
 
     var grip = document.createElement('div');
     grip.setAttribute('style', 'display:flex;justify-content:center;padding:10px 0 4px;flex:none');
