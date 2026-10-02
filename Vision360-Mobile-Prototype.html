@@ -3272,7 +3272,7 @@ body.dev #indexBtn{display:flex}
       };
     }
     var cur = active;
-    function paint(i) {
+    function paint(i, silent) {
       if (i === cur) return;
       var prev = cur; cur = i;
       els[prev].setAttribute('style', INA);
@@ -3284,7 +3284,7 @@ body.dev #indexBtn{display:flex}
         if (markerFirst && els[i].firstElementChild) els[i].insertBefore(marker, els[i].firstElementChild);
         else els[i].appendChild(marker);
       }
-      if (onPick) onPick(i, labels[i], els[i]);
+      if (onPick && !silent) onPick(i, labels[i], els[i]);
     }
     function setIcon(el, spec) { if (!el) return; el.textContent = spec[0]; el.className = spec[1]; el.setAttribute('style', spec[2]); }
     els.forEach(function (e, i) {
@@ -3367,7 +3367,12 @@ body.dev #indexBtn{display:flex}
       }, true);
       found.push(function () { paint(startOn); });
     });
-    return function reset() { found.forEach(function (f) { f(); }); };
+    // no argument resets to the design's own choice; an index selects one
+    // without calling back, so a painter can mirror state into the control
+    return function (i) {
+      if (i === undefined || i < 0) { found.forEach(function (fn) { fn(); }); return; }
+      paint(i, true);
+    };
   }
 
   /* ---------- catalog Add / Added pills ---------- */
@@ -4051,12 +4056,20 @@ body.dev #indexBtn{display:flex}
       ['Save', 'BACK']
     ],
     'ov-period': [
+      ['~Last week', 'act:pickPeriod'],
+      ['~Last month', 'act:pickPeriod'],
+      ['~Last quarter', 'act:pickPeriod'],
+      ['~Last year', 'act:pickPeriod'],
       ['~Last week', 'BACK'], ['~Last month', 'BACK'],
       ['~Last quarter', 'BACK'], ['~Last year', 'BACK'],
       ['~Custom week', 'period-week'],
       ['~Custom month', 'ov-period-month'],
       ['~Custom quarter', 'period-quarter'],
-      ['~Custom year', 'period-quarter']
+      ['~Custom year', 'period-quarter'],
+      ['~This week', 'act:pickPeriod'],
+      ['~This month', 'act:pickPeriod'],
+      ['~This quarter', 'act:pickPeriod'],
+      ['~This year', 'act:pickPeriod']
     ],
     'ov-period-month': [],
     'period-quarter': [],
@@ -4422,14 +4435,97 @@ body.dev #indexBtn{display:flex}
     });
   });
   ACT.applyPeriod = function (el) {
-    var label = norm(el.textContent).replace(/^Apply · /, '');
+    period = norm(el.textContent).replace(/^Apply · /, '');
     closeOverlays(false);
     popWhile(function (id) { return /^(period-quarter|period-week)$/.test(id); });
-    toast('Period set to ' + label, 'event');
+    paintPeriod();
+    toast('Showing ' + period, 'event');
+  };
+
+  /* ‹ 2024 › was drawn on three pickers and wired on none, and the Apply
+     button underneath kept whatever the mock-up had typed into it — so a
+     technician could step to 2025, tap September, and apply May 2024.
+     The year moves, and the button says what will actually be applied. */
+  var pickState = {};
+  function paintApply(id) {
+    var p = pickState[id]; if (!p || !p.apply) return;
+    p.apply.textContent = 'Apply · ' + p.label();
+  }
+  ['ov-period-month', 'period-quarter', 'period-week'].forEach(function (id) {
+    var root = byId(id); if (!root) return;
+    var apply = $$('div', root).filter(function (e) {
+      return /^Apply · /.test(norm(e.textContent)) && !e.children.length;
+    })[0];
+    var yearEl = $$('span', root).filter(function (e) {
+      return /^(19|20)[0-9][0-9]$/.test(norm(e.textContent)) &&
+        /font:700 17px/.test(e.getAttribute('style') || '');
+    })[0];
+    pickState[id] = {
+      apply: apply,
+      year: function () { return yearEl ? norm(yearEl.textContent) : ''; },
+      pick: null
+    };
+    if (!yearEl) return;
+    var prev = byIcon(root, 'chevron_left')[0], next = byIcon(root, 'chevron_right')[0];
+    if (!prev || !next) return;
+    function step(by) {
+      return function (ev) {
+        ev.stopPropagation();
+        yearEl.textContent = String((parseInt(norm(yearEl.textContent), 10) || 2024) + by);
+        paintApply(id);
+      };
+    }
+    prev.dataset.tap = '1'; next.dataset.tap = '1';
+    prev.addEventListener('click', step(-1), true);
+    next.addEventListener('click', step(1), true);
+  });
+
+  /* =========================================================
+     The period the dashboard is showing.
+
+     The sheet listed twelve ways to pick one and only four of them did
+     anything: This week through This year moved a radio, Custom opened a
+     picker that could not be applied, and Last anything did nothing at
+     all. Nothing told you afterwards what you were looking at either —
+     the heading said "Overview" whichever period was chosen.
+
+     One period, named once, shown in the heading and reflected by the
+     Week/Month/Quarter/Year control when it maps to one of them.
+     ========================================================= */
+  var period = 'This month';
+  var periodRefs = null;
+  var setHomeSeg = null;
+
+  (function () {
+    var root = byId('home'); if (!root) return;
+    var title = sel(root, '~Overview')[0];
+    if (!title) { MISS.push('home :: overview title'); return; }
+    var qualifier = document.createElement('span');
+    qualifier.setAttribute('style', 'font:400 15px/1.2 Geist;color:#8A97A8;margin-left:6px');
+    // before the collapse chevron the other block appended
+    title.insertBefore(qualifier, $('.mi', title));
+    periodRefs = { qualifier: qualifier };
+  })();
+
+  function paintPeriod() {
+    if (periodRefs && periodRefs.qualifier) periodRefs.qualifier.textContent = '(' + period + ')';
+    // the segment only speaks in four words; a custom range is none of them
+    var m = /^This (week|month|quarter|year)$/.exec(period);
+    if (m && setHomeSeg) setHomeSeg(['week', 'month', 'quarter', 'year'].indexOf(m[1]));
+  }
+
+  ACT.pickPeriod = function (el) {
+    period = norm(el.textContent);
+    closeOverlays(false);
+    paintPeriod();
+    toast('Showing ' + period.toLowerCase(), 'event');
   };
 
   /* segmented controls */
-  seg('home', ['Week', 'Month', 'Quarter', 'Year'], 1);
+  setHomeSeg = seg('home', ['Week', 'Month', 'Quarter', 'Year'], 1, function (i) {
+    period = 'This ' + ['week', 'month', 'quarter', 'year'][i];
+    paintPeriod();
+  });
   seg('photos', ['All 24', 'Before 4', 'After 20'], 0);
   seg('job-notes', ['Detailed 2', "Technician's 2", 'Private 1'], 0, function (i) {
     tabNoteKind = NOTE_ORDER[i];
@@ -4525,12 +4621,39 @@ body.dev #indexBtn{display:flex}
   })();
 
   seg('ov-period', ['~This week', '~This month', '~This quarter', '~This year'], 1, function () { setTimeout(back, 240); });
-  seg('ov-period-month', ['January', 'February', 'March', 'April', 'May', 'June', 'July',
-    'August', 'September', 'October', 'November', 'December'], 4);
-  seg('period-quarter', ['Q1^1', 'Q2^1', 'Q3^1', 'Q4^1'], 2);
-  seg('period-quarter', ['2025', '2024', '2023', '2022', '2021', '2020', '2019', '2018'], 1);
-  seg('period-week', ['Week 11^1', 'Week 12^1', 'Week 13^1', 'Week 14^1', 'Week 15^1', 'Week 16^1',
-    'Week 17^1', 'Week 18^1', 'Week 19^1', 'Week 20^1', 'Week 21^1', 'Week 22^1'], 2);
+  (function () {
+    var p = pickState['ov-period-month']; if (!p) return;
+    p.pick = 'May';
+    p.label = function () { return p.pick + ' ' + p.year(); };
+    seg('ov-period-month', ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+      'August', 'September', 'October', 'November', 'December'], 4, function (i, label) {
+        p.pick = label;
+        paintApply('ov-period-month');
+      });
+    paintApply('ov-period-month');
+  })();
+  (function () {
+    var p = pickState['period-quarter']; if (!p) return;
+    p.pick = 'Q2'; p.yearPick = '2024';
+    p.label = function () { return p.pick + ' ' + p.yearPick; };
+    seg('period-quarter', ['Q1^1', 'Q2^1', 'Q3^1', 'Q4^1'], 1, function (i, label) {
+      p.pick = label.split('^')[0];
+      paintApply('period-quarter');
+    });
+    // this screen carries its own list of years rather than a stepper
+    seg('period-quarter', ['2025', '2024', '2023', '2022', '2021', '2020', '2019', '2018'], 1,
+      function (i, label) { p.yearPick = label; paintApply('period-quarter'); });
+    paintApply('period-quarter');
+  })();
+  (function () {
+    var p = pickState['period-week']; if (!p) return;
+    p.pick = 'Week 13';
+    p.label = function () { var y = p.year(); return p.pick + (y ? ' · ' + y : ''); };
+    seg('period-week', ['Week 11^1', 'Week 12^1', 'Week 13^1', 'Week 14^1', 'Week 15^1', 'Week 16^1',
+      'Week 17^1', 'Week 18^1', 'Week 19^1', 'Week 20^1', 'Week 21^1', 'Week 22^1'], 2,
+      function (i, label) { p.pick = label.split('^')[0]; paintApply('period-week'); });
+    paintApply('period-week');
+  })();
   // every Good / Attention / Immediate row on every Report Card screen — the
   // System Analysis rows had never been wired; only their sub-tabs were
   ['rc-section', 'rc-furnace', 'rc-condenser', 'rc-refrigerant'].forEach(ratingRows);
@@ -6253,6 +6376,26 @@ body.dev #indexBtn{display:flex}
   wireCurrentJob();
   wireActiveJobCard();
   paintJob();
+
+  /* The dashboard's period could only be changed from the Timesheet,
+     three screens away from the numbers it governs. The control sits with
+     them now, at the end of the Week/Month/Quarter/Year row — the four
+     shortcuts, then everything else. */
+  (function () {
+    var root = byId('home'); if (!root) return;
+    var week = sel(root, 'Week')[0];
+    var strip = week && week.parentElement;
+    if (!strip) { MISS.push('home :: period strip'); return; }
+    var more = document.createElement('div');
+    more.dataset.tap = '1';
+    more.dataset.go = 'ov-period';
+    more.dataset.mode = 'overlay';
+    more.setAttribute('style', 'flex:none;width:38px;display:flex;align-items:center;' +
+      'justify-content:center;border-radius:7px;color:#546478');
+    more.innerHTML = '<span class="mi" style="font-size:20px">more_vert</span>';
+    strip.appendChild(more);
+    paintPeriod();
+  })();
 
   /* =========================================================
      The job card, in the order the technician reads it.
