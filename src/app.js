@@ -838,12 +838,17 @@
     },
     useCamera: function () {
       mediaBatch = 1;
+      mediaEditing = false;
       closeOverlays(false);
       go('image-desc', 'modal');
     },
+    mediaDescribe: function () { mediaEditing = true; go('image-desc', 'modal'); },
+    mediaMarkup: function () { toast('Markup opens in the phone\'s photo editor', 'gesture'); },
+    mediaDownload: function () { toast('Saved to your photos', 'download'); },
     galDone: function () {
       if (!galPicked.length) return;
       mediaBatch = galPicked.length;
+      mediaEditing = false;
       go('image-desc', 'replace');
     },
     mediaSaved: function () {
@@ -1529,14 +1534,108 @@
     row.remove();
   })();
 
-  /* The photo viewer is drawn white-on-dark — header, pager, chevrons all
-     assume it. The board carried that background on the frame itself, which
-     is the one thing the export does not bring across, so the screen came
-     out on the app's light ground and the header went invisible.
-     Same colour as the image area, so the viewer is one dark surface. */
+  /* =========================================================
+     The photo viewer, the way the board draws it: Media.
+
+     It came out of the export half-dark — the frame carried the black
+     background, which is the one thing the export does not bring across,
+     so a white-on-dark header landed on the app's light ground and went
+     invisible. Painting the screen black fixed the header and left a
+     lightbox in the middle of a light app.
+
+     It is light now, and laid out the way the board lays it out: a title,
+     a row of tools, the photo, what the photo is and says, and the page
+     it is on. The tools were two dead icons in the header — share did
+     nothing at all; they are four that work, and the one that opens the
+     description is among them, so the button that used to say so is gone.
+     ========================================================= */
+  var photoType = recall('photoType', 'After');
+  var paintPhotoType = function () { };
   (function () {
     var v = byId('photo-detail'); if (!v) { MISS.push('photo-detail :: screen'); return; }
-    v.style.background = '#0B1116';
+    var head = v.children[0], img = v.children[1], pager = v.children[2], sheet = v.children[3];
+    if (!head || !img || !pager || !sheet) { MISS.push('photo-detail :: parts'); return; }
+
+    v.style.background = '#F2F5F9';
+    v.dataset.tabs = 'on';
+    if (INFO['photo-detail']) INFO['photo-detail'].tabs = true;
+
+    head.setAttribute('style', 'display:flex;align-items:center;gap:12px;padding:13px 16px;' +
+      'flex:none;background:#fff;border-bottom:1px solid #DDE3EE;color:#1A2332');
+    head.children[0].textContent = 'arrow_back';
+    head.children[1].textContent = 'Media';
+
+    var del = byIcon(head, 'delete_outline')[0];
+    var share = byIcon(head, 'ios_share')[0];
+    if (share) share.remove();
+
+    var bar = document.createElement('div');
+    bar.setAttribute('style', 'display:flex;align-items:center;gap:32px;padding:13px 20px;' +
+      'flex:none;background:#fff;border-bottom:1px solid #EDF0F5');
+    function tool(icon, act) {
+      var e = document.createElement('span');
+      e.className = 'mi';
+      e.dataset.tap = '1';
+      e.dataset.act = act;
+      e.setAttribute('style', 'font-size:23px;color:#1A2332');
+      e.textContent = icon;
+      return e;
+    }
+    bar.appendChild(tool('chat', 'mediaDescribe'));
+    bar.appendChild(tool('gesture', 'mediaMarkup'));
+    bar.appendChild(tool('download', 'mediaDownload'));
+    if (del) {
+      del.setAttribute('style', 'font-size:23px;color:#1A2332');
+      bar.appendChild(del);
+    }
+    v.insertBefore(bar, img);
+
+    img.setAttribute('style', 'flex:1;display:flex;align-items:center;justify-content:center;' +
+      'background:#E4E9F1');
+    var ph = $('.mi,.mif', img);
+    if (ph) ph.setAttribute('style', 'font-size:64px;color:#A9B4C2');
+
+    var row = sheet.children[0];
+    var desc = sheet.children[1];
+    var btn = sheet.children[2];
+    var badge = row && row.children[0];
+    var meta = row && row.children[1];
+    if (!badge || !meta || !desc) { MISS.push('photo-detail :: caption'); return; }
+
+    sheet.setAttribute('style', 'flex:none;background:#F2F5F9;padding:12px 16px 2px');
+    row.setAttribute('style', 'display:flex;align-items:center;gap:9px;flex-wrap:wrap');
+    desc.setAttribute('style', 'font:400 14.5px/1.45 Geist;color:#1A2332');
+    sheet.appendChild(meta);                 // out of the badge row, onto its own line
+    row.appendChild(desc);                   // beside the badge, as the board has it
+    meta.setAttribute('style', 'font:500 12px/1 Geist;color:#8A97A8;margin-top:7px');
+    if (btn) btn.remove();                   // the first tool opens the description now
+
+    var TYPE_COLOUR = { After: '#16A34A', Before: '#4A6FA5', Other: '#546478' };
+    paintPhotoType = function () {
+      badge.setAttribute('style', 'font:600 11.5px/1 Geist;color:#fff;border-radius:5px;' +
+        'padding:5px 8px;flex:none;background:' + (TYPE_COLOUR[photoType] || '#546478'));
+      badge.textContent = photoType;
+      $$('[data-typeval]').forEach(function (e) { e.textContent = photoType; });
+      $$('[data-imgtype]').forEach(function (r) {
+        var on = r.dataset.imgtype === photoType;
+        r.style.background = on ? '#F2F5F9' : '';
+        $('.mi,.mif', r).style.visibility = on ? 'visible' : 'hidden';
+      });
+    };
+
+    // the pager's chevrons were never wired to anything; the board shows the
+    // page as a pill under the caption, and that is all it ever said
+    var pill = document.createElement('div');
+    pill.setAttribute('style', 'display:flex;justify-content:center;padding:12px 0 16px;flex:none');
+    pill.innerHTML = '<span data-mediapage style="background:#fff;border:1px solid #DDE3EE;' +
+      'border-radius:14px;padding:7px 15px;font:600 12.5px/1 Geist;color:#1A2332;' +
+      'font-variant-numeric:tabular-nums"></span>';
+    pager.remove();
+    v.appendChild(pill);
+    // photoCount is declared further down the file; var hoists the name
+    // and not the value, so read the store rather than the variable
+    $('[data-mediapage]', pill).textContent = '1/' + recall('photoCount', 24);
+    paintPhotoType();
   })();
 
   (function () {
@@ -2817,20 +2916,80 @@
   /* How many this save is filing, and — when a Report Card slot owns the
      photo — that Before / After is not the technician's call here. */
   var mediaCaption = null;
-  (function dropTypePicker() {
+  var mediaEditing = false;      // one photo being described, not a batch saved
+  var mediaHeading = null, mediaTypeField = null;
+
+  (function () {
     /* One Before / After for a whole batch is a trap: you tick four photos,
        hit Save, and only then remember two of them were the before shots.
-       Asking once per batch would mislabel them; asking per photo puts the
-       four taps back that the batch just removed. So capture stops
-       claiming to know, and the label is left to be set on the photo
-       itself. A Report Card photo was never labelled this way anyway —
-       the slot names it. */
+       So capture no longer claims to know — the control is gone from the
+       save, and the type is set on the photo itself, which is where the
+       board puts it: a field reading "Image type · After" on the screen you
+       reach from the photo. A Report Card photo is never typed this way
+       anyway; its slot names it. */
     var root = byId('image-desc'); if (!root) return;
-    var typeLabel = sel(root, 'Image type')[0];
+    var sc = $('.sc', root);
+    // scoped to the body: the screen's own title reads 'Image description'
+    // too, and matching that turned the Save button into a form field
+    if (!sc) { MISS.push('image-desc :: form'); return; }
+    var typeLabel = sel(sc, 'Image type')[0];
     var typeRow = typeLabel && typeLabel.nextElementSibling;
-    if (!typeLabel || !typeRow) { MISS.push('image-desc :: type picker'); return; }
-    typeRow.remove();
+    var descLabel = sel(sc, 'Image description')[0];
+    var descBox = descLabel && descLabel.nextElementSibling;
+    if (!typeLabel || !typeRow || !descLabel || !descBox) { MISS.push('image-desc :: form'); return; }
+
+    mediaHeading = document.createElement('div');
+    mediaHeading.setAttribute('style', 'font:600 17px/1.3 Geist;color:#1A2332;margin-bottom:14px');
+    mediaHeading.textContent = 'Change image description';
+    sc.insertBefore(mediaHeading, sc.firstElementChild);
+
+    // a filled field carries its own label, so the one above it goes
+    var FIELD = 'display:block;background:#EDF0F5;border-radius:10px 10px 0 0;' +
+      'border-bottom:1.5px solid #8A97A8;padding:11px 14px 10px';
     typeLabel.remove();
+    typeRow.dataset.tap = '1';
+    typeRow.dataset.go = 'ov-imagetype';
+    typeRow.dataset.mode = 'overlay';
+    typeRow.setAttribute('style', FIELD + ';margin-bottom:18px');
+    typeRow.innerHTML = '<div style="display:flex;align-items:center;gap:10px">' +
+      '<div style="flex:1"><div style="font:400 12px/1 Geist;color:#546478">Image type</div>' +
+      '<div data-typeval style="font:400 16px/1.25 Geist;color:#1A2332;margin-top:5px"></div></div>' +
+      '<span class="mi" style="font-size:22px;color:#546478">expand_more</span></div>';
+    mediaTypeField = typeRow;
+
+    descLabel.remove();
+    descBox.setAttribute('style', FIELD + ';min-height:96px');
+    var dv = descBox.textContent;
+    descBox.innerHTML = '<div style="font:400 12px/1 Geist;color:#546478">Image description</div>' +
+      '<div data-descval style="font:400 16px/1.45 Geist;color:#1A2332;margin-top:5px"></div>';
+    $('[data-descval]', descBox).textContent = norm(dv);
+  })();
+
+  /* the three rows of the type sheet */
+  (function () {
+    var list = byId('imgTypeList'); if (!list) return;
+    // not every shot is a before or an after — a nameplate, a meter
+    // reading, the parking space the van has to fit in
+    ['Before', 'After', 'Other'].forEach(function (t) {
+      var r = document.createElement('div');
+      r.dataset.tap = '1';
+      r.dataset.imgtype = t;
+      r.setAttribute('style', 'display:flex;align-items:center;gap:12px;padding:16px 18px;' +
+        'font:500 15.5px/1 Geist;border-bottom:1px solid #EDF0F5');
+      r.innerHTML = '<span class="mif" style="font-size:20px;color:#4A6FA5;width:22px">check</span>' +
+        '<span></span>';
+      r.children[1].textContent = t;
+      list.appendChild(r);
+    });
+    list.addEventListener('click', function (ev) {
+      var r = ev.target.closest('[data-imgtype]'); if (!r) return;
+      ev.stopPropagation();
+      photoType = r.dataset.imgtype;
+      remember('photoType', photoType);
+      paintPhotoType();
+      closeOverlays(false);
+      toast('Filed as ' + photoType.toLowerCase(), 'photo_library');
+    }, true);
   })();
 
   function paintMediaForm() {
@@ -2852,6 +3011,15 @@
       mediaCaption.textContent = n + ' ' + plural(n) +
         ' — one description for all of them';
     }
+    // the type belongs to a photo, so it is asked for when one is being
+    // described and not when a batch is being filed
+    if (mediaTypeField) toggleDisplay(mediaTypeField, mediaEditing);
+    if (mediaHeading) {
+      mediaHeading.textContent = mediaEditing
+        ? 'Change image description'
+        : 'Describe what you shot';
+    }
+    paintPhotoType();
   }
 
   /* The binding is stated on the description screen, so the tech sees what
