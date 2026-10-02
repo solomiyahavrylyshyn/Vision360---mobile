@@ -3779,16 +3779,33 @@ body.dev #indexBtn{display:flex}
     mediaSaved: function () {
       var bound = pendingSlot;
       var n = Math.max(1, mediaBatch);
+      var wasEditing = mediaEditing;
+      mediaEditing = false;
       if (bound) {
         markSlotFilled(bound);
         pendingSlot = null;
       }
       addMediaThumbs(n);
+      // only a single photo was asked for a type, so only it carries one
+      var typed = (wasEditing || n === 1) ? photoType : '';
+      addPhotoTiles(n, typed);
+      // Other is a real answer and has no chip of its own, so it moves only
+      // the total — the three chips never claim a photo they do not have
+      if (typed && photoTypeCount[typed] !== undefined) {
+        photoTypeCount[typed] += n;
+        remember('photoTypeCount', photoTypeCount);
+        paintTypeCounts();
+      }
       photosThisVisit += n;
       mediaBatch = 1;
-      back();
-      // back() doesn't run the per-screen paint, and the install card is
-      // counting these photos
+      /* Saving used to drop the tech back wherever they happened to have
+         come from, which after a camera shot is a screen with no sign of
+         the photo on it. Land where the photo now lives: on the slot it was
+         shot for, on the photo being described, or on the list it just
+         joined — where it is the first tile. */
+      if (bound || wasEditing) back(); else go('photos', 'replace');
+      // the install card is counting these photos, and neither back() nor a
+      // replace runs its paint
       paintInstall();
       startUpload(n, bound);
       toast(bound
@@ -5568,6 +5585,8 @@ body.dev #indexBtn{display:flex}
      failure can't quietly inflate them.
      ========================================================= */
   var photoCount = recall('photoCount', 24);
+  var photoTypeCount = recall('photoTypeCount', { Before: 4, After: 20 });
+  var paintTypeCounts = function () { };
   var countRefs = [];
   (function () {
     ['home', 'home-active'].forEach(function (id) {
@@ -5578,13 +5597,37 @@ body.dev #indexBtn{display:flex}
     });
     var ph = byId('photos');
     if (ph) {
-      var title = sel(ph, 'Photos')[0];
-      var badge = title && title.nextElementSibling;
-      if (badge && /^\d+$/.test(norm(badge.textContent))) {
-        countRefs.push(function (n) { badge.textContent = String(n); });
-      }
+      /* The header reads "Photos 24" as one span wrapping another, so there
+         was no element whose text was exactly "Photos" to find and no
+         sibling after it — the count was never wired, and the screen showed
+         "Photos 24" over a chip reading "All 25". The number is the span
+         inside the header that is only a number. */
+      var head = $$('span', ph).filter(function (e) {
+        return /flex:1/.test(e.getAttribute('style') || '') && /^Photos\b/.test(norm(e.textContent));
+      })[0];
+      var badge = head && $$('span', head).filter(function (e) {
+        return /^[0-9]+$/.test(norm(e.textContent));
+      })[0];
+      if (badge) countRefs.push(function (n) { badge.textContent = String(n); });
+      else MISS.push('photos :: header count');
+
       var all = sel(ph, 'All 24')[0];
       if (all) countRefs.push(function (n) { all.textContent = 'All ' + n; });
+
+      /* Before and After were fixed numbers on a screen where the type is
+         now the technician's to set, so filing a before shot left the chip
+         saying four. Each chip counts its own. */
+      var typeChips = {
+        Before: sel(ph, 'Before 4')[0],
+        After: sel(ph, 'After 20')[0]
+      };
+      if (!typeChips.Before || !typeChips.After) MISS.push('photos :: type chips');
+      paintTypeCounts = function () {
+        Object.keys(typeChips).forEach(function (k) {
+          if (typeChips[k]) typeChips[k].textContent = k + ' ' + (photoTypeCount[k] || 0);
+        });
+      };
+      paintTypeCounts();
     }
   })();
   function paintPhotoCount() {
@@ -5836,6 +5879,29 @@ body.dev #indexBtn{display:flex}
     // the strip would grow past the card; let it scroll instead
     strip.style.overflowX = 'auto';
     strip.classList.add('sc');
+  }
+
+  /* The job's media strip got the new thumbs and the gallery did not, so
+     saving a photo and opening Photos showed the same twenty-four tiles the
+     board drew. Newest first, wearing its type when one was chosen. */
+  function addPhotoTiles(n, type) {
+    var root = byId('photos'); if (!root) return;
+    var grid = $$('.sc > div', root).filter(function (e) {
+      return /grid-template-columns/.test(e.getAttribute('style') || '');
+    })[0];
+    var tpl = grid && grid.firstElementChild;
+    if (!tpl) { MISS.push('photos :: grid'); return; }
+    for (var i = 0; i < n; i++) {
+      var t = tpl.cloneNode(true);
+      var badge = $$('span', t).filter(function (e) {
+        return /position:absolute/.test(e.getAttribute('style') || '');
+      })[0];
+      if (badge) {
+        // no type was asked for on a batch, so the tile does not claim one
+        if (type) badge.textContent = type.toUpperCase(); else badge.remove();
+      }
+      grid.insertBefore(t, grid.firstElementChild);
+    }
   }
 
   /* How many this save is filing, and — when a Report Card slot owns the
