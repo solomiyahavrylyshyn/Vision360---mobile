@@ -38,6 +38,7 @@
      rest of the boot-time state, because the action that reads it is defined
      far above the pad that sets it. */
   var estSigned = false;
+  var estSignedAt = '';          // the moment the customer actually signed
   var estPresented = false;      // the customer sheet was actually opened
   var payMethod = '';            // which way the money came in, if it did
   var photosThisVisit = 0;       // proof for the install crew, reset per job
@@ -746,6 +747,7 @@
       var total = OPTION_TOTALS[pick] || 0;
       var j = JOBS[jobIdx];
       state.est = 'approved';
+      paintApproved();
       if (j) {
         j.sold = { option: pick, total: total };
         /* Marek: the items on the approved option are the job's items. Nobody
@@ -3938,6 +3940,8 @@
     paintPlanCard();
     ['est-draft', 'est-review', 'est-ready', 'est-customer'].forEach(paintOptionPrices);
     paintOptionSummary();
+    paintCustomerPlan();
+    paintApproved();
   }
 
   /* SOP: four options, every one of them, presented most expensive first.
@@ -4624,7 +4628,8 @@
     var when = sel(root, 'Oct 7, 2025, 9:09 AM')[0];
     signaturePad('est-customer', 'Sign here', function () {
       estSigned = true;
-      if (when) when.textContent = stamp();
+      estSignedAt = stamp();
+      if (when) when.textContent = estSignedAt;
       if (pending) {
         pending.textContent = 'Signed';
         pending.style.background = '#16A34A';
@@ -4885,6 +4890,143 @@
       'padding:11px 16px 2px;text-align:center;font:600 14px/1 Geist;color:#8A97A8;background:#fff;flex:none');
     decline.textContent = 'Customer declined';
     footer.parentElement.insertBefore(decline, footer);
+  })();
+
+  /* =========================================================
+     What the customer is shown, and what the signature records.
+
+     Three screens carried the mock-up's answers instead of the job's.
+
+     The customer's own summary quoted Ally at 12 months whatever the
+     technician had picked on the draft — different finance terms on the
+     screen being signed from the ones that were chosen a tap earlier.
+
+     Its "special notes" box was a div. The one place the customer gets to
+     put something in their own words could not be typed into, and nothing
+     carried it anywhere.
+
+     And Approved was the mock-up end to end: Option C, its four items and
+     $1,109.00, signed by Randy Johnson at 9:09 AM on a date in 2025 —
+     whichever option the customer actually chose and whenever they
+     actually signed. That screen is the record of the sale.
+     ========================================================= */
+  var specialNote = '';
+  var custPlanRefs = null;
+  var approvedRefs = null;
+
+  function planLine() {
+    var p = plan();
+    return p.months ? p.name + ' — ' + p.rate.toFixed(2) + '% / ' + p.months + ' mo' : p.name;
+  }
+  function planTerms(withInterest) {
+    var p = plan();
+    if (!p.months) return 'Paid in full — no financing';
+    return 'Monthly factor ' + (planFactor() * 100).toFixed(2) + '%' +
+      (withInterest ? ' · Interest ' + p.rate.toFixed(2) + '%' : '') +
+      ' · APR ' + p.apr.toFixed(2) + '% · ' + p.months + ' months';
+  }
+
+  function paintCustomerPlan() {
+    if (!custPlanRefs) return;
+    custPlanRefs.name.textContent = planLine();
+    custPlanRefs.terms.textContent = planTerms(false);
+  }
+
+  function paintApproved() {
+    var R = approvedRefs; if (!R) return;
+    var pick = pickedOption;
+    R.name.textContent = pick;
+
+    var items = OPTION_ITEMS[pick] || [];
+    R.items.innerHTML = '';
+    items.forEach(function (it) {
+      // the row is a quantity in a span and the name as the row's own text
+      var row = R.itemTpl.cloneNode(true);
+      var q = $('span', row);
+      if (q) q.textContent = String(it.qty);
+      var txt = [].slice.call(row.childNodes).filter(function (n) {
+        return n.nodeType === 3 && norm(n.nodeValue);
+      })[0];
+      if (txt) txt.nodeValue = ' ' + it.name;
+      else row.appendChild(document.createTextNode(' ' + it.name));
+      R.items.appendChild(row);
+    });
+    R.total.textContent = fmt(OPTION_TOTALS[pick] || 0);
+
+    var when = estSignedAt || stamp();
+    R.stamp.textContent = when;
+    var j = typeof JOBS !== 'undefined' ? JOBS[jobIdx] : null;
+    R.sig.textContent = (j ? j.name : 'Customer') + ' · ' + when;
+    R.rej.textContent = String(Math.max(0, optCount - 1));
+    R.planName.textContent = planLine();
+    R.planTerms.textContent = planTerms(true);
+
+    // the customer's own words, where they were written, on the record
+    R.note.hidden = !specialNote;
+    if (specialNote) R.noteText.textContent = specialNote;
+  }
+
+  (function () {
+    var root = byId('est-customer'); if (!root) return;
+    var sc = $$('.sc', root).pop(); if (!sc) { MISS.push('est-customer :: body'); return; }
+
+    var lbl = sel(root, 'Plan')[0];
+    var row = lbl && lbl.parentElement;
+    if (row && row.children.length >= 3) custPlanRefs = { name: row.children[1], terms: row.children[2] };
+    else MISS.push('est-customer :: plan row');
+
+    var box = $$(':scope > div', sc).filter(function (e) {
+      return norm(e.textContent) === 'Write additional special notes';
+    })[0];
+    if (!box) { MISS.push('est-customer :: special notes'); return; }
+    var ta = document.createElement('textarea');
+    ta.className = 'inp';
+    ta.placeholder = 'Write additional special notes';
+    ta.setAttribute('style', 'width:100%;height:80px;resize:none;padding:13px 14px;' +
+      'background:#fff;border:1px solid #DDE3EE;border-radius:11px;font:400 14.5px/1.5 Geist');
+    box.parentElement.replaceChild(ta, box);
+    ta.addEventListener('input', function () { specialNote = ta.value; });
+  })();
+
+  (function () {
+    var root = byId('est-approved'); if (!root) return;
+    var sc = $$('.sc', root).pop(); if (!sc) { MISS.push('est-approved :: body'); return; }
+    var card = sc.children[1], sig = sc.children[2], rej = sc.children[3], pl = sc.children[4];
+    var stampEl = sel(root, 'Oct 7, 2025, 9:09 AM')[0];
+    var head = card && card.children[0];
+    var items = card && card.children[1];
+    var totalRow = card && card.children[2];
+    if (!stampEl || !head || !items || !items.children.length || !totalRow ||
+      !sig || sig.children.length < 3 || !rej || rej.children.length < 2 ||
+      !pl || pl.children.length < 3) {
+      MISS.push('est-approved :: record'); return;
+    }
+
+    var note = document.createElement('div');
+    note.hidden = true;
+    note.setAttribute('style', 'background:#fff;border:1px solid #DDE3EE;border-radius:12px;' +
+      'padding:14px;margin-bottom:12px');
+    note.innerHTML =
+      '<div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;' +
+      'text-transform:uppercase;margin-bottom:8px">Customer&rsquo;s note</div>' +
+      '<div data-note style="font:400 14.5px/1.5 Geist;color:#1A2332"></div>';
+    sc.insertBefore(note, rej);
+
+    approvedRefs = {
+      stamp: stampEl,
+      name: head.children[1],
+      items: items,
+      itemTpl: items.children[0].cloneNode(true),
+      total: totalRow.children[1],
+      sig: sig.children[2],
+      rej: rej.children[1],
+      planName: pl.children[1],
+      planTerms: pl.children[2],
+      note: note,
+      noteText: $('[data-note]', note)
+    };
+    paintApproved();
+    paintCustomerPlan();
   })();
 
   /* A paid invoice is not the end of the job — the customer can add work,
