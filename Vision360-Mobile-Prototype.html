@@ -6226,12 +6226,6 @@ body.dev #indexBtn{display:flex}
     return cards.length;
   }
 
-  var EST_BADGE = {
-    draft: ['Draft estimate', '#546478', '#F5F7FA', '#DDE3EE'],
-    review: ['Estimate in review', '#B45309', '#FEF3E2', '#F3D9AE'],
-    ready: ['Estimate ready to present', '#15803D', '#E8F6ED', '#B6E3C6'],
-    approved: ['Estimate approved', '#15803D', '#E8F6ED', '#B6E3C6']
-  };
   /* Overview is the tech's own figures — useful in the morning, in the way
      for the rest of the day. Collapse it and the choice sticks. */
   (function () {
@@ -6463,12 +6457,7 @@ body.dev #indexBtn{display:flex}
     arrow(prev, -1);
     arrow(next, 1);
 
-    // a chip so the tech knows there's already an estimate before opening it
-    var estBadge = document.createElement('span');
-    estBadge.hidden = true;
-    refs.type.parentElement.appendChild(estBadge);
-
-    paintJob = function () {
+        paintJob = function () {
       var j = JOBS[jobIdx];
       if (!j) {
         heading.textContent = 'Nothing left today';
@@ -6485,14 +6474,6 @@ body.dev #indexBtn{display:flex}
       counter.textContent = (at + 1) + ' of ' + open.length;
       prev.style.color = at > 0 ? '#4A6FA5' : '#A9B4C2';
       next.style.color = at < open.length - 1 ? '#4A6FA5' : '#A9B4C2';
-      var b = EST_BADGE[j.est];
-      estBadge.hidden = !b;
-      if (b) {
-        estBadge.setAttribute('style',
-          'font:600 11.5px/1 Geist;color:' + b[1] + ';background:' + b[2] +
-          ';border:1px solid ' + b[3] + ';border-radius:5px;padding:4px 7px');
-        estBadge.textContent = b[0];
-      }
       refs.name.textContent = j.name;
       refs.when.textContent = j.when;
       refs.brief.textContent = j.brief;
@@ -6538,12 +6519,27 @@ body.dev #indexBtn{display:flex}
   // pick up where the tech left off: which job, each job's stage, and the
   // session flags — before the cards are painted
   jobIdx = recall('jobIdx', 0);
-  (recall('jobs', []) || []).forEach(function (s, i) {
+  var savedJobs = recall('jobs', []) || [];
+  savedJobs.forEach(function (s, i) {
     if (!JOBS[i] || !s) return;
     JOBS[i].est = s.est; JOBS[i].inv = s.inv; JOBS[i].done = !!s.done;
     if (s.items) JOBS[i].items = s.items;
     if (s.sold !== undefined) JOBS[i].sold = s.sold;
   });
+  /* A day is empty when there are no jobs left in it — nothing else.
+     Before the queue could be browsed, progress was a cursor and
+     everything behind it was finished, so a session saved back then has
+     no "done" on it at all. Read the cursor the way it was meant, then
+     put it back on a job that is still open: otherwise a tech who
+     finished yesterday opened the app to "Nothing left today" over a
+     full list of calls. */
+  if (!savedJobs.some(function (s) { return s && 'done' in s; })) {
+    for (var jd = 0; jd < jobIdx && jd < JOBS.length; jd++) JOBS[jd].done = true;
+  }
+  if (!JOBS[jobIdx] || JOBS[jobIdx].done) {
+    var stillOpen = openJobs();
+    jobIdx = stillOpen.length ? stillOpen[0] : JOBS.length;
+  }
   loadJob();
   (function () {
     var s = recall('state', null);
