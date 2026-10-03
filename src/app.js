@@ -158,7 +158,7 @@
   function estScreen() { return EST[state.est]; }
   function finScreen() {
     if (state.inv === 'paid') return 'inv-paid';
-    if (state.inv === 'sent') return 'inv-sent';
+    if (state.inv === 'sent' || state.inv === 'created') return 'inv-sent';
     return state.extra ? 'add-items' : 'fin-empty';
   }
   function homeScreen() { return state.onsite ? 'home-active' : 'home'; }
@@ -860,6 +860,8 @@
     openExtras: function () { go(extraItems.length ? 'add-items' : 'add-empty', 'replace'); },
     reinvoice: function () {
       state.inv = 'none';                  // a second invoice on the same job
+      invCreatedAt = invSentAt = invPaidAt = '';
+      remember('invCreatedAt', ''); remember('invSentAt', ''); remember('invPaidAt', '');
       go('fin-empty', 'root');
       toast('Start a new invoice for this job', 'note_add');
     },
@@ -893,21 +895,26 @@
     },
 
     createInvoice: function () {
-      if (!invCreatedAt) { invCreatedAt = stamp(); remember('invCreatedAt', invCreatedAt); }
-      invSentAt = stamp(); remember('invSentAt', invSentAt);
+      /* Creating an invoice sent it in the same tap — the technician had no
+         moment to look at it, and the spec keeps five minutes between
+         Created and Sent. It is created; Send invoice sends it. */
+      invCreatedAt = stamp(); remember('invCreatedAt', invCreatedAt);
+      invSentAt = ''; remember('invSentAt', '');
+      invPaidAt = ''; remember('invPaidAt', '');
       // a number of its own: year, month, running count
       var d = new Date();
       invSeq += 1; remember('invSeq', invSeq);
       invNum = 'INV-' + String(d.getFullYear()).slice(-2) + '-' +
         String(d.getMonth() + 1).padStart(2, '0') + '-' + String(invSeq).padStart(3, '0');
       remember('invNum', invNum);
-      state.inv = 'sent';
+      state.inv = 'created';
       paintPayScreens();
       go('inv-sent', 'replace');
-      toast('Invoice ' + invNum + ' created & sent', 'receipt_long');
+      toast('Invoice ' + invNum + ' created — send it when it is ready', 'receipt_long');
     },
     payDone: function () {
       invPaidAt = stamp(); remember('invPaidAt', invPaidAt);
+      if (!invSentAt) { invSentAt = invPaidAt; remember('invSentAt', invSentAt); }
       if (curPage() === 'pay-card' && !net.online) {
         toast('No signal — the card can’t be charged yet', 'cloud_off');
         return;
@@ -2380,7 +2387,7 @@
       var R = { row: row, chev: chev, badge: badge, panel: panel, open: true };
       invRows.push(R);
       row.addEventListener('click', function (ev) {
-        if (state.inv === 'sent' || state.inv === 'paid') {
+        if (state.inv !== 'none') {
           ev.stopPropagation();
           go(finScreen(), 'replace');
           return;
@@ -2394,12 +2401,12 @@
   })();
 
   function paintInvRows() {
-    var has = state.inv === 'sent' || state.inv === 'paid';
+    var has = state.inv !== 'none';
     invRows.forEach(function (R) {
       var open = !has && R.open;
       R.panel.hidden = !open;
       if (R.chev) R.chev.textContent = has ? 'chevron_right' : (open ? 'expand_less' : 'expand_more');
-      R.badge.textContent = has ? (state.inv === 'paid' ? 'Paid' : 'Sent') : 'None';
+      R.badge.textContent = has ? (state.inv === 'paid' ? 'Paid' : state.inv === 'sent' ? 'Sent' : 'Created') : 'None';
       R.badge.setAttribute('style', 'font:600 12px/1 Geist;border-radius:5px;padding:5px 8px;' +
         (state.inv === 'paid' ? 'color:#15803D;background:#E7F6EC'
           : state.inv === 'sent' ? 'color:#4A6FA5;background:#EBF0F8'
@@ -2443,7 +2450,7 @@
     printRow.parentElement.appendChild(voidRow);
   })();
   function paintVoidRow() {
-    if (voidRow) toggleDisplay(voidRow, state.inv === 'sent');
+    if (voidRow) toggleDisplay(voidRow, state.inv === 'sent' || state.inv === 'created');
   }
   ACT.voidInvoice = function () {
     var n = invNo();
@@ -2451,6 +2458,7 @@
     state.inv = 'none';
     invSentAt = ''; remember('invSentAt', '');
     invCreatedAt = ''; remember('invCreatedAt', '');
+    invPaidAt = ''; remember('invPaidAt', '');
     paintPayScreens();
     go('fin-empty', 'root');
     queued('Invoice');
@@ -2459,6 +2467,12 @@
   function sendReceipt(how, icon, verb) {
     closeOverlays(true);
     queued('Invoice');
+    if (state.inv === 'created') {
+      state.inv = 'sent';
+      invSentAt = stamp(); remember('invSentAt', invSentAt);
+      remember('state', state);
+      paintPayScreens();
+    }
     var what = state.inv === 'paid' ? 'Receipt ' + invNo() : 'Invoice ' + invNo();
     toast(net.online ? what + ' ' + verb : what + ' will be ' + how + ' when there is signal', icon);
   }
@@ -3142,6 +3156,49 @@
     paintVoidRow();
   }
 
+  /* The sent screen, before it is sent: a grey CREATED badge, a Sent row
+     still open, and a button that says Send rather than Resend. */
+  function paintSentState() {
+    var root = byId('inv-sent'); if (!root) return;
+    var sent = !!invSentAt && state.inv !== 'created';
+    var badge = $('[data-invbadge]', root) || $$('span', root).filter(function (e) {
+      return !e.children.length && /^(SENT|CREATED)$/.test(norm(e.textContent));
+    })[0];
+    if (badge) {
+      badge.dataset.invbadge = '1';
+      badge.textContent = sent ? 'SENT' : 'CREATED';
+      badge.style.background = sent ? '#4A6FA5' : '#EDF0F5';
+      badge.style.color = sent ? '#fff' : '#546478';
+    }
+    var row = $('[data-sentrow]', root);
+    if (!row) {
+      $$('div', root).forEach(function (e) {
+        if (row || e.children.length !== 1) return;
+        var t = [].slice.call(e.childNodes).filter(function (n) { return n.nodeType === 3 && norm(n.nodeValue); })[0];
+        if (t && /^(Sent |Not sent yet)/.test(norm(t.nodeValue))) row = e;
+      });
+      if (row) row.dataset.sentrow = '1';
+    }
+    if (row) {
+      var ic = $('.mi,.mif', row);
+      var t = [].slice.call(row.childNodes).filter(function (n) { return n.nodeType === 3 && norm(n.nodeValue); })[0];
+      if (ic) {
+        ic.className = sent ? 'mif' : 'mi';
+        ic.textContent = sent ? 'check_circle' : 'radio_button_unchecked';
+        ic.style.color = sent ? '#4A6FA5' : '';
+      }
+      if (t) t.nodeValue = sent ? 'Sent ' + invSentAt : 'Not sent yet';
+      row.style.color = sent ? '#546478' : '#A9B4C2';
+    }
+    var btn = $('[data-sendbtn]', root) || $$('[data-go="ov-inv-share"]', root).filter(function (e) { return byIcon(e, 'send').length; })[0];
+    if (btn) {
+      btn.dataset.sendbtn = '1';
+      [].slice.call(btn.childNodes).forEach(function (n) {
+        if (n.nodeType === 3 && norm(n.nodeValue)) n.nodeValue = sent ? 'Resend invoice' : 'Send invoice';
+      });
+    }
+  }
+
   /* The invoice screens carried the board's numbers and the board's clock. */
   function paintInvoice(total, down) {
     var due = Math.max(0, total - down);
@@ -3171,6 +3228,7 @@
       });
     });
     paintExtraCounts();
+    paintSentState();
   }
 
   function paintCash(received) {
