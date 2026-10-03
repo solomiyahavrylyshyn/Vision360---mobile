@@ -2853,18 +2853,16 @@
      carry is in view before it is created.
      ========================================================= */
   (function () {
-    var fin = byId('fin-empty'), add = byId('add-items');
-    if (!fin || !add) return;
-    var head = sel(fin, 'Additional items')[0];
-    var row = head && head.parentElement; if (!row) return;
-    var srcHead = sel(add, 'Additional items')[0];
-    var card = srcHead;
-    while (card && !/border-radius:12px/.test(card.getAttribute('style') || '')) card = card.parentElement;
-    if (!card) { MISS.push('add-items :: extras card'); return; }
-    var chev = byIcon(card.children[0], 'expand_less')[0] || byIcon(card.children[0], 'expand_more')[0];
-    if (chev) chev.remove();
-    row.parentElement.insertBefore(card, row);
-    row.remove();
+    var fin = byId('fin-empty'); if (!fin) return;
+    /* Like the estimate's empty state: one card, one button. Items, the
+       approved estimate, the customer's details and payment all belong to
+       the invoice, and appear once there is one. */
+    ['Additional items', 'Approved estimate'].forEach(function (name) {
+      var head = sel(fin, name)[0];
+      var row = head && head.parentElement;
+      while (row && !/border-radius:12px/.test(row.getAttribute('style') || '')) row = row.parentElement;
+      if (row) toggleDisplay(row, false);
+    });
   })();
 
   /* =========================================================
@@ -2885,7 +2883,7 @@
       'box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left .15s;left:' + (on ? '21px' : '3px') + '"></span></span>';
   }
   (function () {
-    ['fin-empty', 'inv-sent'].forEach(function (id) {
+    ['inv-sent'].forEach(function (id) {
       var root = byId(id); if (!root) return;
       var head = sel(root, 'Approved estimate')[0];
       var card = head && head.parentElement;
