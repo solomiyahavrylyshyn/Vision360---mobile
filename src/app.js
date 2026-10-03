@@ -2916,7 +2916,7 @@
     attachRows.forEach(function (A) {
       var track = $('[data-swtrack]', A.row), knob = $('[data-swknob]', A.row);
       var on = has && invAttachEst;
-      A.row.style.opacity = has ? '' : '.55';
+      A.row.style.opacity = (has && state.inv !== 'sent') ? '' : '.55';
       track.style.background = on ? '#4A6FA5' : '#DDE3EE';
       knob.style.left = on ? '21px' : '3px';
       $('[data-attachsub]', A.row).textContent = has
@@ -2928,6 +2928,7 @@
   }
   ACT.attachEst = function () {
     var j = JOBS[jobIdx] || {};
+    if (state.inv === 'sent') { toast('The invoice has been sent — void it to change what it carries', 'lock'); return; }
     if (!(state.est === 'approved' && j.sold)) { toast('Nothing approved on this job yet', 'info'); return; }
     invAttachEst = !invAttachEst; remember('invAttachEst', invAttachEst);
     paintAttach();
@@ -2996,14 +2997,16 @@
     var ph = paid && $$('span', paid).filter(function (e) { return !e.children.length && /^invoice details$/i.test(norm(e.textContent)); })[0];
     var pcard = ph;
     while (pcard && !/border-radius:12px/.test(pcard.getAttribute('style') || '')) pcard = pcard.parentElement;
-    if (pcard) sc.insertBefore(pcard.cloneNode(true), sendBtn);
+    var details = pcard ? pcard.cloneNode(true) : null;
+    if (details) sc.insertBefore(details, sendBtn);
 
     // and the step after it
     var take = document.createElement('div');
     take.dataset.go = 'pay-step'; take.dataset.tap = '1'; take.dataset.takebtn = '1';
     take.innerHTML = '<span class="mi" style="font-size:20px">payments</span>Take payment';
     sc.insertBefore(take, sendBtn.nextSibling);
-    invLines = { lines: $('[data-invlines]', items), total: $('[data-invtotal]', items), take: take, send: sendBtn };
+    invLines = { lines: $('[data-invlines]', items), total: $('[data-invtotal]', items), take: take, send: sendBtn,
+      add: $('[data-go="add-catalog"]', items), change: details && $('[data-go="inv-details"]', details) };
   })();
 
   function paintInvLines() {
@@ -3038,9 +3041,13 @@
     });
     invLines.total.textContent = fmt(invoiceTotal());
 
-    // created: send first, payment offered; sent: payment is the step
+    // created: send first, payment offered; sent: payment is the step —
+    // and what went out is what went out: nothing is added or changed on a
+    // sent invoice, it is voided and made again
     var sent = state.inv === 'sent';
     toggleDisplay(invLines.send, !sent);
+    if (invLines.add) toggleDisplay(invLines.add, !sent);
+    if (invLines.change) toggleDisplay(invLines.change, !sent);
     invLines.take.setAttribute('style', 'height:52px;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:11px;font:600 15.5px/1 Geist;' +
       (sent ? 'background:#16A34A;color:#fff' : 'background:#fff;border:1.5px solid #4A6FA5;color:#4A6FA5') +
       ';margin-top:' + (sent ? '0' : '10px'));
