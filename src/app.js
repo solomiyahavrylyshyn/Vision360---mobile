@@ -2419,6 +2419,43 @@
     if (pv && pv.parentElement) toggleDisplay(pv.parentElement, false);
   })();
   function invNo() { return invNum || 'INV-26-03-123'; }
+
+  /* A sent invoice could only be paid. A wrong one — sent before the extra
+     work was added, or to the wrong address — could not be taken back, and
+     the Finance tab led to it for the rest of the job. The ⋮ menu voids an
+     unpaid invoice: its number is spent, the tab goes back to "Create
+     invoice", and the next one gets the next number. */
+  var voidRow = null;
+  (function () {
+    var menu = byId('ov-inv-share'); if (!menu) return;
+    var printRow = byIcon(menu, 'print')[0];
+    printRow = printRow && printRow.parentElement; if (!printRow) return;
+    voidRow = printRow.cloneNode(true);
+    voidRow.removeAttribute('data-go');
+    voidRow.dataset.act = 'voidInvoice';
+    voidRow.dataset.tap = '1';
+    var ic = $('.mi,.mif', voidRow);
+    if (ic) { ic.textContent = 'block'; ic.style.color = '#DC2626'; }
+    [].slice.call(voidRow.childNodes).forEach(function (n) {
+      if (n.nodeType === 3 && norm(n.nodeValue)) n.nodeValue = 'Void invoice';
+    });
+    voidRow.style.color = '#DC2626';
+    printRow.parentElement.appendChild(voidRow);
+  })();
+  function paintVoidRow() {
+    if (voidRow) toggleDisplay(voidRow, state.inv === 'sent');
+  }
+  ACT.voidInvoice = function () {
+    var n = invNo();
+    closeOverlays(true);
+    state.inv = 'none';
+    invSentAt = ''; remember('invSentAt', '');
+    invCreatedAt = ''; remember('invCreatedAt', '');
+    paintPayScreens();
+    go('fin-empty', 'root');
+    queued('Invoice');
+    toast('Invoice ' + n + ' voided — the job has no invoice now', 'block');
+  };
   function sendReceipt(how, icon, verb) {
     closeOverlays(true);
     queued('Invoice');
@@ -3102,6 +3139,7 @@
     paintEstSection();
     paintBillTo();
     paintInvRows();
+    paintVoidRow();
   }
 
   /* The invoice screens carried the board's numbers and the board's clock. */
