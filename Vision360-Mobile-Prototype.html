@@ -3090,6 +3090,7 @@ body.dev #indexBtn{display:flex}
   var RATING = ['Good', 'Attention', 'Immediate'];   // the Report Card's three-state control
   var RC_GROUPS = {                                   // overview badges: design baseline + what the tech changes
     'Household Analysis': { base: 4, screens: ['rc-section'] },
+    'Comfort Analysis': { base: 2, screens: ['rc-comfort'] },
     'System Analysis': { base: 4, screens: ['rc-furnace', 'rc-condenser', 'rc-refrigerant'] }
   };
 
@@ -3148,7 +3149,7 @@ body.dev #indexBtn{display:flex}
   function finScreen() {
     if (state.inv === 'paid') return 'inv-paid';
     if (state.inv === 'sent' || state.inv === 'created') return 'inv-sent';
-    return state.extra ? 'add-items' : 'fin-empty';
+    return 'fin-empty';
   }
   function homeScreen() { return state.onsite ? 'home-active' : 'home'; }
 
@@ -3933,7 +3934,7 @@ body.dev #indexBtn{display:flex}
       remember('extraItems', extraItems);
       state.extra = extraItems.length > 0;
       renderExtras();
-      go('add-items', 'replace');
+      go(finScreen(), 'replace');
       var n = picked.reduce(function (a, it) { return a + (it.qty || 1); }, 0);
       toast(n ? n + ' ' + (n === 1 ? 'item' : 'items') + ' added to the invoice'
         : 'Nothing added', 'playlist_add');
@@ -5321,7 +5322,7 @@ body.dev #indexBtn{display:flex}
       var card = head && head.parentElement;
       while (card && !card.classList.contains('sc') &&
         !/border-radius:12px/.test(card.getAttribute('style') || '')) card = card.parentElement;
-      if (card && !card.classList.contains('sc')) toggleDisplay(card, state.est === 'approved');
+      if (card && !card.classList.contains('sc') && !(id === 'fin-empty' || id === 'inv-sent')) toggleDisplay(card, state.est === 'approved');
     });
   }
 
@@ -5609,77 +5610,85 @@ body.dev #indexBtn{display:flex}
       'style="' + FBOX + 'width:100%;min-width:0;outline:none;' + FVAL + (fd.k === 'amount' ? 'padding-left:28px' : '') + '"></div>';
   }
 
+  /* The invoice flow walks like the estimate's: one screen per state, one
+     main action each. Payments is a step reached from the invoice — not a
+     section on every Finance screen — and Invoice details live on the
+     invoice itself. The rows the board drew for them are put away. */
   var payPanels = [];
   (function () {
     ['fin-empty', 'add-empty', 'add-items', 'inv-sent'].forEach(function (id) {
       var root = byId(id); if (!root) return;
-      var head = sel(root, 'Payments')[0];
-      var row = head && head.parentElement;
-      if (!row) { MISS.push(id + ' :: Payments row'); return; }
-      var chev = byIcon(row, 'expand_more')[0] || byIcon(row, 'expand_less')[0];
-
-      var card = document.createElement('div');
-      card.setAttribute('style', 'background:#fff;border:1px solid #DDE3EE;border-radius:12px');
-      row.parentElement.insertBefore(card, row);
-      card.appendChild(row);
-      row.setAttribute('style', 'display:flex;align-items:center;gap:9px;padding:15px 14px');
-      row.removeAttribute('data-go'); row.removeAttribute('data-mode'); row.removeAttribute('data-act');
-      row.dataset.tap = '1';
-
-      var panel = document.createElement('div');
-      panel.setAttribute('style', 'padding:0 14px 14px');
-      panel.innerHTML =
-        '<div data-paymethod data-tap="1" style="' + FBOX + 'height:52px;display:flex;align-items:center;justify-content:space-between;gap:8px">' +
-        '<div><div style="' + FLAB + '">Payment method</div><div data-paymname style="' + FVAL + '"></div></div>' +
-        '<span class="mi" style="font-size:22px;color:#546478">expand_more</span></div>' +
-        '<div data-payfields></div>' +
-        '<div data-paychange style="display:none;justify-content:space-between;padding:10px 2px 0;font:400 13.5px/1 Geist;color:#546478"><span>Change due</span><span data-paychangeval style="font:600 13.5px/1 Geist;color:#1A2332">$0.00</span></div>' +
-        '<div style="margin-top:14px;display:flex;flex-direction:column;gap:8px;font:400 13.5px/1 Geist;color:#546478">' +
-        '<div style="display:flex;justify-content:space-between"><span>Down payment amount</span><span data-paydown style="font:600 13.5px/1 Geist;color:#1A2332"></span></div>' +
-        '<div style="display:flex;justify-content:space-between"><span>Total</span><span data-paytotal style="font:600 13.5px/1 Geist;color:#1A2332"></span></div>' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px"><span style="font:600 15px/1 Geist;color:#1A2332">To be paid</span><span data-paydue style="font:700 20px/1 Geist;letter-spacing:-.01em;color:#1C2B3A"></span></div></div>' +
-        '<div data-act="payInline" data-tap="1" style="height:50px;display:flex;align-items:center;justify-content:center;gap:8px;' +
-        'background:#16A34A;color:#fff;border-radius:10px;font:600 15.5px/1 Geist;margin-top:14px"><span data-paybtn></span></div>';
-      card.appendChild(panel);
-
-      var P = { id: id, row: row, chev: chev, panel: panel, rendered: '' };
-      payPanels.push(P);
-      row.addEventListener('click', function (ev) {
-        ev.stopPropagation();
-        pay.open = !pay.open; savePay();
-        paintPayPanels();
-      }, true);
-
-      // the method is a list under its field
-      var box = $('[data-paymethod]', panel);
-      var drop = dropdown(box);
-      drop.panel.dataset.maxh = '320px';
-      PAY_METHODS.forEach(function (m, i) { drop.panel.appendChild(pickRow(i, i === 0, m.name, '', 'paym')); });
-      P.drop = drop;
-      box.addEventListener('click', function (ev) {
-        if (ev.target.closest('[data-paym]')) return;
-        ev.stopPropagation();
-        drop.toggle();
-      }, true);
-      drop.panel.addEventListener('click', function (ev) {
-        var r = ev.target.closest('[data-paym]'); if (!r) return;
-        ev.stopPropagation();
-        pay.method = PAY_METHODS[+r.dataset.paym].id; savePay();
-        drop.close();
-        paintPayPanels();
-      }, true);
-
-      // what is typed is kept; the cash field moves the change due
-      panel.addEventListener('input', function (ev) {
-        var inp = ev.target.closest('[data-pkey]'); if (!inp) return;
-        pay.values[inp.dataset.pkey] = inp.value; savePay();
-        payPanels.forEach(function (Q) {
-          if (Q === P) return;
-          var o = $('[data-pkey="' + inp.dataset.pkey + '"]', Q.panel);
-          if (o && o.value !== inp.value) o.value = inp.value;
-        });
-        paintPayChange();
+      ['Payments', 'Invoice details'].forEach(function (name) {
+        var head = sel(root, name)[0];
+        var row = head && head.parentElement;
+        // the row may already sit in a card wrapper of its own
+        if (row && row.parentElement && !row.parentElement.classList.contains('sc')) row = row.parentElement;
+        if (row) toggleDisplay(row, false);
       });
+    });
+
+    // the step: a screen of its own, built like the payment screens the board drew
+    var screen = document.createElement('div');
+    screen.className = 'screen';
+    screen.id = 'pay-step';
+    screen.dataset.tabs = 'off';
+    screen.innerHTML =
+      '<div style="display:flex;align-items:center;gap:12px;padding:13px 16px;background:#fff;border-bottom:1px solid #DDE3EE;flex:none">' +
+      '<span class="mi" style="font-size:24px;padding:6px;margin:-6px" data-tap="1" data-back="1">arrow_back</span>' +
+      '<span style="flex:1;font:600 18px/1.2 Geist">Take payment</span></div>' +
+      '<div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">' +
+      '<div><div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase">Invoice</div>' +
+      '<div data-payinv style="font:600 16px/1.2 Geist;margin-top:5px"></div></div>' +
+      '<div style="text-align:right"><div style="font:400 12.5px/1 Geist;color:#546478">Amount due</div>' +
+      '<div data-payinvdue style="font:700 20px/1 Geist;letter-spacing:-.01em;color:#1C2B3A;margin-top:4px"></div></div></div>' +
+      '<div data-paypanel></div></div>' +
+      '<div style="padding:14px 16px;background:#fff;border-top:1px solid #DDE3EE;flex:none">' +
+      '<div data-act="payInline" data-tap="1" style="height:54px;display:flex;align-items:center;justify-content:center;gap:8px;' +
+      'background:#16A34A;color:#fff;border-radius:11px;font:600 16px/1 Geist"><span class="mif" style="font-size:20px">check_circle</span>' +
+      '<span data-paybtn></span></div></div>';
+    viewport.appendChild(screen);
+    INFO['pay-step'] = { id: 'pay-step', title: 'Take payment', section: 'app', tabs: false, overlay: false };
+
+    var panel = $('[data-paypanel]', screen);
+    panel.innerHTML =
+      '<div data-paymethod data-tap="1" style="' + FBOX + 'height:52px;display:flex;align-items:center;justify-content:space-between;gap:8px">' +
+      '<div><div style="' + FLAB + '">Payment method</div><div data-paymname style="' + FVAL + '"></div></div>' +
+      '<span class="mi" style="font-size:22px;color:#546478">expand_more</span></div>' +
+      '<div data-payfields></div>' +
+      '<div data-paychange style="display:none;justify-content:space-between;padding:10px 2px 0;font:400 13.5px/1 Geist;color:#546478"><span>Change due</span><span data-paychangeval style="font:600 13.5px/1 Geist;color:#1A2332">$0.00</span></div>' +
+      '<div style="margin-top:16px;background:#fff;border:1px solid #DDE3EE;border-radius:12px;overflow:hidden">' +
+      '<div style="display:flex;justify-content:space-between;padding:13px 14px;border-bottom:1px solid #EDF0F5;font:400 14.5px/1 Geist;color:#546478"><span>Down payment amount</span><span data-paydown style="font:600 14.5px/1 Geist;color:#1A2332"></span></div>' +
+      '<div style="display:flex;justify-content:space-between;padding:13px 14px;border-bottom:1px solid #EDF0F5;font:400 14.5px/1 Geist;color:#546478"><span>Total</span><span data-paytotal style="font:600 14.5px/1 Geist;color:#1A2332"></span></div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:14px;background:#EBF0F8"><span style="font:600 15px/1 Geist">To be paid</span><span data-paydue style="font:700 22px/1 Geist;letter-spacing:-.01em;color:#1C2B3A"></span></div></div>';
+
+    var P = { id: 'pay-step', root: screen, panel: panel, rendered: '' };
+    payPanels.push(P);
+
+    // the method is a list under its field
+    var box = $('[data-paymethod]', panel);
+    var drop = dropdown(box);
+    drop.panel.dataset.maxh = '320px';
+    PAY_METHODS.forEach(function (m, i) { drop.panel.appendChild(pickRow(i, i === 0, m.name, '', 'paym')); });
+    P.drop = drop;
+    box.addEventListener('click', function (ev) {
+      if (ev.target.closest('[data-paym]')) return;
+      ev.stopPropagation();
+      drop.toggle();
+    }, true);
+    drop.panel.addEventListener('click', function (ev) {
+      var r = ev.target.closest('[data-paym]'); if (!r) return;
+      ev.stopPropagation();
+      pay.method = PAY_METHODS[+r.dataset.paym].id; savePay();
+      drop.close();
+      paintPayPanels();
+    }, true);
+
+    // what is typed is kept; the cash field moves the change due
+    panel.addEventListener('input', function (ev) {
+      var inp = ev.target.closest('[data-pkey]'); if (!inp) return;
+      pay.values[inp.dataset.pkey] = inp.value; savePay();
+      paintPayChange();
     });
     paintPayPanels();
   })();
@@ -5740,15 +5749,15 @@ body.dev #indexBtn{display:flex}
     var total = invoiceTotal();
     var down = Math.max(0, total - due);
     payPanels.forEach(function (P) {
-      P.panel.hidden = !pay.open;
-      if (P.chev) P.chev.textContent = pay.open ? 'expand_less' : 'expand_more';
       $('[data-paymname]', P.panel).textContent = m.name;
+      var inv = $('[data-payinv]', P.root); if (inv) inv.textContent = invNo();
+      var invDue = $('[data-payinvdue]', P.root); if (invDue) invDue.textContent = fmt(due);
       if (P.drop) paintTicks(P.drop.panel, 'paym', PAY_METHODS.indexOf(m));
       if (P.rendered !== m.id) renderPayFields(P);
       $('[data-paydown]', P.panel).textContent = fmt(down);
       $('[data-paytotal]', P.panel).textContent = fmt(total);
       $('[data-paydue]', P.panel).textContent = fmt(due);
-      $('[data-paybtn]', P.panel).textContent = m.btn;
+      $('[data-paybtn]', P.root || P.panel).textContent = m.btn;
     });
     paintPayChange();
   }
@@ -5811,46 +5820,6 @@ body.dev #indexBtn{display:flex}
      editor, so the technician could not simply look.
      ========================================================= */
   var detailPanels = [];
-  var detailsOpen = false;
-  (function () {
-    ['fin-empty', 'add-empty', 'add-items'].forEach(function (id) {
-      var root = byId(id); if (!root) return;
-      var head = sel(root, 'Invoice details')[0];
-      var row = head && head.parentElement;
-      if (!row) { MISS.push(id + ' :: Invoice details row'); return; }
-      var chev = byIcon(row, 'expand_more')[0] || byIcon(row, 'expand_less')[0];
-
-      var card = document.createElement('div');
-      card.setAttribute('style', 'background:#fff;border:1px solid #DDE3EE;border-radius:12px');
-      row.parentElement.insertBefore(card, row);
-      card.appendChild(row);
-      row.setAttribute('style', 'display:flex;align-items:center;gap:9px;padding:15px 14px');
-      row.removeAttribute('data-go'); row.removeAttribute('data-mode'); row.removeAttribute('data-act');
-      row.dataset.tap = '1';
-
-      var panel = document.createElement('div');
-      panel.hidden = true;
-      panel.setAttribute('style', 'padding:0 14px 14px');
-      panel.innerHTML =
-        '<div style="font:600 13.5px/1 Geist;color:#1A2332">Customer:</div>' +
-        '<div data-dtname style="font:400 14.5px/1.4 Geist;color:#546478;margin-top:4px"></div>' +
-        '<div style="font:600 13.5px/1 Geist;color:#1A2332;margin-top:14px">Address:</div>' +
-        '<div data-dtaddr style="font:400 14.5px/1.4 Geist;color:#546478;margin-top:4px"></div>' +
-        '<div data-go="inv-details" data-mode="modal" data-tap="1" style="height:48px;display:flex;align-items:center;' +
-        'justify-content:center;background:#4A6FA5;color:#fff;border-radius:10px;font:600 15px/1 Geist;margin-top:16px">' +
-        'Change invoice details</div>';
-      card.appendChild(panel);
-
-      detailPanels.push({ row: row, chev: chev, panel: panel });
-      row.addEventListener('click', function (ev) {
-        ev.stopPropagation();
-        detailsOpen = !detailsOpen;
-        paintDetailPanels();
-      }, true);
-    });
-    paintDetailPanels();
-  })();
-
   function paintDetailPanels() {
     if (!detailPanels || !detailPanels.length) return;
     var ins = $$('input', byId('inv-details') || document.createElement('div'));
@@ -5865,6 +5834,364 @@ body.dev #indexBtn{display:flex}
       $('[data-dtaddr]', P.panel).textContent = addr;
     });
   }
+
+  /* =========================================================
+     Step one — nothing invoiced yet. The additional items are not behind a
+     row that leads to another screen; the list the board drew for that
+     screen is the list here, with its Add button, so what the invoice will
+     carry is in view before it is created.
+     ========================================================= */
+  (function () {
+    var fin = byId('fin-empty'), add = byId('add-items');
+    if (!fin || !add) return;
+    var head = sel(fin, 'Additional items')[0];
+    var row = head && head.parentElement; if (!row) return;
+    var srcHead = sel(add, 'Additional items')[0];
+    var card = srcHead;
+    while (card && !/border-radius:12px/.test(card.getAttribute('style') || '')) card = card.parentElement;
+    if (!card) { MISS.push('add-items :: extras card'); return; }
+    var chev = byIcon(card.children[0], 'expand_less')[0] || byIcon(card.children[0], 'expand_more')[0];
+    if (chev) chev.remove();
+    row.parentElement.insertBefore(card, row);
+    row.remove();
+  })();
+
+  /* =========================================================
+     The invoice itself — created or sent — shows what it is for and who it
+     is for, the way the estimate shows its option and its signer, and
+     offers the two things that can happen to it next.
+     ========================================================= */
+  /* The board's first Finance screen has a switch, "Show approved estimate".
+     An invoice for work that was sold off an estimate carries that estimate
+     — the signed option, its items, its total — so the customer sees what
+     they are paying against. The switch is on by default once something was
+     approved, and the invoice says what it carries. */
+  var invAttachEst = recall('invAttachEst', true);
+  var attachRows = [];
+  function switchHtml(on) {
+    return '<span data-swtrack style="width:46px;height:28px;border-radius:14px;position:relative;flex:none;transition:background .15s;background:' +
+      (on ? '#4A6FA5' : '#DDE3EE') + '"><span data-swknob style="position:absolute;top:3px;width:22px;height:22px;border-radius:11px;background:#fff;' +
+      'box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left .15s;left:' + (on ? '21px' : '3px') + '"></span></span>';
+  }
+  (function () {
+    ['fin-empty', 'inv-sent'].forEach(function (id) {
+      var root = byId(id); if (!root) return;
+      var head = sel(root, 'Approved estimate')[0];
+      var card = head && head.parentElement;
+      while (card && !/border-radius:12px/.test(card.getAttribute('style') || '')) card = card.parentElement;
+      if (!card) { MISS.push(id + ' :: approved card'); return; }
+      var row = document.createElement('div');
+      row.dataset.tap = '1'; row.dataset.act = 'attachEst';
+      row.setAttribute('style', 'display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #DDE3EE;border-radius:12px;padding:13px 14px');
+      row.innerHTML = '<span class="mi" style="font-size:22px;color:#4A6FA5">attach_file</span>' +
+        '<div style="flex:1;min-width:0"><div style="font:600 15px/1.2 Geist">Attach approved estimate</div>' +
+        '<div data-attachsub style="font:400 12.5px/1.35 Geist;color:#8A97A8;margin-top:4px"></div></div>' + switchHtml(true);
+      card.parentElement.insertBefore(row, card);
+      attachRows.push({ id: id, row: row, card: card });
+    });
+    paintAttach();
+  })();
+  function paintAttach() {
+    var j = (typeof JOBS !== 'undefined' && JOBS[jobIdx]) || {};
+    var has = state.est === 'approved' && j.sold;
+    attachRows.forEach(function (A) {
+      var track = $('[data-swtrack]', A.row), knob = $('[data-swknob]', A.row);
+      var on = has && invAttachEst;
+      A.row.style.opacity = has ? '' : '.55';
+      track.style.background = on ? '#4A6FA5' : '#DDE3EE';
+      knob.style.left = on ? '21px' : '3px';
+      $('[data-attachsub]', A.row).textContent = has
+        ? j.sold.option + ' · ' + fmt(j.sold.total) + (estSignedAt ? ' · signed ' + estSignedAt : '')
+        : 'No approved estimate on this job yet';
+      toggleDisplay(A.card, !!on);
+    });
+    paintApprovedCard();
+  }
+  ACT.attachEst = function () {
+    var j = JOBS[jobIdx] || {};
+    if (!(state.est === 'approved' && j.sold)) { toast('Nothing approved on this job yet', 'info'); return; }
+    invAttachEst = !invAttachEst; remember('invAttachEst', invAttachEst);
+    paintAttach();
+    paintInvLines();
+    toast(invAttachEst ? 'Approved estimate attached to the invoice' : 'Estimate left off the invoice', 'attach_file');
+  };
+  /* the card the board drew says Option C, Oct 7 2025; it says what was signed */
+  function paintApprovedCard() {
+    var root = byId('fin-empty'); if (!root) return;
+    var j = (typeof JOBS !== 'undefined' && JOBS[jobIdx]) || {};
+    if (!j.sold) return;
+    var head = sel(root, 'Approved estimate')[0];
+    var card = head && head.parentElement && head.parentElement.parentElement; if (!card) return;
+    var inner = $$('div', card).filter(function (e) { return /border:1.5px solid #16A34A/.test(e.getAttribute('style') || ''); })[0];
+    if (!inner || inner.children.length < 3) return;
+    var hdr = inner.children[0], list = inner.children[1], total = inner.children[2];
+    var spans = $$('span', hdr);
+    if (spans[1]) spans[1].textContent = j.sold.option;
+    if (spans[2]) spans[2].textContent = estSignedAt ? estSignedAt.split(',').slice(0, 2).join(',') : '';
+    var tpl = list.children[0];
+    if (tpl) {
+      var items = (j.items || []).filter(function (it) { return it.from === 'estimate'; });
+      list.innerHTML = '';
+      items.forEach(function (it) {
+        var r = tpl.cloneNode(true);
+        var q = $('span', r); if (q) q.textContent = String(it.qty || 1);
+        [].slice.call(r.childNodes).forEach(function (n) { if (n.nodeType === 3 && norm(n.nodeValue)) n.nodeValue = it.name; });
+        list.appendChild(r);
+      });
+    }
+    total.textContent = fmt(j.sold.total);
+  }
+
+  var invLines = null;
+  (function () {
+    var root = byId('inv-sent'); if (!root) return;
+    var sendBtn = $('[data-sendbtn]', root) || $$('[data-go="ov-inv-share"]', root).filter(function (e) { return byIcon(e, 'send').length; })[0];
+    if (!sendBtn) { MISS.push('inv-sent :: send button'); return; }
+    var sc = sendBtn.parentElement;
+
+    // the rows that led elsewhere are put away — the invoice is made now
+    ['Additional items'].forEach(function (name) {
+      var h = sel(root, name)[0]; var r = h && h.parentElement;
+      if (r) toggleDisplay(r, false);
+    });
+
+    var items = document.createElement('div');
+    items.setAttribute('style', 'background:#fff;border:1px solid #DDE3EE;border-radius:12px;padding:14px');
+    items.innerHTML =
+      '<div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin-bottom:4px">Items</div>' +
+      '<div data-invlines></div>' +
+      '<div style="display:flex;justify-content:space-between;padding-top:11px;margin-top:4px;border-top:1px solid #EDF0F5;font:600 15px/1 Geist">' +
+      '<span>Total</span><span data-invtotal></span></div>' +
+      '<div data-go="add-catalog" data-tap="1" style="height:44px;display:flex;align-items:center;justify-content:center;gap:7px;' +
+      'margin-top:12px;background:#fff;border:1px solid #C8D5E8;color:#4A6FA5;border-radius:10px;font:600 14px/1 Geist">' +
+      '<span class="mi" style="font-size:19px">add</span>Add items</div>';
+    sc.insertBefore(items, sendBtn);
+    // the estimate switch and its card read before the items they explain
+    attachRows.filter(function (A) { return A.id === 'inv-sent'; }).forEach(function (A) {
+      sc.insertBefore(A.row, items);
+      sc.insertBefore(A.card, items);
+    });
+
+    // who it is for: the same card the receipt carries
+    var paid = byId('inv-paid');
+    var ph = paid && $$('span', paid).filter(function (e) { return !e.children.length && /^invoice details$/i.test(norm(e.textContent)); })[0];
+    var pcard = ph;
+    while (pcard && !/border-radius:12px/.test(pcard.getAttribute('style') || '')) pcard = pcard.parentElement;
+    if (pcard) sc.insertBefore(pcard.cloneNode(true), sendBtn);
+
+    // and the step after it
+    var take = document.createElement('div');
+    take.dataset.go = 'pay-step'; take.dataset.tap = '1'; take.dataset.takebtn = '1';
+    take.innerHTML = '<span class="mi" style="font-size:20px">payments</span>Take payment';
+    sc.insertBefore(take, sendBtn.nextSibling);
+    invLines = { lines: $('[data-invlines]', items), total: $('[data-invtotal]', items), take: take, send: sendBtn };
+  })();
+
+  function paintInvLines() {
+    if (!invLines) return;
+    var j = JOBS[jobIdx] || {};
+    // sold off an estimate: the signed option is one line at its signed
+    // price — its items are inside it; otherwise the job's own items
+    var rows = j.sold
+      ? [{ name: j.sold.option + ' — approved estimate', price: j.sold.total }]
+      : ((j.items) || []).map(function (it) {
+        return { name: (it.qty > 1 ? it.qty + ' × ' : '') + it.name, price: (it.price || 0) * (it.qty || 1) };
+      });
+    extraItems.forEach(function (it) {
+      rows.push({ name: (it.qty > 1 ? it.qty + ' × ' : '') + it.name + ' (added on site)', price: it.price * it.qty });
+    });
+    invLines.lines.innerHTML = '';
+    if (state.est === 'approved' && j.sold && invAttachEst) {
+      var a = document.createElement('div');
+      a.setAttribute('style', 'display:flex;align-items:center;gap:7px;padding:6px 0 10px;font:500 13px/1.3 Geist;color:#4A6FA5');
+      a.innerHTML = '<span class="mi" style="font-size:17px">attach_file</span><span></span>';
+      a.children[1].textContent = 'Approved estimate attached — ' + j.sold.option;
+      invLines.lines.appendChild(a);
+    }
+    rows.forEach(function (r, i) {
+      var d = document.createElement('div');
+      d.setAttribute('style', 'display:flex;justify-content:space-between;gap:14px;padding:8px 0;font:400 13.5px/1.35 Geist;color:#546478' +
+        (i ? ';border-top:1px solid #EDF0F5' : ''));
+      d.innerHTML = '<span></span><span style="font-weight:600;color:#1A2332;white-space:nowrap"></span>';
+      d.children[0].textContent = r.name;
+      d.children[1].textContent = fmt(r.price);
+      invLines.lines.appendChild(d);
+    });
+    invLines.total.textContent = fmt(invoiceTotal());
+
+    // created: send first, payment offered; sent: payment is the step
+    var sent = state.inv === 'sent';
+    toggleDisplay(invLines.send, !sent);
+    invLines.take.setAttribute('style', 'height:52px;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:11px;font:600 15.5px/1 Geist;' +
+      (sent ? 'background:#16A34A;color:#fff' : 'background:#fff;border:1.5px solid #4A6FA5;color:#4A6FA5') +
+      ';margin-top:' + (sent ? '0' : '10px'));
+  }
+
+  /* =========================================================
+     Comfort Analysis — items 8 to 19.
+
+     The overview promised them ("8–19", two needing attention) and the
+     row led to Household instead. Two of them — Wi-Fi Capability and
+     Filter size 1 — had been drawn at the bottom of the Household screen;
+     the rest were not drawn at all. They are built here in the Household
+     screen's own idiom — numbered card, a Good / Attention / Immediate
+     row, a slot camera where the item has a photo, a picker where it has a
+     value — and the two drawn ones move in among them.
+
+     Every picker on the Report Card is a real list. Household's five were
+     boxes with a chevron and nothing behind them.
+     ========================================================= */
+  var rcValues = recall('rcValues', {});
+  var CARD_ST = 'background:#fff;border:1px solid #DDE3EE;border-radius:12px;padding:13px 14px';
+  var RATE_OFF_ST = 'flex:1;height:44px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:#fff;border:1px solid #DDE3EE;color:#546478;font:500 13px/1 Geist';
+  var PICK_ST = 'display:flex;align-items:center;justify-content:space-between;height:48px;padding:0 13px;background:#F8FAFD;border:1px solid #DDE3EE;border-radius:9px';
+
+  function rcTitle(n, name, chips) {
+    return '<div style="display:flex;gap:9px;align-items:center"><span style="font:600 12px/1 Geist;color:#8A97A8;min-width:16px">' + n +
+      '</span><span style="flex:1;font:500 15px/1.3 Geist">' + name + '</span>' +
+      (chips || []).map(function (c) {
+        return '<span style="font:600 11px/1 Geist;color:#4A6FA5;background:#EBF0F8;border-radius:4px;padding:4px 6px">' + c + '</span>';
+      }).join('') + '</div>';
+  }
+  function rcRating(withCam) {
+    return '<div style="display:flex;gap:6px;margin-top:11px">' +
+      RATING.map(function (l) { return '<div style="' + RATE_OFF_ST + '">' + l + '</div>'; }).join('') +
+      (withCam ? '<div style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px dashed #C8D5E8;color:#4A6FA5;border-radius:8px">' +
+        '<span class="mi" data-tap="1" data-go="ov-media-source" style="font-size:19px">photo_camera</span></div>' : '') + '</div>';
+  }
+  function rcPickBox(key, placeholder, extra) {
+    return '<div data-rcpick="' + key + '" data-tap="1" style="' + PICK_ST + ';margin-top:10px' + (extra || '') + '">' +
+      '<span data-rcval style="font:400 15px/1 Geist;color:#A9B4C2">' + placeholder + '</span>' +
+      '<span class="mi" style="font-size:20px;color:#546478">expand_more</span></div>';
+  }
+  function rcSizeRow(n) {
+    return '<div style="display:flex;gap:7px;margin-top:11px">' + ['W', 'H', 'Qty'].map(function (p) {
+      return '<div style="flex:1;min-width:0"><div style="font:500 11px/1 Geist;color:#8A97A8;margin-bottom:5px">' + p + '</div>' +
+        rcPickBox('size' + n + ':' + p, p === 'Qty' ? '1' : '—', ';height:46px;margin-top:0;padding:0 10px') + '</div>';
+    }).join('') + '</div>';
+  }
+  var RC_OPTIONS = {
+    'The thermostat setting': ['68 F', '70 F', '72 F', '74 F', '76 F', '78 F'],
+    'The average electric bill': ['~ $150', '~ $200', '~ $250', '~ $325', '~ $400', '~ $500+'],
+    'The house sq ft.': ['1200', '1500', '1800', '2100', '2400', '2800', '3200+'],
+    'A room difficult to cool?': ['None', 'Bedroom 1', 'Bedroom 2', 'Living room', 'Kitchen', 'Office'],
+    'Health Concerns': ['None', 'Allergies', 'Asthma', 'Dust sensitivity', 'Humidity / mould', 'Odours'],
+    'filterType': ['Pleated 1"', 'Pleated 4" media', 'Fiberglass', 'Washable', 'HEPA', 'Electrostatic'],
+    'filterLoc': ['Return grille', 'Air handler', 'Both', 'Not found'],
+    'uvLoc': ['None installed', 'At the coil', 'In the return', 'In the supply'],
+    'W': ['14', '16', '18', '20', '24', '25'], 'H': ['14', '20', '24', '25', '30'], 'Qty': ['1', '2', '3', '4']
+  };
+
+  /* a box becomes a picker: the list drops under it, the pick is kept */
+  function rcPicker(box, key, options) {
+    var val = $('[data-rcval]', box);
+    var drop = dropdown(box); if (!drop) return;
+    drop.panel.dataset.maxh = '280px';
+    options.forEach(function (o, i) { drop.panel.appendChild(pickRow(i, i === 0, o, '', 'rco')); });
+    function paint() {
+      var v = rcValues[key];
+      if (val) {
+        if (v !== undefined) { val.textContent = options[v]; val.style.color = '#1A2332'; val.style.fontWeight = '600'; }
+        paintTicks(drop.panel, 'rco', v === undefined ? -1 : v);
+      }
+    }
+    box.addEventListener('click', function (ev) {
+      if (ev.target.closest('[data-rco]')) return;
+      ev.stopPropagation();
+      drop.toggle();
+    }, true);
+    drop.panel.addEventListener('click', function (ev) {
+      var r = ev.target.closest('[data-rco]'); if (!r) return;
+      ev.stopPropagation();
+      rcValues[key] = +r.dataset.rco; remember('rcValues', rcValues);
+      paint();
+      drop.close();
+      showSaveBar('rc-section');
+    }, true);
+    paint();
+  }
+
+  (function () {
+    var household = byId('rc-section'), hsc = household && $('.sc', household);
+    if (!hsc) return;
+
+    // Household's five value boxes were drawings; the Comfort items come out
+    $$('div[style*="border-radius:12px"]', hsc).forEach(function (card) {
+      var num = $('span', card), name = card.querySelector('span[style*="flex:1"]');
+      var box = byIcon(card, 'expand_more')[0]; box = box && box.parentElement;
+      if (!box || !name) return;
+      var opts = RC_OPTIONS[norm(name.textContent)]; if (!opts) return;
+      var v = $('span', box); if (v) v.dataset.rcval = '1';
+      var was = v ? norm(v.textContent) : '';
+      var key = 'hh:' + (num ? norm(num.textContent) : norm(name.textContent));
+      if (rcValues[key] === undefined && opts.indexOf(was) > -1) rcValues[key] = opts.indexOf(was);
+      box.dataset.tap = '1';
+      rcPicker(box, key, opts);
+    });
+
+    var holder = document.createElement('div');
+    holder.id = 'rc-comfort';
+    holder.hidden = true;
+    var sc = document.createElement('div');
+    sc.className = 'sc';
+    sc.setAttribute('style', 'flex:1;overflow-y:auto;padding:14px 16px 16px;display:flex;flex-direction:column;gap:10px');
+    holder.appendChild(sc);
+    viewport.appendChild(holder);
+
+    function card(html) { var d = document.createElement('div'); d.setAttribute('style', CARD_ST); d.innerHTML = html; return d; }
+    function label(text) {
+      var d = document.createElement('div');
+      d.setAttribute('style', 'font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:4px 0 0');
+      d.textContent = text; return d;
+    }
+    // the two cards the board drew at the bottom of Household
+    function drawn(n) {
+      return $$('div[style*="border-radius:12px"]', hsc).filter(function (c) {
+        var s0 = $('span', c); return s0 && norm(s0.textContent) === String(n);
+      })[0];
+    }
+    var lbl = $$('div', hsc).filter(function (e) { return !e.children.length && /^Comfort Analysis/.test(norm(e.textContent)); })[0];
+    if (lbl) lbl.remove();
+    var c8 = drawn(8), c12 = drawn(12);
+    if (c12) {
+      // its three empty boxes become W × H and a quantity
+      var boxes = $$('div', c12).filter(function (e) { return /height:46px/.test(e.getAttribute('style') || '') && !e.children.length; });
+      boxes.forEach(function (b, i) {
+        var p = ['W', 'H', 'Qty'][i];
+        b.setAttribute('style', PICK_ST + ';height:46px;padding:0 10px');
+        b.innerHTML = '<span data-rcval style="font:400 15px/1 Geist;color:#A9B4C2">' + (p === 'Qty' ? '1' : '—') + '</span><span class="mi" style="font-size:20px;color:#546478">expand_more</span>';
+        b.dataset.rcpick = 'size1:' + p; b.dataset.tap = '1';
+      });
+    }
+
+    sc.appendChild(label('Thermostat'));
+    sc.appendChild(c8 || card(rcTitle(8, 'Wi-Fi Capability', ['P1']) + rcRating(true)));
+    sc.appendChild(card(rcTitle(9, 'Overall Condition') + rcRating(false)));
+    sc.appendChild(label('Indoor Air Quality'));
+    sc.appendChild(card(rcTitle(10, 'Filter Type') + rcPickBox('filterType', 'Pick filter type')));
+    sc.appendChild(card(rcTitle(11, 'Filter Location', ['P2']) +
+      '<div style="display:flex;gap:7px;align-items:flex-end"><div style="flex:1;min-width:0">' + rcPickBox('filterLoc', 'Pick location') + '</div>' +
+      '<div style="width:48px;height:48px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px dashed #C8D5E8;color:#4A6FA5;border-radius:9px">' +
+      '<span class="mi" data-tap="1" data-go="ov-media-source" style="font-size:19px">photo_camera</span></div></div>'));
+    sc.appendChild(c12 || card(rcTitle(12, 'Filter size 1') + rcSizeRow(1)));
+    sc.appendChild(card(rcTitle(13, 'Filter size 2') + rcSizeRow(2)));
+    sc.appendChild(card(rcTitle(14, 'Filter Condition') + rcRating(false)));
+    sc.appendChild(card(rcTitle(15, 'Ductwork Condition', ['P3']) + rcRating(true)));
+    sc.appendChild(card(rcTitle(16, 'Ductwork Cleanliness') + rcRating(false)));
+    sc.appendChild(card(rcTitle(17, 'Attic Insulation', ['R38?', 'P4']) + rcRating(true)));
+    sc.appendChild(card(rcTitle(18, 'UV Location') + rcPickBox('uvLoc', 'Pick location') + rcRating(false)));
+    sc.appendChild(card(rcTitle(19, 'UV Bulb') + rcRating(false)));
+
+    // the pickers
+    $$('[data-rcpick]', sc).forEach(function (box) {
+      var key = box.dataset.rcpick;
+      var opts = RC_OPTIONS[key] || RC_OPTIONS[key.split(':')[1]];
+      if (opts) rcPicker(box, 'cf:' + key, opts);
+    });
+    // the ratings — wired now, while the rows are still under this root
+    ratingRows('rc-comfort');
+    paintRcBadges();
+  })();
 
   /* job tab strips */
   ['job-general', 'job-notes', 'rc-overview', 'est-empty', 'est-draft', 'est-review',
@@ -6539,6 +6866,8 @@ body.dev #indexBtn{display:flex}
     });
     paintExtraCounts();
     paintSentState();
+    paintInvLines();
+    paintAttach();
   }
 
   function paintCash(received) {
@@ -7476,7 +7805,7 @@ body.dev #indexBtn{display:flex}
      moment it's taken. Unlabelled photos are why dispatch opens and tags
      every single one before the tech can get their next call.
      ========================================================= */
-  var RC_PHOTO_SCREENS = ['rc-section', 'rc-furnace', 'rc-condenser', 'rc-refrigerant', 'rc-tech'];
+  var RC_PHOTO_SCREENS = ['rc-section', 'rc-comfort', 'rc-furnace', 'rc-condenser', 'rc-refrigerant', 'rc-tech'];
   var TOTAL_SLOTS = 14;
   var filledSlots = recall('slots', {});
   var pendingSlot = null;
@@ -9209,7 +9538,7 @@ body.dev #indexBtn{display:flex}
   var RC_SCREENS = ['rc-section', 'rc-furnace', 'rc-condenser', 'rc-refrigerant', 'rc-tech'];
   var saveBars = {};
   function hideSaveBar(id) { toggleDisplay(saveBars[id], false); }
-  function showSaveBar(id) { toggleDisplay(saveBars[id], true); }
+  function showSaveBar(id) { toggleDisplay(saveBars[id] || saveBars['rc-section'], true); }
   RC_SCREENS.forEach(function (id) {
     var root = byId(id); if (!root) return;
     var label = sel(root, 'You made changes to Report Card')[0];
@@ -9427,7 +9756,7 @@ body.dev #indexBtn{display:flex}
     var root = byId('rc-overview'); if (!root) return;
     var SECTIONS = [
       ['Household Analysis', ['rc-section']],
-      ['Comfort Analysis', []],
+      ['Comfort Analysis', ['rc-comfort']],
       ['System Analysis', ['rc-furnace', 'rc-condenser', 'rc-refrigerant']],
       ['Customer Section', ['rc-customer']],
       ['Technician Section', ['rc-tech']]
@@ -9482,8 +9811,9 @@ body.dev #indexBtn{display:flex}
       spec[1].forEach(function (id, i) {
         var src = byId(id), sc = src && $('.sc', src);
         if (!sc) { MISS.push(spec[0] + ' :: ' + id + ' body'); return; }
-        if (i === 0) {
+        if (i === 0 && spec[0] === 'System Analysis') {
           // System Analysis brings its own three-way control across with it
+          // (only there — a rating row already wired carries the same mark)
           var lbl = $('[data-seg]', src);
           var ctl = lbl && lbl.parentElement;
           if (ctl) {
