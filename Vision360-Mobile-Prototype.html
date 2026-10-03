@@ -4259,7 +4259,6 @@ body.dev #indexBtn{display:flex}
       ['@play_arrow^1', 'act:start'],
       ['@add^1', 'act:createInvoice'],
       ['Additional items^1', 'act:openExtras'],
-      ['Payments^1', 'ov-pay-method'],
       ['Invoice details^1', 'inv-details', 'modal']
     ],
     'ov-pay-method': [
@@ -4294,8 +4293,7 @@ body.dev #indexBtn{display:flex}
     'inv-sent': [
       ['@more_vert', 'ov-inv-share'],
       ['@send^1', 'ov-inv-share'],
-      ['Additional items^1', 'add-items', 'replace'],
-      ['Payments^1', 'ov-pay-method']
+      ['Additional items^1', 'add-items', 'replace']
     ],
     'ov-inv-share': [
       ['@edit^1', 'inv-details', 'modal'],
@@ -4339,7 +4337,6 @@ body.dev #indexBtn{display:flex}
     'add-empty': [
       ['@play_arrow^1', 'act:start'],
       ['@add^1', 'add-catalog'],
-      ['Payments^1', 'ov-pay-method'],
       ['Invoice details^1', 'inv-details', 'modal']
     ],
     'add-catalog': [
@@ -4350,7 +4347,6 @@ body.dev #indexBtn{display:flex}
     'add-items': [
       ['@play_arrow^1', 'act:start'],
       ['@add^1', 'add-catalog'],
-      ['Payments^1', 'ov-pay-method'],
       ['Invoice details^1', 'inv-details', 'modal']
     ],
     'inv-details': [
@@ -4815,7 +4811,11 @@ body.dev #indexBtn{display:flex}
     var chev = $$('.mi,.mif', anchor).filter(function (e) {
       return /^(expand_more|expand_less|chevron_right)$/.test(norm(e.textContent));
     })[0];
-    function close() { panel.hidden = true; if (chev) chev.textContent = 'expand_more'; }
+    /* Pressing a row makes the anchor :active too, and the press style's
+       opacity gives it a stacking context of its own — inside which the
+       list's z-index means nothing against a positioned field below. While
+       the list is open the anchor itself is lifted above its neighbours. */
+    function close() { panel.hidden = true; anchor.style.zIndex = ''; if (chev) chev.textContent = 'expand_more'; }
     /* A row near the bottom of the form would drop its list under the
        footer. If it does not fit below, it opens above. */
     function place() {
@@ -4837,6 +4837,7 @@ body.dev #indexBtn{display:flex}
     }
     function toggle() {
       panel.hidden = !panel.hidden;
+      anchor.style.zIndex = panel.hidden ? '' : '41';
       if (chev) chev.textContent = panel.hidden ? 'expand_more' : 'expand_less';
       if (!panel.hidden) place();
     }
@@ -5230,7 +5231,7 @@ body.dev #indexBtn{display:flex}
   }
   function paintReceipt(page) {
     if (page) {
-      var r = { icon: 'credit_card', title: payMethod, sub: '' };
+      var r = page === 'inline' ? inlineReceipt() : { icon: 'credit_card', title: payMethod, sub: '' };
       if (page === 'pay-card') {
         var c = inputsOf('pay-card');
         var digits = (c[1] || '').replace(/\D/g, '');
@@ -5545,6 +5546,264 @@ body.dev #indexBtn{display:flex}
       toast('Card read — check the number and add the CVV', 'credit_score');
       if (c[3]) { c[3].value = ''; c[3].focus(); }
     }, 1100);
+  };
+
+  /* =========================================================
+     Payments, where the board draws them.
+
+     The board's Finance screen has Payments as a section of its own: a
+     method picked from a list, the fields that method needs right under
+     it, the sums, one green button. The app had a bottom sheet of six
+     methods leading to four separate screens. Back to the drawing: the
+     section opens in place, the method is a dropdown of the eleven ways a
+     customer pays, and the form changes with it.
+     ========================================================= */
+  var PAY_METHODS = [
+    { id: 'card', name: 'Credit Card', icon: 'credit_card', btn: 'Make payment',
+      fields: [[{ l: 'Name on the card' }], [{ l: 'Card number', k: 'num' }],
+        [{ l: 'Expiration date', k: 'exp' }, { l: 'CVV / CVC', k: 'num' }]] },
+    { id: 'cash', name: 'Cash', icon: 'payments', btn: 'Confirm payment',
+      fields: [[{ l: 'Cash received', k: 'amount' }]] },
+    { id: 'check', name: 'Check', icon: 'receipt', btn: 'Confirm payment',
+      fields: [[{ l: 'Name on the check' }], [{ l: 'Bank name' }], [{ l: 'Check number', k: 'num' }],
+        [{ l: 'Check date', k: 'date' }]] },
+    { id: 'financing', name: 'Financing', icon: 'account_balance', btn: 'Confirm payment',
+      fields: [[{ l: 'Lender' }], [{ l: 'Contract number' }], [{ l: 'Payment date', k: 'date' }]] },
+    { id: 'bank', name: 'Bank transfer (offline)', icon: 'account_balance', btn: 'Confirm payment',
+      fields: [[{ l: 'Reference number' }], [{ l: 'Payment date', k: 'date' }]] },
+    { id: 'consumer', name: 'Consumer financing', icon: 'account_balance', btn: 'Confirm payment',
+      fields: [[{ l: 'Lender' }], [{ l: 'Approval code' }], [{ l: 'Payment date', k: 'date' }]] },
+    { id: 'credit-off', name: 'Credit (offline)', icon: 'credit_card', btn: 'Confirm payment',
+      fields: [[{ l: 'Last 4 digits', k: 'num' }], [{ l: 'Authorization code' }], [{ l: 'Payment date', k: 'date' }]] },
+    { id: 'cashapp', name: 'Cash App', icon: 'smartphone', btn: 'Confirm payment',
+      fields: [[{ l: '$Cashtag' }], [{ l: 'Reference number' }], [{ l: 'Payment date', k: 'date' }]] },
+    { id: 'venmo', name: 'Venmo', icon: 'smartphone', btn: 'Confirm payment',
+      fields: [[{ l: 'Venmo username' }], [{ l: 'Reference number' }], [{ l: 'Payment date', k: 'date' }]] },
+    { id: 'zelle', name: 'Zelle', icon: 'smartphone', btn: 'Confirm payment',
+      fields: [[{ l: 'Phone or email used' }], [{ l: 'Confirmation number' }], [{ l: 'Payment date', k: 'date' }]] },
+    { id: 'debit-off', name: 'Debit (offline)', icon: 'credit_card', btn: 'Confirm payment',
+      fields: [[{ l: 'Last 4 digits', k: 'num' }], [{ l: 'Authorization code' }], [{ l: 'Payment date', k: 'date' }]] }
+  ];
+  var pay = recall('payInline', null) || { method: 'card', values: {}, dates: {}, open: true };
+  function payMethodDef() {
+    return PAY_METHODS.filter(function (m) { return m.id === pay.method; })[0] || PAY_METHODS[0];
+  }
+  function savePay() { remember('payInline', pay); }
+
+  var FBOX = 'height:48px;padding:0 14px;background:#F4F6F9;border:1px solid #E3E8EF;border-radius:8px;';
+  var FLAB = 'font:400 11.5px/1 Geist;color:#8A97A8;margin-bottom:5px';
+  var FVAL = 'font:500 15px/1 Geist;color:#1A2332';
+
+  function fieldHtml(fd) {
+    var key = pay.method + '|' + fd.l;
+    if (fd.k === 'date') {
+      var days = pay.dates[key] || 0;
+      return '<div data-pdatebox="' + key + '" data-tap="1" style="' + FBOX + 'flex:1;min-width:0;height:52px;' +
+        'display:flex;align-items:center;justify-content:space-between;gap:8px">' +
+        '<div><div style="' + FLAB + '">' + fd.l + '</div><div data-pdateval style="' + FVAL + '">' + dayLabel(days) + '</div></div>' +
+        '<span class="mi" style="font-size:20px;color:#546478">event</span></div>';
+    }
+    var mode = fd.k === 'num' ? 'numeric' : fd.k === 'amount' ? 'decimal' : 'text';
+    var v = pay.values[key] || '';
+    return '<div style="flex:1;min-width:0;position:relative">' +
+      (fd.k === 'amount' ? '<span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font:500 15px/1 Geist;color:#8A97A8">$</span>' : '') +
+      '<input data-pkey="' + key + '" class="inp" inputmode="' + mode + '" placeholder="' + fd.l + '" value="' + v.replace(/"/g, '&quot;') + '" ' +
+      'style="' + FBOX + 'width:100%;min-width:0;outline:none;' + FVAL + (fd.k === 'amount' ? 'padding-left:28px' : '') + '"></div>';
+  }
+
+  var payPanels = [];
+  (function () {
+    ['fin-empty', 'add-empty', 'add-items', 'inv-sent'].forEach(function (id) {
+      var root = byId(id); if (!root) return;
+      var head = sel(root, 'Payments')[0];
+      var row = head && head.parentElement;
+      if (!row) { MISS.push(id + ' :: Payments row'); return; }
+      var chev = byIcon(row, 'expand_more')[0] || byIcon(row, 'expand_less')[0];
+
+      var card = document.createElement('div');
+      card.setAttribute('style', 'background:#fff;border:1px solid #DDE3EE;border-radius:12px');
+      row.parentElement.insertBefore(card, row);
+      card.appendChild(row);
+      row.setAttribute('style', 'display:flex;align-items:center;gap:9px;padding:15px 14px');
+      row.removeAttribute('data-go'); row.removeAttribute('data-mode'); row.removeAttribute('data-act');
+      row.dataset.tap = '1';
+
+      var panel = document.createElement('div');
+      panel.setAttribute('style', 'padding:0 14px 14px');
+      panel.innerHTML =
+        '<div data-paymethod data-tap="1" style="' + FBOX + 'height:52px;display:flex;align-items:center;justify-content:space-between;gap:8px">' +
+        '<div><div style="' + FLAB + '">Payment method</div><div data-paymname style="' + FVAL + '"></div></div>' +
+        '<span class="mi" style="font-size:22px;color:#546478">expand_more</span></div>' +
+        '<div data-payfields></div>' +
+        '<div data-paychange style="display:none;justify-content:space-between;padding:10px 2px 0;font:400 13.5px/1 Geist;color:#546478"><span>Change due</span><span data-paychangeval style="font:600 13.5px/1 Geist;color:#1A2332">$0.00</span></div>' +
+        '<div style="margin-top:14px;display:flex;flex-direction:column;gap:8px;font:400 13.5px/1 Geist;color:#546478">' +
+        '<div style="display:flex;justify-content:space-between"><span>Down payment amount</span><span data-paydown style="font:600 13.5px/1 Geist;color:#1A2332"></span></div>' +
+        '<div style="display:flex;justify-content:space-between"><span>Total</span><span data-paytotal style="font:600 13.5px/1 Geist;color:#1A2332"></span></div>' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px"><span style="font:600 15px/1 Geist;color:#1A2332">To be paid</span><span data-paydue style="font:700 20px/1 Geist;letter-spacing:-.01em;color:#1C2B3A"></span></div></div>' +
+        '<div data-act="payInline" data-tap="1" style="height:50px;display:flex;align-items:center;justify-content:center;gap:8px;' +
+        'background:#16A34A;color:#fff;border-radius:10px;font:600 15.5px/1 Geist;margin-top:14px"><span data-paybtn></span></div>';
+      card.appendChild(panel);
+
+      var P = { id: id, row: row, chev: chev, panel: panel, rendered: '' };
+      payPanels.push(P);
+      row.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        pay.open = !pay.open; savePay();
+        paintPayPanels();
+      }, true);
+
+      // the method is a list under its field
+      var box = $('[data-paymethod]', panel);
+      var drop = dropdown(box);
+      drop.panel.dataset.maxh = '320px';
+      PAY_METHODS.forEach(function (m, i) { drop.panel.appendChild(pickRow(i, i === 0, m.name, '', 'paym')); });
+      P.drop = drop;
+      box.addEventListener('click', function (ev) {
+        if (ev.target.closest('[data-paym]')) return;
+        ev.stopPropagation();
+        drop.toggle();
+      }, true);
+      drop.panel.addEventListener('click', function (ev) {
+        var r = ev.target.closest('[data-paym]'); if (!r) return;
+        ev.stopPropagation();
+        pay.method = PAY_METHODS[+r.dataset.paym].id; savePay();
+        drop.close();
+        paintPayPanels();
+      }, true);
+
+      // what is typed is kept; the cash field moves the change due
+      panel.addEventListener('input', function (ev) {
+        var inp = ev.target.closest('[data-pkey]'); if (!inp) return;
+        pay.values[inp.dataset.pkey] = inp.value; savePay();
+        payPanels.forEach(function (Q) {
+          if (Q === P) return;
+          var o = $('[data-pkey="' + inp.dataset.pkey + '"]', Q.panel);
+          if (o && o.value !== inp.value) o.value = inp.value;
+        });
+        paintPayChange();
+      });
+    });
+    paintPayPanels();
+  })();
+
+  function renderPayFields(P) {
+    var m = payMethodDef();
+    var area = $('[data-payfields]', P.panel);
+    area.innerHTML = m.fields.map(function (row) {
+      return '<div style="display:flex;gap:10px;margin-top:10px">' + row.map(fieldHtml).join('') + '</div>';
+    }).join('');
+    // a date field is a list of the days around today
+    $$('[data-pdatebox]', area).forEach(function (box) {
+      var key = box.dataset.pdatebox;
+      var drop = dropdown(box);
+      for (var i = -1; i <= 5; i++) {
+        var d = new Date(); d.setDate(d.getDate() + i);
+        var name = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : i === -1 ? 'Yesterday'
+          : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getDay()];
+        drop.panel.appendChild(pickRow(i, i === -1, name, dayLabel(i), 'pday'));
+      }
+      paintTicks(drop.panel, 'pday', pay.dates[key] || 0);
+      box.addEventListener('click', function (ev) {
+        if (ev.target.closest('[data-pday]')) return;
+        ev.stopPropagation();
+        drop.toggle();
+      }, true);
+      drop.panel.addEventListener('click', function (ev) {
+        var r = ev.target.closest('[data-pday]'); if (!r) return;
+        ev.stopPropagation();
+        pay.dates[key] = +r.dataset.pday; savePay();
+        drop.close();
+        payPanels.forEach(function (Q) {
+          $$('[data-pdatebox="' + key + '"] [data-pdateval]', Q.panel).forEach(function (v) { v.textContent = dayLabel(pay.dates[key]); });
+          $$('[data-pdatebox="' + key + '"] [data-pday]', Q.panel).length && paintTicks($('[data-pdatebox="' + key + '"]', Q.panel), 'pday', pay.dates[key]);
+        });
+      }, true);
+    });
+    P.rendered = m.id;
+  }
+
+  function cashReceived() {
+    return parseFloat(String(pay.values['cash|Cash received'] || '').replace(/[^0-9.]/g, '')) || 0;
+  }
+  function paintPayChange() {
+    payPanels.forEach(function (P) {
+      var line = $('[data-paychange]', P.panel); if (!line) return;
+      var show = pay.method === 'cash' && cashReceived() > 0;
+      line.style.display = show ? 'flex' : 'none';
+      $('[data-paychangeval]', P.panel).textContent = fmt(Math.max(0, cashReceived() - (payAmount || 0)));
+    });
+  }
+
+  function paintPayPanels() {
+    if (!payPanels || !payPanels.length) return;
+    var m = payMethodDef();
+    // payAmount is assigned further down the file; at build time it is not yet
+    var due = payAmount || 0;
+    var total = invoiceTotal();
+    var down = Math.max(0, total - due);
+    payPanels.forEach(function (P) {
+      P.panel.hidden = !pay.open;
+      if (P.chev) P.chev.textContent = pay.open ? 'expand_less' : 'expand_more';
+      $('[data-paymname]', P.panel).textContent = m.name;
+      if (P.drop) paintTicks(P.drop.panel, 'paym', PAY_METHODS.indexOf(m));
+      if (P.rendered !== m.id) renderPayFields(P);
+      $('[data-paydown]', P.panel).textContent = fmt(down);
+      $('[data-paytotal]', P.panel).textContent = fmt(total);
+      $('[data-paydue]', P.panel).textContent = fmt(due);
+      $('[data-paybtn]', P.panel).textContent = m.btn;
+    });
+    paintPayChange();
+  }
+
+  // what the receipt says about a payment taken on the form
+  function inlineReceipt() {
+    var m = payMethodDef();
+    var v = function (l) { return norm(pay.values[m.id + '|' + l] || ''); };
+    var r = { icon: m.icon, title: m.name, sub: '' };
+    if (m.id === 'card') {
+      var digits = v('Card number').replace(/\D/g, '');
+      r.sub = (digits ? '•••• ' + digits.slice(-4) : 'Card') + (v('Name on the card') ? ' · ' + v('Name on the card') : '');
+    } else if (m.id === 'cash') {
+      var got = cashReceived();
+      r.sub = got > payAmount ? fmt(got) + ' received · ' + fmt(got - payAmount) + ' change' : 'Paid in full';
+    } else if (m.id === 'check') {
+      r.sub = (v('Check number') ? 'Check #' + v('Check number') : 'Paper check') + (v('Bank name') ? ' · ' + v('Bank name') : '');
+    } else {
+      var bits = [];
+      m.fields.forEach(function (row) { row.forEach(function (fd) { if (fd.k !== 'date' && v(fd.l)) bits.push(v(fd.l)); }); });
+      r.sub = (bits.length ? bits.join(' · ') : 'No reference') + ' · recorded, not processed here';
+    }
+    return r;
+  }
+
+  ACT.payInline = function () {
+    var m = payMethodDef();
+    if (m.id === 'card' && !net.online) {
+      toast('No signal — the card can’t be charged yet', 'cloud_off');
+      return;
+    }
+    if (m.id === 'card' && norm(pay.values['card|Card number'] || '').replace(/\D/g, '').length < 12) {
+      toast('Enter the card number first', 'credit_card');
+      var inp = $$('[data-pkey="card|Card number"]').filter(function (e) { return e.offsetParent; })[0];
+      if (inp) inp.focus();
+      return;
+    }
+    // money against nothing is an invoice made on the spot
+    if (state.inv === 'none') ACT.createInvoice();
+    invPaidAt = stamp(); remember('invPaidAt', invPaidAt);
+    if (!invSentAt) { invSentAt = invPaidAt; remember('invSentAt', invSentAt); }
+    state.inv = 'paid';
+    payMethod = m.name;
+    paintReceipt('inline');
+    kpiPaid(payAmount);
+    pay.values = {}; pay.dates = {}; savePay();
+    payPanels.forEach(function (P) { P.rendered = ''; });
+    paintPayScreens();
+    closeOverlays(true);
+    go('inv-paid', 'root');
+    queued('Payment');
+    toast(net.online ? 'Payment received · ' + fmt(payAmount)
+      : 'Payment recorded offline · will post when you have signal');
   };
 
   /* job tab strips */
@@ -6143,6 +6402,7 @@ body.dev #indexBtn{display:flex}
     paintBillTo();
     paintInvRows();
     paintVoidRow();
+    paintPayPanels();
   }
 
   /* The sent screen, before it is sent: a grey CREATED badge, a Sent row
