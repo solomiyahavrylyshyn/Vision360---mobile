@@ -2854,15 +2854,25 @@
      ========================================================= */
   (function () {
     var fin = byId('fin-empty'); if (!fin) return;
-    /* Like the estimate's empty state: one card, one button. Items, the
-       approved estimate, the customer's details and payment all belong to
-       the invoice, and appear once there is one. */
-    ['Additional items', 'Approved estimate'].forEach(function (name) {
-      var head = sel(fin, name)[0];
-      var row = head && head.parentElement;
-      while (row && !/border-radius:12px/.test(row.getAttribute('style') || '')) row = row.parentElement;
-      if (row) toggleDisplay(row, false);
-    });
+    /* Drawn like the estimate's empty state, so the two tabs start the same
+       way: an icon in a disc, a title, a line of help, and one button in the
+       footer. Items, the approved estimate, the customer's details and
+       payment all belong to the invoice, and appear once there is one. */
+    var sc = $$('.sc', fin)[1]; if (!sc) return;
+    toggleDisplay(sc, false);
+    var empty = document.createElement('div');
+    empty.setAttribute('style', 'flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 34px;text-align:center');
+    empty.innerHTML =
+      '<div style="width:82px;height:82px;border-radius:41px;background:#EBF0F8;border:1px solid #C8D5E8;display:flex;align-items:center;justify-content:center;margin-bottom:20px">' +
+      '<span class="mi" style="font-size:38px;color:#4A6FA5">receipt_long</span></div>' +
+      '<div style="font:600 21px/1.25 Geist;letter-spacing:-.01em;margin-bottom:9px">No invoice yet</div>' +
+      '<div style="font:400 15px/1.55 Geist;color:#546478;text-wrap:pretty">Create the invoice for this job. Items, the approved estimate and payment are added to it.</div>';
+    var foot = document.createElement('div');
+    foot.setAttribute('style', 'padding:14px 16px 16px;background:#fff;border-top:1px solid #DDE3EE;flex:none');
+    foot.innerHTML = '<div data-act="createInvoice" data-tap="1" style="height:54px;display:flex;align-items:center;justify-content:center;gap:8px;background:#4A6FA5;color:#fff;border-radius:11px;font:600 16px/1 Geist">' +
+      '<span class="mi" style="font-size:21px">add</span>Create invoice</div>';
+    sc.parentElement.insertBefore(empty, sc.nextSibling);
+    sc.parentElement.insertBefore(foot, empty.nextSibling);
   })();
 
   /* =========================================================
