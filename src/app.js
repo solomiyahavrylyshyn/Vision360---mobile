@@ -1269,8 +1269,7 @@
     'fin-empty': [
       ['@play_arrow^1', 'act:start'],
       ['@add^1', 'act:createInvoice'],
-      ['Additional items^1', 'act:openExtras'],
-      ['Invoice details^1', 'inv-details', 'modal']
+      ['Additional items^1', 'act:openExtras']
     ],
     'ov-pay-method': [
       ['Credit Card^1', 'pay-card'],
@@ -1347,8 +1346,7 @@
     ],
     'add-empty': [
       ['@play_arrow^1', 'act:start'],
-      ['@add^1', 'add-catalog'],
-      ['Invoice details^1', 'inv-details', 'modal']
+      ['@add^1', 'add-catalog']
     ],
     'add-catalog': [
       ['Add custom item^1', 'est-custom-item', 'modal'],
@@ -1357,8 +1355,7 @@
     ],
     'add-items': [
       ['@play_arrow^1', 'act:start'],
-      ['@add^1', 'add-catalog'],
-      ['Invoice details^1', 'inv-details', 'modal']
+      ['@add^1', 'add-catalog']
     ],
     'inv-details': [
       ['Save', 'BACK']
@@ -2216,6 +2213,7 @@
       billTo = inputs.map(function (i) { return i.value; });
       remember('billTo', billTo);
       paintBillTo();
+      paintDetailPanels();
       back();
       toast('Invoice details saved', 'save');
     };
@@ -2817,6 +2815,68 @@
       : 'Payment recorded offline · will post when you have signal');
   };
 
+  /* =========================================================
+     Invoice details, where the board draws them: a section that opens on
+     the Finance screen to show who the invoice is made out to and where,
+     with one button to change it. The row had jumped straight into the
+     editor, so the technician could not simply look.
+     ========================================================= */
+  var detailPanels = [];
+  var detailsOpen = false;
+  (function () {
+    ['fin-empty', 'add-empty', 'add-items'].forEach(function (id) {
+      var root = byId(id); if (!root) return;
+      var head = sel(root, 'Invoice details')[0];
+      var row = head && head.parentElement;
+      if (!row) { MISS.push(id + ' :: Invoice details row'); return; }
+      var chev = byIcon(row, 'expand_more')[0] || byIcon(row, 'expand_less')[0];
+
+      var card = document.createElement('div');
+      card.setAttribute('style', 'background:#fff;border:1px solid #DDE3EE;border-radius:12px');
+      row.parentElement.insertBefore(card, row);
+      card.appendChild(row);
+      row.setAttribute('style', 'display:flex;align-items:center;gap:9px;padding:15px 14px');
+      row.removeAttribute('data-go'); row.removeAttribute('data-mode'); row.removeAttribute('data-act');
+      row.dataset.tap = '1';
+
+      var panel = document.createElement('div');
+      panel.hidden = true;
+      panel.setAttribute('style', 'padding:0 14px 14px');
+      panel.innerHTML =
+        '<div style="font:600 13.5px/1 Geist;color:#1A2332">Customer:</div>' +
+        '<div data-dtname style="font:400 14.5px/1.4 Geist;color:#546478;margin-top:4px"></div>' +
+        '<div style="font:600 13.5px/1 Geist;color:#1A2332;margin-top:14px">Address:</div>' +
+        '<div data-dtaddr style="font:400 14.5px/1.4 Geist;color:#546478;margin-top:4px"></div>' +
+        '<div data-go="inv-details" data-mode="modal" data-tap="1" style="height:48px;display:flex;align-items:center;' +
+        'justify-content:center;background:#4A6FA5;color:#fff;border-radius:10px;font:600 15px/1 Geist;margin-top:16px">' +
+        'Change invoice details</div>';
+      card.appendChild(panel);
+
+      detailPanels.push({ row: row, chev: chev, panel: panel });
+      row.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        detailsOpen = !detailsOpen;
+        paintDetailPanels();
+      }, true);
+    });
+    paintDetailPanels();
+  })();
+
+  function paintDetailPanels() {
+    if (!detailPanels || !detailPanels.length) return;
+    var ins = $$('input', byId('inv-details') || document.createElement('div'));
+    var src = billTo || ins.map(function (i) { return i.value; });
+    var name = src[0] || '';
+    var addr = [src[3], [src[4], [billState, src[5]].filter(Boolean).join(' ')].filter(Boolean).join(', ')]
+      .filter(Boolean).join(', ');
+    detailPanels.forEach(function (P) {
+      P.panel.hidden = !detailsOpen;
+      if (P.chev) P.chev.textContent = detailsOpen ? 'expand_less' : 'expand_more';
+      $('[data-dtname]', P.panel).textContent = name;
+      $('[data-dtaddr]', P.panel).textContent = addr;
+    });
+  }
+
   /* job tab strips */
   ['job-general', 'job-notes', 'rc-overview', 'est-empty', 'est-draft', 'est-review',
     'est-ready', 'est-approved', 'fin-empty', 'add-empty', 'add-items', 'inv-paid', 'inv-sent']
@@ -3414,6 +3474,7 @@
     paintInvRows();
     paintVoidRow();
     paintPayPanels();
+    paintDetailPanels();
   }
 
   /* The sent screen, before it is sent: a grey CREATED badge, a Sent row
