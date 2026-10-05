@@ -282,13 +282,14 @@
 
   function chrome() {
     var pid = curPage(); if (!pid) return;
+    if (viewPast && (!isJobScreen(pid) || (viewPast.visit && pid === 'cust-jobs'))) leaveView();
     // the stage the tech moved this job to belongs to the job, not the session
     if (typeof JOBS !== 'undefined' && JOBS[jobIdx] && pid !== 'login') {
       JOBS[jobIdx].est = state.est;
       JOBS[jobIdx].inv = state.inv;
       // every navigation is a checkpoint
       remember('state', state);
-      remember('jobIdx', jobIdx);
+      remember('jobIdx', viewPast ? viewPast.idx : jobIdx);   // a job being looked at is not the job
       remember('jobs', JOBS.map(function (j) {
         return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done };
       }));
@@ -960,6 +961,32 @@
       toast(net.online ? 'Report Card saved' : 'Report Card saved locally — will sync');
     },
     present: function () { estPresented = true; go('est-customer', 'modal'); },
+    /* A finished job opens to be read, not changed: Set back to active is
+       the one way to change it, and it says so at the top. */
+    histDetails: function (el) {
+      var who = el.dataset.job || histJob;
+      var at = -1;
+      for (var i = 0; i < JOBS.length; i++) if (JOBS[i].name === who) at = i;
+      closeOverlays(true);
+      if (at < 0) { toast(who + ' is not on this device', 'info'); return; }
+      histJob = who;
+      if (JOBS[at].done && at !== jobIdx) viewPast = { idx: jobIdx };
+      else if (JOBS[at].done) viewPast = { idx: jobIdx };
+      else viewPast = null;
+      jobIdx = at;
+      loadJob();
+      paintJob();
+      paintPayScreens();
+      paintView();
+      go('job-general', 'push');
+    },
+    /* A past visit in the customer's service history is read the same way;
+       it is not a job on the list, so there is nothing to set back. */
+    histVisit: function () {
+      viewPast = { idx: jobIdx, visit: true };
+      paintView();
+      go('job-general', 'push');
+    },
     histMenu: function (el) {
       histJob = el.dataset.job || '';
       var nm = byId('histJobName');
@@ -977,10 +1004,12 @@
       if (at < 0) { toast(histJob + ' is not on this device', 'info'); return; }
       if (!JOBS[at].done) { toast(histJob + ' is already on your list', 'info'); return; }
       JOBS[at].done = false;
+      viewPast = null;
       jobIdx = at;
       loadJob();
       paintJob();
       paintCard();
+      paintView();
       go('home', 'root');
       queued('Job status');
       toast(histJob + ' is back on your list — press Start when you are back inside',
@@ -1176,7 +1205,7 @@
     ],
     'cust-jobs': [
       ['@search', 'hist-search'],
-      ['See details', 'job-general']
+      ['See details', 'act:histVisit']
     ],
     'job-general': [
       ['@play_arrow^1', 'act:start'],
@@ -1312,8 +1341,7 @@
     ],
     'history': [
       ['@search', 'hist-search'],
-      ['@tune', 'hist-filters', 'modal'],
-      ['Job Details', 'job-general']
+      ['@tune', 'hist-filters', 'modal']
     ],
     'hist-filters': [
       ['Show 14 jobs', 'BACK'],
@@ -3219,6 +3247,77 @@
     paintRcBadges();
   })();
 
+  /* =========================================================
+     A job from History is finished. Its screens open to be read — the
+     notes, the Report Card, the estimate, the invoice — and nothing on them
+     takes an edit; a bar at the top says so and offers the one way to
+     change it, Set back to active. Leaving its screens puts the technician's
+     real current job back where it was.
+     ========================================================= */
+  var viewPast = null;        // { idx } — the real current job while a finished one is open
+  function isJobScreen(id) {
+    return /^(job-|rc-|est-|fin-|inv-|add-|pay-|closeout|photos$|photo-detail|image-desc|cust-jobs|files)/.test(id || '');
+  }
+  var viewBar = document.createElement('div');
+  viewBar.setAttribute('style', 'display:flex;align-items:center;gap:10px;padding:9px 14px;background:#546478;color:#fff;flex:none');
+  viewBar.innerHTML = '<span class="mi" style="font-size:18px">lock</span>' +
+    '<span style="flex:1;font:500 13px/1.25 Geist">Completed job · read only</span>' +
+    '<span data-act="histReopen" data-tap="1" style="font:600 12.5px/1 Geist;padding:7px 10px;border-radius:7px;background:rgba(255,255,255,.16)">Set back to active</span>';
+  phone.insertBefore(viewBar, viewport);
+  toggleDisplay(viewBar, false);
+  function paintView() {
+    toggleDisplay(viewBar, !!viewPast);
+    if (typeof paintStartButtons === 'function') paintStartButtons();
+    var back = $('[data-act="histReopen"]', viewBar);
+    if (back) toggleDisplay(back, !!viewPast && !viewPast.visit);
+    var label = viewBar.children[1];
+    if (label) label.textContent = viewPast && viewPast.visit ? 'Past visit · read only' : 'Completed job · read only';
+    jobHeaderBtns.forEach(function (b) { toggleDisplay(b, !viewPast); });
+  }
+  function leaveView() {
+    if (!viewPast) return;
+    jobIdx = viewPast.idx;
+    viewPast = null;
+    loadJob();
+    paintJob();
+    paintCard();
+    paintPayScreens();
+    paintView();
+  }
+  // the sheet's Job details row opens the job it names
+  (function () {
+    var row = $('#ov-histjob [data-go="job-general"]');
+    if (row) { row.removeAttribute('data-go'); row.dataset.act = 'histDetails'; }
+  })();
+
+  var VIEW_ACTS = { jobGeneral: 1, jobNotes: 1, jobRC: 1, jobEst: 1, jobFin: 1, histReopen: 1, histDetails: 1, openApproved: 1 };
+  var VIEW_GO = { BACK: 1, 'ov-note-detailed': 1, 'ov-note-tech': 1, 'ov-note-private': 1, photos: 1, 'photo-detail': 1,
+    'est-preview': 1, 'est-approved': 1, 'job-general': 1, 'job-notes': 1, 'rc-overview': 1, 'cust-jobs': 1, files: 1 };
+  function viewGuard(ev) {
+    if (!viewPast) return;
+    var scr = ev.target.closest('.screen,.overlay');
+    if (!scr || !isJobScreen(scr.id)) return;
+    if (ev.target.closest('a[data-tel]')) return;
+    var hit = ev.target.closest('[data-act],[data-go],[data-back],[data-tap],input,textarea');
+    if (!hit) return;
+    if (hit.dataset.back !== undefined) return;
+    if (hit.dataset.act && VIEW_ACTS[hit.dataset.act]) return;
+    if (hit.dataset.go && VIEW_GO[hit.dataset.go]) return;
+    // a section head that only folds open is reading, not editing
+    if (!hit.dataset.act && !hit.dataset.go && hit.tagName !== 'INPUT' && hit.tagName !== 'TEXTAREA' &&
+      byIcon(hit, 'expand_more').concat(byIcon(hit, 'expand_less'), byIcon(hit, 'chevron_right')).length) return;
+    ev.stopPropagation();
+    ev.preventDefault();
+    if (ev.type === 'click') toast('Completed job — read only. Set it back to active to change it', 'lock');
+  }
+  document.addEventListener('click', viewGuard, true);
+  document.addEventListener('mousedown', viewGuard, true);
+  document.addEventListener('touchstart', function (ev) {
+    if (!viewPast) return;
+    var scr = ev.target.closest('.screen,.overlay');
+    if (scr && isJobScreen(scr.id) && ev.target.closest('input,textarea')) ev.preventDefault();
+  }, { capture: true, passive: false });
+
   /* job tab strips */
   ['job-general', 'job-notes', 'rc-overview', 'est-empty', 'est-draft', 'est-review',
     'est-ready', 'est-approved', 'fin-empty', 'add-empty', 'add-items', 'inv-paid', 'inv-sent']
@@ -3624,7 +3723,7 @@
         'background:#fff;border:1px solid #C8D5E8;color:#4A6FA5;border-radius:9px;' +
         'font:600 13.5px/1 Geist');
       link.dataset.tap = '1';
-      link.dataset.go = 'job-general';
+      link.dataset.act = 'histDetails';
 
       var money = norm(price.textContent);
       // on a narrow phone the range used to break mid-number; the label gives
@@ -3638,6 +3737,7 @@
       $('[data-money]', price).textContent = money;
 
       var who = norm(name.textContent);
+      link.dataset.job = who;
       var kebab = document.createElement('span');
       kebab.className = 'mi';
       kebab.dataset.tap = '1';
@@ -6095,6 +6195,11 @@
      hides. */
   var START_STYLE = '', COMPLETE_STYLE = '';
   function paintStartButtons() {
+    paintStartButtonsInner();
+    // a finished job being read has no Start and no Complete
+    if (viewPast) jobHeaderBtns.forEach(function (b) { b.style.display = 'none'; });
+  }
+  function paintStartButtonsInner() {
     $$('.screen [data-act="start"],.screen [data-act="complete"]').forEach(function (b) {
       if (jobHeaderBtns.indexOf(b) > -1) return;
       if (b.dataset.cardbtn) return;        // the card paints its own row
