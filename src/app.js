@@ -970,9 +970,9 @@
       closeOverlays(true);
       if (at < 0) { toast(who + ' is not on this device', 'info'); return; }
       histJob = who;
-      if (JOBS[at].done && at !== jobIdx) viewPast = { idx: jobIdx };
-      else if (JOBS[at].done) viewPast = { idx: jobIdx };
-      else viewPast = null;
+      // History is the past: whatever is opened from it is read, not worked.
+      // A finished job can be set back to active; a visit cannot.
+      viewPast = { idx: jobIdx, visit: !JOBS[at].done };
       jobIdx = at;
       loadJob();
       paintJob();
@@ -5434,7 +5434,7 @@
     {
       name: 'Joseph Lane', when: 'Today, 2:15 PM', brief: 'AC not cooling', type: 'Demand Service',
       addr: '255 Standish Drive, Tampa, FL 33615', away: '6.8 miles away', phone: '(352) 258-9710',
-      est: 'ready', inv: 'none',            // advisor quoted it, still to present
+      est: 'none', inv: 'none',             // nothing quoted yet — the estimate is built on site
       items: [jobLine('SV-2007', 1)], sold: null
     }
   ];
@@ -5601,7 +5601,21 @@
       empty.textContent = 'Nothing on this job yet. Whatever the customer approves on an estimate lands here on its own.';
       R.card.insertBefore(empty, R.add);
     }
-    items.forEach(function (it, i) { R.card.insertBefore(jobItemRow(it, i), R.add); });
+    items.forEach(function (it, i) {
+      var row = jobItemRow(it, i);
+      /* What the customer signed for is not re-counted or struck off on the
+         job: the signed estimate sets the price. Those rows lose their
+         stepper and bin and say so; anything added on site keeps both. */
+      if (it.from === 'estimate' && j.sold) {
+        var ctl = $('[data-drop]', row); ctl = ctl && ctl.parentElement;
+        if (ctl) {
+          ctl.setAttribute('style', 'display:flex;align-items:center;gap:7px;margin-top:9px;font:400 12.5px/1.3 Geist;color:#8A97A8');
+          ctl.innerHTML = '<span class="mi" style="font-size:16px;color:#A9B4C2">lock</span><span></span>';
+          ctl.children[1].textContent = 'Qty ' + it.qty + ' · ' + fmt(it.price) + ' each · set by the signed ' + j.sold.option;
+        }
+      }
+      R.card.insertBefore(row, R.add);
+    });
 
     var sold = j.sold;
     var total = sold ? sold.total : jobItemsTotal(j);
@@ -6450,6 +6464,15 @@
   // session flags — before the cards are painted
   jobIdx = recall('jobIdx', 0);
   var savedJobs = recall('jobs', []) || [];
+  /* The seed changed: the third job used to arrive already quoted, and a
+     phone that saved that keeps it quoted for good. A new seed number lets
+     that one job start the way the data now says, once. */
+  var JOBS_SEED = 2;
+  var seedWas = recall('jobsSeed', 1);
+  if (seedWas !== JOBS_SEED) {
+    if (savedJobs[2] && savedJobs[2].done !== true) savedJobs[2] = null;
+    remember('jobsSeed', JOBS_SEED);
+  }
   savedJobs.forEach(function (s, i) {
     if (!JOBS[i] || !s) return;
     JOBS[i].est = s.est; JOBS[i].inv = s.inv; JOBS[i].done = !!s.done;
