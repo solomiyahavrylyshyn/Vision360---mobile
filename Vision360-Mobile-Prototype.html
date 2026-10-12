@@ -3067,6 +3067,11 @@ body.dev #indexBtn{display:flex}
   var invPaidAt = recall('invPaidAt', '');
   var invNum = recall('invNum', '');          // the current invoice's number
   var invSeq = recall('invSeq', 122);         // the board's INV-26-03-123 was the 123rd
+  var invPaidSoFar = recall('invPaidSoFar', 0);   // partial payments taken against the invoice
+  var invBase = recall('invBase', null);          // an invoice kept as it was when the estimate changed
+  var quickClose = false;                         // completing the job without the closeout form
+  var startAnyway = false;                        // the technician said to start away from the address
+  var changesPrevTotal = null;                    // what the estimate was worth before changes were requested
 
   function plan() { return PLANS[planIdx]; }
   // payment per dollar financed — what the card calls the monthly factor
@@ -3144,7 +3149,13 @@ body.dev #indexBtn{display:flex}
     inv: 'none',        // none sent paid
     extra: false        // additional items added
   };
-  var EST = { none: 'est-empty', draft: 'est-draft', review: 'est-review', ready: 'est-ready', approved: 'est-approved' };
+  /* Marek, Oct 12: the mobile estimate uses the web app's statuses — no
+     manager review step and no separate "ready to present". A draft is
+     presented to the customer; it comes back approved or declined; an
+     approved one can have changes requested, be revised, and be resent for
+     the customer's approval. Review and ready, if a phone saved them, read
+     as a draft. */
+  var EST = { none: 'est-empty', draft: 'est-draft', review: 'est-draft', ready: 'est-draft', changes: 'est-draft', approved: 'est-approved' };
   function estScreen() { return EST[state.est]; }
   function finScreen() {
     if (state.inv === 'paid') return 'inv-paid';
@@ -3271,6 +3282,7 @@ body.dev #indexBtn{display:flex}
 
   function chrome() {
     var pid = curPage(); if (!pid) return;
+    if (pid === 'est-draft' && typeof paintDraftAction === 'function') paintDraftAction();
     if (viewPast && (!isJobScreen(pid) || (viewPast.visit && pid === 'cust-jobs'))) leaveView();
     // the stage the tech moved this job to belongs to the job, not the session
     if (typeof JOBS !== 'undefined' && JOBS[jobIdx] && pid !== 'login') {
@@ -3712,6 +3724,19 @@ body.dev #indexBtn{display:flex}
         state.paused ? 'pause_circle' : 'play_circle');
     },
     start: function () {
+      /* Marek, Oct 12: the phone's distance from the job address can gate
+         Start — payroll checks timesheets against GPS by hand today. */
+      var miles = jobAwayMiles();
+      if (!startAnyway && miles > 0.25) {
+        confirmSheet({
+          title: 'You are ' + miles + ' miles from the job',
+          text: ((JOBS[jobIdx] || {}).addr || 'The job address') + '. Starting here puts the clock on before you arrive.',
+          ok: 'Start anyway', alt: null, danger: true,
+          onOk: function () { startAnyway = true; ACT.start(); }
+        });
+        return;
+      }
+      startAnyway = false;
       state.onsite = true;
       state.paused = false;
       state.enroute = false;          // you've arrived — the en route state is spent
@@ -3787,6 +3812,7 @@ body.dev #indexBtn{display:flex}
       }
       optionItems = [];
       optAdjust = 0;
+      optRevised = null;
       renderOptionItems();
       paintOptionName();
       go('est-draft', 'root');
@@ -3797,15 +3823,26 @@ body.dev #indexBtn{display:flex}
       // however many options were built, they go up — four is the ceiling,
       // not a quota, and an estimate with two is still an estimate
       if (!optCount) {
-        toast('Add an option before sending it for review', 'info');
+        toast('Add an option before presenting it', 'info');
         return;
       }
-      state.est = 'review';
-      go('est-review', 'replace');
-      queued('Estimate');
-      toast('Sent to your manager for review', 'send');
+      estPresented = true;
+      go('est-customer', 'modal');
     },
-    estApprove: function () { state.est = 'ready'; go('est-ready', 'replace'); toast('Manager approved — ready to present', 'verified'); },
+    estApprove: function () { go('est-draft', 'replace'); },
+    /* An approved estimate is not edited in place: it is marked as changes
+       requested, revised, and resent for the customer's approval — the web
+       app's workflow. What was signed stays signed until the new one is. */
+    estChanges: function () {
+      var j = JOBS[jobIdx] || {};
+      changesPrevTotal = j.sold ? j.sold.total : null;
+      state.est = 'changes';
+      closeOverlays(true);
+      go('est-draft', 'root');
+      paintDraftAction();
+      queued('Estimate');
+      toast('Changes requested — revise the options and resend for approval', 'edit_note');
+    },
     estOrder: function () {
       if (!estSigned) {
         // the button already says this; the toast says why
@@ -3835,12 +3872,25 @@ body.dev #indexBtn{display:flex}
       go('est-approved', 'root');
       queued('Estimate');
       toast('Order confirmed · ' + pick + ' signed — ' + fmt(total), 'check_circle');
+      /* Marek, Oct 12: estimate items populate the invoice, but a change to
+         an estimate that already has an invoice must ask, not update it. */
+      if (changesPrevTotal !== null && state.inv !== 'none' && state.inv !== 'paid' && changesPrevTotal !== total) {
+        var was = changesPrevTotal;
+        confirmSheet({
+          title: 'Update the invoice?',
+          text: invNo() + ' was made from the previous estimate (' + fmt(was) + '). The approved estimate is now ' + fmt(total) + '.',
+          ok: 'Update invoice', alt: 'Keep invoice as it is',
+          onOk: function () { invBase = null; remember('invBase', null); paintPayScreens(); toast('Invoice updated to ' + fmt(invoiceTotal()), 'receipt_long'); },
+          onAlt: function () { invBase = was; remember('invBase', was); paintPayScreens(); toast('Invoice kept at ' + fmt(invoiceTotal()), 'lock'); }
+        });
+      }
+      changesPrevTotal = null;
     },
     estDecline: function () {
-      state.est = 'ready';                 // still presentable — that's the fix
+      state.est = 'draft';                 // still presentable — that's the fix
       markDeclined();
       closeOverlays(true);
-      go('est-ready', 'root');
+      go('est-draft', 'root');
       queued('Estimate');
       // a decline with a date on it is a visit; without one it is a shrug
       toast(followUpDays >= 0
@@ -3886,6 +3936,8 @@ body.dev #indexBtn{display:flex}
     },
 
     createInvoice: function () {
+      invPaidSoFar = 0; remember('invPaidSoFar', 0);
+      invBase = null; remember('invBase', null);
       /* Creating an invoice sent it in the same tap — the technician had no
          moment to look at it, and the spec keeps five minutes between
          Created and Sent. It is created; Send invoice sends it. */
@@ -4063,10 +4115,28 @@ body.dev #indexBtn{display:flex}
     },
     // "Set to Completed" runs the SOP closeout first — the job isn't done
     // until the twelve fields are in (US-M05-2)
+    /* Marek, Oct 12: the closeout form repeated the notes, the photos and
+       the invoice. A job is completed directly — with one look at what is
+       still open on it, and a warning when money is still owed. A job with
+       nothing owed (warranty, free maintenance) closes without payment. */
     complete: function () {
       closeOverlays(true);
-      paintCloseoutBlocker();
-      go('closeout', 'modal');
+      var due = payAmount || 0;
+      var lines = [];
+      if (state.inv === 'none' && invoiceTotal() > 0) lines.push('No invoice yet — ' + fmt(invoiceTotal()) + ' of work on this job.');
+      else if (state.inv === 'paid') lines.push('Invoice ' + invNo() + ' paid.');
+      else if (state.inv !== 'none') lines.push('Invoice ' + invNo() + (due > 0 ? ' — ' + fmt(due) + ' still due.' : ' — nothing due.'));
+      if (upPending > 0) lines.push(upPending + ' ' + plural(upPending) + ' still uploading.');
+      var jt = $('[data-jobtime]');
+      lines.push('Photos this visit: ' + photosThisVisit + '. Time on site: ' + (jt ? norm(jt.textContent) : '0:00') + '.');
+      confirmSheet({
+        title: 'Complete the job?',
+        text: lines.join(' '),
+        ok: 'Complete job', alt: (state.inv === 'none' || due > 0) ? 'Go to Finance' : null,
+        danger: due > 0,
+        onOk: function () { quickClose = true; ACT.closeoutComplete(); quickClose = false; },
+        onAlt: function () { go(finScreen(), 'push'); }
+      });
     },
     closeoutSave: function () {
       queued('Closeout');
@@ -4082,11 +4152,11 @@ body.dev #indexBtn{display:flex}
         toast(upPending + ' ' + plural(upPending) + ' still uploading — wait for it', 'sync');
         return;
       }
-      if (ntgbOn() && !ntgbWho) {
+      if (!quickClose && ntgbOn() && !ntgbWho) {
         toast('Say which department goes back', 'groups');
         return;
       }
-      var gaps = installMissing();
+      var gaps = quickClose ? [] : installMissing();
       if (gaps.length) {
         paintInstall();
         toast('An install was sold — still missing ' + gaps.join(', '), 'handyman');
@@ -5230,6 +5300,7 @@ body.dev #indexBtn{display:flex}
     ACT.saveBillTo = function () {
       billTo = inputs.map(function (i) { return i.value; });
       remember('billTo', billTo);
+      billToJob = jobIdx; remember('billToJob', billToJob);
       paintBillTo();
       paintDetailPanels();
       back();
@@ -5322,19 +5393,30 @@ body.dev #indexBtn{display:flex}
   })();
 
   // the name and address the invoice is made out to
+  /* The invoice is made out to the job's customer — the board's Randy
+     Johnson on every job was a mock-up. Details saved on one job are that
+     job's. */
+  var billToJob = recall('billToJob', -1);
   function paintBillTo() {
-    if (!billTo) return;
+    var j = (typeof JOBS !== 'undefined' && JOBS[jobIdx]) || {};
+    var saved = billTo && billToJob === jobIdx ? billTo : null;
+    var parts = String(j.name || '').trim().split(/\s+/);
+    var name = saved ? saved[0] : (parts.length > 1 ? parts.slice(-1)[0] + ', ' + parts.slice(0, -1).join(' ') : (j.name || ''));
+    var addr = String(j.addr || '');
+    var street = saved ? saved[3] : addr.split(',')[0];
+    var rest = saved ? [saved[4], [billState, saved[5]].filter(Boolean).join(' ')].filter(Boolean).join(', ')
+      : addr.split(',').slice(1).join(',').trim();
+    if (!name && !street) return;
     ['inv-paid', 'inv-sent', 'fin-empty'].forEach(function (id) {
       var root = byId(id); if (!root) return;
       var who = valueFor(root, 'Customer');
       var where = valueFor(root, 'Address');
-      if (who && billTo[0]) who.textContent = billTo[0];
-      if (where && billTo[3]) {
+      if (who && name) who.textContent = name;
+      if (where && street) {
         where.innerHTML = '';
-        where.appendChild(document.createTextNode(billTo[3] + ','));
+        where.appendChild(document.createTextNode(street + ','));
         where.appendChild(document.createElement('br'));
-        where.appendChild(document.createTextNode(
-          [billTo[4], [billState, billTo[5]].filter(Boolean).join(' ')].filter(Boolean).join(', ')));
+        where.appendChild(document.createTextNode(rest));
       }
     });
   }
@@ -5476,6 +5558,8 @@ body.dev #indexBtn{display:flex}
     invSentAt = ''; remember('invSentAt', '');
     invCreatedAt = ''; remember('invCreatedAt', '');
     invPaidAt = ''; remember('invPaidAt', '');
+    invPaidSoFar = 0; remember('invPaidSoFar', 0);
+    invBase = null; remember('invBase', null);
     paintPayScreens();
     go('fin-empty', 'root');
     queued('Invoice');
@@ -5670,6 +5754,10 @@ body.dev #indexBtn{display:flex}
       '<div data-payinv style="font:600 16px/1.2 Geist;margin-top:5px"></div></div>' +
       '<div style="text-align:right"><div style="font:400 12.5px/1 Geist;color:#546478">Amount due</div>' +
       '<div data-payinvdue style="font:700 20px/1 Geist;letter-spacing:-.01em;color:#1C2B3A;margin-top:4px"></div></div></div>' +
+      '<div style="font:500 12.5px/1 Geist;color:#546478;margin-bottom:7px">Amount to take now</div>' +
+      '<div style="display:flex;align-items:center;gap:8px;height:50px;padding:0 13px;margin-bottom:12px;background:#fff;border:1.5px solid #4A6FA5;border-radius:10px">' +
+      '<span style="font:600 17px/1 Geist;color:#8A97A8">$</span>' +
+      '<input data-payamt class="inp" inputmode="decimal" style="flex:1;height:auto;border:0;padding:0;background:transparent;font:600 17px/1 Geist"></div>' +
       '<div data-paypanel></div></div>' +
       '<div style="padding:14px 16px;background:#fff;border-top:1px solid #DDE3EE;flex:none">' +
       '<div data-act="payInline" data-tap="1" style="height:54px;display:flex;align-items:center;justify-content:center;gap:8px;' +
@@ -5780,6 +5868,8 @@ body.dev #indexBtn{display:flex}
       $('[data-paymname]', P.panel).textContent = m.name;
       var inv = $('[data-payinv]', P.root); if (inv) inv.textContent = invNo();
       var invDue = $('[data-payinvdue]', P.root); if (invDue) invDue.textContent = fmt(due);
+      var amt = $('[data-payamt]', P.root);
+      if (amt && document.activeElement !== amt) amt.value = due ? due.toFixed(2) : '';
       if (P.drop) paintTicks(P.drop.panel, 'paym', PAY_METHODS.indexOf(m));
       if (P.rendered !== m.id) renderPayFields(P);
       $('[data-paydown]', P.panel).textContent = fmt(down);
@@ -5825,6 +5915,24 @@ body.dev #indexBtn{display:flex}
     }
     // money against nothing is an invoice made on the spot
     if (state.inv === 'none') ACT.createInvoice();
+    /* Marek, Oct 12: partial payments are supported. Less than the balance
+       is taken, recorded, and the invoice stays open for the rest. */
+    var amtEl = $$('[data-payamt]').filter(function (e) { return e.offsetParent; })[0];
+    var taking = amtEl ? parseFloat(String(amtEl.value).replace(/[^0-9.]/g, '')) : NaN;
+    if (!isFinite(taking) || taking <= 0) taking = payAmount;
+    if (taking < payAmount - 0.005) {
+      invPaidSoFar += taking; remember('invPaidSoFar', invPaidSoFar);
+      if (!invSentAt) { invSentAt = stamp(); remember('invSentAt', invSentAt); if (state.inv === 'created') state.inv = 'sent'; }
+      kpiPaid(taking);
+      pay.values = {}; pay.dates = {}; savePay();
+      payPanels.forEach(function (P) { P.rendered = ''; });
+      paintPayScreens();
+      closeOverlays(true);
+      go(finScreen(), 'root');
+      queued('Payment');
+      toast('Partial payment · ' + fmt(taking) + ' received · ' + fmt(payAmount) + ' still due', 'payments');
+      return;
+    }
     invPaidAt = stamp(); remember('invPaidAt', invPaidAt);
     if (!invSentAt) { invSentAt = invPaidAt; remember('invSentAt', invSentAt); }
     state.inv = 'paid';
@@ -6251,13 +6359,13 @@ body.dev #indexBtn{display:flex}
   viewBar.setAttribute('style', 'display:flex;align-items:center;gap:10px;padding:9px 14px;background:#546478;color:#fff;flex:none');
   viewBar.innerHTML = '<span class="mi" style="font-size:18px">lock</span>' +
     '<span style="flex:1;font:500 13px/1.25 Geist">Completed job · read only</span>' +
-    '<span data-act="histReopen" data-tap="1" style="font:600 12.5px/1 Geist;padding:7px 10px;border-radius:7px;background:rgba(255,255,255,.16)">Set back to active</span>';
+    '<span data-act="reopenRequest" data-tap="1" style="font:600 12.5px/1 Geist;padding:7px 10px;border-radius:7px;background:rgba(255,255,255,.16)">Ask manager to reopen</span>';
   phone.insertBefore(viewBar, viewport);
   toggleDisplay(viewBar, false);
   function paintView() {
     toggleDisplay(viewBar, !!viewPast);
     if (typeof paintStartButtons === 'function') paintStartButtons();
-    var back = $('[data-act="histReopen"]', viewBar);
+    var back = $('[data-act="reopenRequest"]', viewBar);
     if (back) toggleDisplay(back, !!viewPast && !viewPast.visit);
     var label = viewBar.children[1];
     if (label) label.textContent = viewPast && viewPast.visit ? 'Past visit · read only' : 'Completed job · read only';
@@ -6277,9 +6385,27 @@ body.dev #indexBtn{display:flex}
   (function () {
     var row = $('#ov-histjob [data-go="job-general"]');
     if (row) { row.removeAttribute('data-go'); row.dataset.act = 'histDetails'; }
+    /* Marek, Oct 12: a completed job is reopened only by an authorised
+       manager or team leader, who puts it back to in progress; the
+       technician asks. */
+    var re = $('#ov-histjob [data-act="histReopen"]');
+    if (re) {
+      re.dataset.act = 'reopenRequest';
+      var t = $$('span', re).filter(function (e) { return /Set back to active/.test(e.textContent); })[0];
+      if (t) {
+        [].slice.call(t.childNodes).forEach(function (n) { if (n.nodeType === 3) n.nodeValue = 'Ask manager to reopen'; });
+        var sub2 = $('span', t); if (sub2) sub2.textContent = 'Only a manager or team leader can put a completed job back to in progress';
+      }
+    }
   })();
+  ACT.reopenRequest = function () {
+    var who = histJob || (JOBS[jobIdx] || {}).name || 'this job';
+    closeOverlays(true);
+    queued('Reopen request');
+    toast(net.online ? 'Reopen request for ' + who + ' sent to your manager' : 'Reopen request will go to your manager with signal', 'outgoing_mail');
+  };
 
-  var VIEW_ACTS = { jobGeneral: 1, jobNotes: 1, jobRC: 1, jobEst: 1, jobFin: 1, histReopen: 1, histDetails: 1, openApproved: 1 };
+  var VIEW_ACTS = { jobGeneral: 1, jobNotes: 1, jobRC: 1, jobEst: 1, jobFin: 1, histReopen: 1, reopenRequest: 1, histDetails: 1, openApproved: 1 };
   var VIEW_GO = { BACK: 1, 'ov-note-detailed': 1, 'ov-note-tech': 1, 'ov-note-private': 1, photos: 1, 'photo-detail': 1,
     'est-preview': 1, 'est-approved': 1, 'job-general': 1, 'job-notes': 1, 'rc-overview': 1, 'cust-jobs': 1, files: 1 };
   function viewGuard(ev) {
@@ -6306,6 +6432,83 @@ body.dev #indexBtn{display:flex}
     var scr = ev.target.closest('.screen,.overlay');
     if (scr && isJobScreen(scr.id) && ev.target.closest('input,textarea')) ev.preventDefault();
   }, { capture: true, passive: false });
+
+  /* =========================================================
+     One sheet for the questions the app has to ask before it acts: a
+     title, a line of why, one green or red button, sometimes a second way.
+     ========================================================= */
+  var confirmCb = { ok: null, alt: null };
+  var confirmEl = document.createElement('div');
+  confirmEl.className = 'overlay';
+  confirmEl.id = 'ov-confirm';
+  confirmEl.innerHTML =
+    '<div style="position:absolute;inset:0;background:rgba(28,43,58,.40)" data-back></div>' +
+    '<div style="position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:22px 22px 0 0;box-shadow:0 -8px 30px rgba(26,35,50,.22);padding:0 16px 18px">' +
+    '<div style="display:flex;justify-content:center;padding:10px 0 4px"><div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div></div>' +
+    '<div data-cftitle style="font:600 18px/1.25 Geist;padding:8px 0 8px"></div>' +
+    '<div data-cftext style="font:400 14.5px/1.5 Geist;color:#546478;text-wrap:pretty;padding-bottom:16px"></div>' +
+    '<div data-act="confirmOk" data-tap="1" style="height:52px;display:flex;align-items:center;justify-content:center;border-radius:11px;font:600 16px/1 Geist;color:#fff;background:#16A34A"></div>' +
+    '<div data-act="confirmAlt" data-tap="1" style="height:48px;display:flex;align-items:center;justify-content:center;border-radius:11px;font:600 15px/1 Geist;color:#4A6FA5;background:#fff;border:1px solid #C8D5E8;margin-top:10px"></div>' +
+    '<div data-back data-tap="1" style="height:44px;display:flex;align-items:center;justify-content:center;font:500 14.5px/1 Geist;color:#546478;margin-top:4px">Cancel</div></div>';
+  ovLayer.appendChild(confirmEl);
+  INFO['ov-confirm'] = { id: 'ov-confirm', title: 'Confirm', section: 'app', tabs: false, overlay: true };
+  function confirmSheet(o) {
+    $('[data-cftitle]', confirmEl).textContent = o.title || '';
+    $('[data-cftext]', confirmEl).textContent = o.text || '';
+    var ok = $('[data-act="confirmOk"]', confirmEl), alt = $('[data-act="confirmAlt"]', confirmEl);
+    ok.textContent = o.ok || 'OK';
+    ok.style.background = o.danger ? '#DC2626' : '#16A34A';
+    toggleDisplay(alt, !!o.alt);
+    alt.textContent = o.alt || '';
+    confirmCb = { ok: o.onOk || null, alt: o.onAlt || null };
+    go('ov-confirm', 'overlay');
+  }
+  ACT.confirmOk = function () { var cb = confirmCb.ok; closeOverlays(true); confirmCb = {}; if (cb) cb(); };
+  ACT.confirmAlt = function () { var cb = confirmCb.alt; closeOverlays(true); confirmCb = {}; if (cb) cb(); };
+
+  function jobAwayMiles() {
+    var m = String((JOBS[jobIdx] || {}).away || '').match(/([\d.]+)\s*miles?/);
+    return m ? parseFloat(m[1]) : 0;
+  }
+
+  /* The draft's one button: Present to customer — or, with changes
+     requested on an approved estimate, Resend for approval — and a strip
+     saying why the draft is open again. */
+  var changesStrip = null;
+  function paintDraftAction() {
+    var root = byId('est-draft'); if (!root) return;
+    if (!optSendBtn) return;
+    var changes = state.est === 'changes';
+    var ic = $('.mi,.mif', optSendBtn);
+    if (ic) ic.textContent = changes ? 'send' : 'present_to_all';
+    [].slice.call(optSendBtn.childNodes).forEach(function (n) {
+      if (n.nodeType === 3 && norm(n.nodeValue)) n.nodeValue = changes ? 'Resend for approval' : 'Present to customer';
+    });
+    if (!changesStrip) {
+      var sc = $$('.sc', root)[1]; if (!sc) return;
+      changesStrip = document.createElement('div');
+      changesStrip.setAttribute('style', 'display:flex;align-items:center;gap:9px;padding:11px 13px;margin-bottom:11px;' +
+        'background:#FEF3E2;border:1px solid #F5D7A8;border-radius:11px;font:500 13px/1.35 Geist;color:#8A6114');
+      changesStrip.innerHTML = '<span class="mi" style="font-size:19px;color:#D97706">edit_note</span>' +
+        '<span>Changes requested — the signed estimate stands until the customer approves the revised one.</span>';
+      sc.insertBefore(changesStrip, sc.firstChild);
+    }
+    toggleDisplay(changesStrip, changes);
+  }
+
+  /* On the approved estimate, the one thing that can happen to it next. */
+  (function () {
+    var root = byId('est-approved'); if (!root) return;
+    var head = sel(root, 'Approved option')[0];
+    var card = head && head.nextElementSibling;
+    if (!card) { MISS.push('est-approved :: option card'); return; }
+    var btn = document.createElement('div');
+    btn.dataset.act = 'estChanges'; btn.dataset.tap = '1';
+    btn.setAttribute('style', 'height:48px;display:flex;align-items:center;justify-content:center;gap:8px;margin:12px 0 4px;' +
+      'background:#fff;border:1px solid #C8D5E8;color:#4A6FA5;border-radius:11px;font:600 15px/1 Geist');
+    btn.innerHTML = '<span class="mi" style="font-size:19px">edit_note</span>Request changes';
+    card.parentElement.insertBefore(btn, card.nextSibling);
+  })();
 
   /* job tab strips */
   ['job-general', 'job-notes', 'rc-overview', 'est-empty', 'est-draft', 'est-review',
@@ -6874,7 +7077,8 @@ body.dev #indexBtn{display:flex}
   function invoiceTotal() {
     // the extras render before the job list exists, so this is asked early
     var j = (typeof JOBS === 'undefined' ? null : JOBS[jobIdx]) || {};
-    return (j.sold ? j.sold.total : jobItemsTotal(j)) + extrasTotal();
+    var base = invBase !== null ? invBase : (j.sold ? j.sold.total : jobItemsTotal(j));
+    return base + extrasTotal();
   }
 
   function paintPayScreens() {
@@ -6885,7 +7089,7 @@ body.dev #indexBtn{display:flex}
     // was quoted against. On an estimate nobody bought, no money changed
     // hands, so there is nothing to take off the invoice.
     var paid = j.sold ? Math.min(deposit, jobTotal) : 0;
-    payAmount = Math.max(0, jobTotal - paid);
+    payAmount = Math.max(0, jobTotal - paid - invPaidSoFar);
     PAY_SCREENS.forEach(function (id) {
       var root = byId(id); if (!root) return;
       var total = valueFor(root, 'Total');
@@ -6942,6 +7146,23 @@ body.dev #indexBtn{display:flex}
       if (t) t.nodeValue = sent ? 'Sent ' + invSentAt : 'Not sent yet';
       row.style.color = sent ? '#546478' : '#A9B4C2';
     }
+    var wait = $('[data-waitrow]', root);
+    if (!wait) {
+      $$('div', root).forEach(function (e) {
+        if (wait || e.children.length !== 1) return;
+        var tn = [].slice.call(e.childNodes).filter(function (n) { return n.nodeType === 3 && norm(n.nodeValue); })[0];
+        if (tn && /^(Awaiting payment|Partly paid)/.test(norm(tn.nodeValue))) wait = e;
+      });
+      if (wait) wait.dataset.waitrow = '1';
+    }
+    if (wait) {
+      var tw = [].slice.call(wait.childNodes).filter(function (n) { return n.nodeType === 3 && norm(n.nodeValue); })[0];
+      var iw = $('.mi,.mif', wait);
+      var part = invPaidSoFar > 0;
+      if (tw) tw.nodeValue = part ? 'Partly paid · ' + fmt(invPaidSoFar) + ' received, ' + fmt(payAmount) + ' due' : 'Awaiting payment';
+      if (iw) { iw.className = part ? 'mif' : 'mi'; iw.textContent = part ? 'incomplete_circle' : 'radio_button_unchecked'; iw.style.color = part ? '#D97706' : ''; }
+      wait.style.color = part ? '#546478' : '#A9B4C2';
+    }
     var btn = $('[data-sendbtn]', root) || $$('[data-go="ov-inv-share"]', root).filter(function (e) { return byIcon(e, 'send').length; })[0];
     if (btn) {
       btn.dataset.sendbtn = '1';
@@ -6953,7 +7174,7 @@ body.dev #indexBtn{display:flex}
 
   /* The invoice screens carried the board's numbers and the board's clock. */
   function paintInvoice(total, down) {
-    var due = Math.max(0, total - down);
+    var due = Math.max(0, total - down - invPaidSoFar);
     ['inv-sent', 'inv-paid', 'fin-empty', 'add-empty', 'add-items'].forEach(function (id) {
       var root = byId(id); if (!root) return;
       var amount = valueFor(root, 'Amount due') || valueFor(root, 'Amount paid');
@@ -7471,13 +7692,15 @@ body.dev #indexBtn{display:flex}
      watching. "Adjust the price" opened a screen of its own that had to be
      come back from; it is one slider, so it is a slider, under the thumb
      that tapped it. */
-  var optAdjust = 0;                       // percent, −20…+20
+  var optAdjust = 0;                       // kept for anything still reading it
+  var optRevised = null;                   // the price the technician typed, if any
   function optionBase() {
     return optionItems.reduce(function (a, it) { return a + it.price * it.qty; }, 0);
   }
   // the app already has an optionTotal() that reads a card; this one is the
   // option being built, after whatever the slider did to it
   function optionAdjusted() {
+    if (optRevised !== null && optRevised > 0) return Math.round(optRevised * 100) / 100;
     return Math.round(optionBase() * (1 + optAdjust / 100) * 100) / 100;
   }
 
@@ -7491,18 +7714,20 @@ body.dev #indexBtn{display:flex}
     if (optSummary.total) optSummary.total.textContent = fmt(total);
   }
 
+  /* Marek, Oct 12: at the table he types the price he is giving, not a
+     percentage — the app shows the list price, the revised price, and the
+     saving it works out to. */
   function paintAdjust() {
-    var pct = byId('adjPct'), tot = byId('adjTotal'), was = byId('adjWas');
-    var rng = byId('adjRange');
-    if (!pct || !tot || !rng) return;
-    rng.value = String(optAdjust);
-    pct.textContent = (optAdjust > 0 ? '+' : '') + optAdjust + '%';
-    pct.style.color = optAdjust < 0 ? '#DC2626' : optAdjust > 0 ? '#16A34A' : '#4A6FA5';
-    tot.textContent = fmt(optionAdjusted());
-    if (was) {
-      was.hidden = !optAdjust;
-      was.textContent = 'Was ' + fmt(optionBase());
-    }
+    var list = byId('adjList'), inp = byId('adjPrice'), sav = byId('adjSave');
+    if (!list || !inp || !sav) return;
+    var base = optionBase(), now = optionAdjusted();
+    list.textContent = fmt(base);
+    if (document.activeElement !== inp) inp.value = optRevised !== null ? optRevised.toFixed(2) : '';
+    inp.placeholder = base.toFixed(2);
+    var diff = base - now;
+    if (optRevised === null || Math.abs(diff) < 0.005) { sav.textContent = 'List price — no change'; sav.style.color = '#8A97A8'; }
+    else if (diff > 0) { sav.textContent = 'Saving ' + Math.round(diff / base * 100) + '% · ' + fmt(diff) + ' off'; sav.style.color = '#16A34A'; }
+    else { sav.textContent = '+' + Math.round(-diff / base * 100) + '% · ' + fmt(-diff) + ' above list'; sav.style.color = '#D97706'; }
   }
 
   /* It was a button, then a sheet over the numbers it changes, then a link
@@ -7530,21 +7755,19 @@ body.dev #indexBtn{display:flex}
     adjustBox.setAttribute('style', 'background:#fff;border:1px solid #DDE3EE;border-radius:11px;' +
       'padding:14px');
     adjustBox.innerHTML =
-      '<div style="display:flex;justify-content:space-between;align-items:baseline;' +
-      'font:500 12.5px/1 Geist;color:#8A97A8;margin-bottom:11px">' +
-      '<span>&minus;20%</span><span id="adjPct" style="font:700 16px/1 Geist;color:#4A6FA5">0%</span>' +
-      '<span>+20%</span></div>' +
-      '<input id="adjRange" class="rng" type="range" min="-20" max="20" step="1" value="0" style="width:100%">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;' +
-      'padding-top:12px;border-top:1px solid #EDF0F5">' +
-      '<span style="font:400 13.5px/1 Geist;color:#546478">Adjusted total</span>' +
-      '<span id="adjTotal" style="font:700 17px/1 Geist">$0.00</span></div>' +
-      '<div id="adjWas" style="font:400 12.5px/1 Geist;color:#8A97A8;margin-top:5px;text-align:right"></div>';
+      '<div style="display:flex;justify-content:space-between;align-items:center;font:400 13.5px/1 Geist;color:#546478">' +
+      '<span>List price</span><span id="adjList" style="font:600 14.5px/1 Geist;color:#1A2332">$0.00</span></div>' +
+      '<div style="font:500 12.5px/1 Geist;color:#546478;margin:14px 0 7px">Revised price</div>' +
+      '<div style="display:flex;align-items:center;gap:8px;height:50px;padding:0 13px;background:#fff;border:1.5px solid #4A6FA5;border-radius:10px">' +
+      '<span style="font:600 17px/1 Geist;color:#8A97A8">$</span>' +
+      '<input id="adjPrice" class="inp" inputmode="decimal" placeholder="0.00" style="flex:1;height:auto;border:0;padding:0;background:transparent;font:600 17px/1 Geist"></div>' +
+      '<div id="adjSave" style="font:500 13px/1.3 Geist;color:#8A97A8;margin-top:9px"></div>';
     btn.parentElement.insertBefore(adjustBox, btn.nextElementSibling);
 
-    var rng = $('#adjRange', adjustBox);
-    rng.addEventListener('input', function () {
-      optAdjust = parseInt(rng.value, 10) || 0;
+    var inp = $('#adjPrice', adjustBox);
+    inp.addEventListener('input', function () {
+      var v = parseFloat(String(inp.value).replace(/[^0-9.]/g, ''));
+      optRevised = isFinite(v) && v > 0 ? v : null;
       paintAdjust();
       paintOptionSummary();
     });
@@ -11501,7 +11724,28 @@ body.dev #indexBtn{display:flex}
 
 
   /* ---------- boot ---------- */
+  /* Marek, Oct 12: chat is not in the MVP; the notes are the web app's
+     job notes, field notes and internal notes. */
+  function mvpTrim() {
+    var chatTab = $('#tabbar [data-tab="chat"]');
+    if (chatTab) chatTab.style.display = 'none';
+    var ROOTS = ['home', 'home-active', 'job-general', 'job-notes', 'ov-note-detailed', 'ov-note-tech', 'ov-note-private', 'cust-jobs'];
+    var MAP = [[/Detailed description/g, 'Job notes'], [/Technician['\u2019]s Notes/g, 'Field notes'], [/Private Notes/g, 'Internal notes'],
+      [/\bDetailed\b/g, 'Job'], [/Technician['\u2019]s/g, 'Field'], [/\bPrivate\b/g, 'Internal']];
+    ROOTS.forEach(function (id) {
+      var root = byId(id); if (!root) return;
+      var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      var n;
+      while ((n = walker.nextNode())) {
+        var v = n.nodeValue; if (!/Detailed|Technician|Private/.test(v)) continue;
+        MAP.forEach(function (p) { v = v.replace(p[0], p[1]); });
+        n.nodeValue = v;
+      }
+    });
+  }
   function boot() {
+    mvpTrim();
+    paintDraftAction();
     stack = [{ id: 'splash', mode: 'root' }];
     $$('.screen,.overlay', phone).forEach(function (e) { e.classList.remove('on', 'leaving'); });
     byId('splash').classList.add('on');
