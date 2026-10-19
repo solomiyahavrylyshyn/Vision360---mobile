@@ -69,6 +69,14 @@
   ];
   var planIdx = 0;
   var deposit = 0;                    // what the customer hands over on the day
+  /* Marek, Oct 8 + 12: the deposit applies to every option and is part of
+     its full price — 10% as a rule; a fixed sum is the other way to say it.
+     A percentage works out differently on each option, so it is asked for
+     against the option's total. */
+  var depositPct = recall('depositPct', 10);
+  function effectiveDeposit(total) {
+    return depositPct > 0 ? Math.round(total * depositPct) / 100 : deposit;
+  }
   // the invoice: what was done beyond the estimate, and when it was raised,
   // sent and paid. Up here with the other boot-time data because the blocks
   // that render them run long before the block that used to declare them.
@@ -95,7 +103,7 @@
   }
   function monthlyFor(total) {
     if (!plan().months) return 0;
-    return Math.max(0, total - deposit) * planFactor();   // a deposit under the total is financed
+    return Math.max(0, total - effectiveDeposit(total)) * planFactor();   // a deposit under the total is financed
   }
   var MONTHLY_FACTOR = 0.0129;        // kept for anything still reading it directly
 
@@ -294,6 +302,7 @@
   function chrome() {
     var pid = curPage(); if (!pid) return;
     if (pid === 'est-draft' && typeof paintDraftAction === 'function') paintDraftAction();
+    if (typeof paintCustomerRotation === 'function') paintCustomerRotation();
     if (viewPast && (!isJobScreen(pid) || (viewPast.visit && pid === 'cust-jobs'))) leaveView();
     // the stage the tech moved this job to belongs to the job, not the session
     if (typeof JOBS !== 'undefined' && JOBS[jobIdx] && pid !== 'login') {
@@ -844,6 +853,25 @@
     /* An approved estimate is not edited in place: it is marked as changes
        requested, revised, and resent for the customer's approval — the web
        app's workflow. What was signed stays signed until the new one is. */
+    /* The customer asked for something different — the draft reopens and
+       is presented again; nothing was signed, so nothing stands. */
+    custChanges: function () {
+      var j = JOBS[jobIdx] || {};
+      changesPrevTotal = j.sold ? j.sold.total : null;
+      state.est = 'changes';
+      estPresented = false;
+      closeOverlays(true);
+      go('est-draft', 'root');
+      paintDraftAction();
+      queued('Estimate');
+      toast('Customer asked for changes — revise the options and present again', 'edit_note');
+    },
+    /* Marek, Oct 12: the presentation is landscape, with portrait as the
+       option. The screen turns in place. */
+    rotateCustomer: function () {
+      customerLandscape = !customerLandscape;
+      paintCustomerRotation();
+    },
     estChanges: function () {
       var j = JOBS[jobIdx] || {};
       changesPrevTotal = j.sold ? j.sold.total : null;
@@ -1134,7 +1162,9 @@
       closeOverlays(true);
       var due = payAmount || 0;
       var lines = [];
-      if (state.inv === 'none' && invoiceTotal() > 0) lines.push('No invoice yet — ' + fmt(invoiceTotal()) + ' of work on this job.');
+      var jp = (JOBS[jobIdx] || {}).plan;
+      if (jp && jp.prepaid && state.inv === 'none') lines.push('Prepaid maintenance plan — visit ' + jp.visit + ' of ' + jp.of + ' is covered, nothing owed.');
+      else if (state.inv === 'none' && invoiceTotal() > 0) lines.push('No invoice yet — ' + fmt(invoiceTotal()) + ' of work on this job.');
       else if (state.inv === 'paid') lines.push('Invoice ' + invNo() + ' paid.');
       else if (state.inv !== 'none') lines.push('Invoice ' + invNo() + (due > 0 ? ' — ' + fmt(due) + ' still due.' : ' — nothing due.'));
       if (upPending > 0) lines.push(upPending + ' ' + plural(upPending) + ' still uploading.');
@@ -1998,14 +2028,22 @@
     // and not the value
     var lowest = Math.min.apply(null, Object.keys(OPTION_TOTALS || {})
       .slice(0, optCount).map(function (k) { return OPTION_TOTALS[k]; }).concat([Infinity]));
-    return !deposit ? 'Taken off the price before the monthly is worked out.'
+    if (depositPct > 0) return depositPct + '% of each option, part of its price — taken off before the monthly is worked out.';
+    return !deposit ? 'No deposit — the whole price is financed or paid on the day.'
       : deposit >= lowest ? 'Covers the cheaper options outright — nothing left to finance on those.'
         : fmt(deposit) + ' down, the rest financed.';
   }
   function paintDeposit() {
     if (!depDrop) return;
+    $$('[data-deppct]', depDrop.panel).forEach(function (c) {
+      var on = +c.dataset.deppct === depositPct;
+      c.setAttribute('style', 'flex:1;text-align:center;border-radius:9px;padding:11px 0;' +
+        'font:600 13px/1 Geist;' + (on
+          ? 'background:#4A6FA5;color:#fff'
+          : 'background:#fff;border:1px solid #C8D5E8;color:#4A6FA5'));
+    });
     $$('[data-dep]', depDrop.panel).forEach(function (c) {
-      var on = +c.dataset.dep === deposit;
+      var on = depositPct === 0 && +c.dataset.dep === deposit;
       c.setAttribute('style', 'flex:1;text-align:center;border-radius:9px;padding:11px 0;' +
         'font:600 13px/1 Geist;' + (on
           ? 'background:#4A6FA5;color:#fff'
@@ -2418,7 +2456,8 @@
     var rest = saved ? [saved[4], [billState, saved[5]].filter(Boolean).join(' ')].filter(Boolean).join(', ')
       : addr.split(',').slice(1).join(',').trim();
     if (!name && !street) return;
-    ['inv-paid', 'inv-sent', 'fin-empty'].forEach(function (id) {
+    // the customer's own screen is made out to them too, not to the board's Randy
+    ['inv-paid', 'inv-sent', 'fin-empty', 'est-customer'].forEach(function (id) {
       var root = byId(id); if (!root) return;
       var who = valueFor(root, 'Customer');
       var where = valueFor(root, 'Address');
@@ -3002,7 +3041,7 @@
       '<div style="width:82px;height:82px;border-radius:41px;background:#EBF0F8;border:1px solid #C8D5E8;display:flex;align-items:center;justify-content:center;margin-bottom:20px">' +
       '<span class="mi" style="font-size:38px;color:#4A6FA5">receipt_long</span></div>' +
       '<div style="font:600 21px/1.25 Geist;letter-spacing:-.01em;margin-bottom:9px">No invoice yet</div>' +
-      '<div style="font:400 15px/1.55 Geist;color:#546478;text-wrap:pretty">Create the invoice for this job. Items, the approved estimate and payment are added to it.</div>';
+      '<div data-finhelp style="font:400 15px/1.55 Geist;color:#546478;text-wrap:pretty">Create the invoice for this job. Items, the approved estimate and payment are added to it.</div>';
     var foot = document.createElement('div');
     foot.setAttribute('style', 'padding:14px 16px 16px;background:#fff;border-top:1px solid #DDE3EE;flex:none');
     foot.innerHTML = '<div data-act="createInvoice" data-tap="1" style="height:54px;display:flex;align-items:center;justify-content:center;gap:8px;background:#4A6FA5;color:#fff;border-radius:11px;font:600 16px/1 Geist">' +
@@ -3485,6 +3524,31 @@
   /* The draft's one button: Present to customer — or, with changes
      requested on an approved estimate, Resend for approval — and a strip
      saying why the draft is open again. */
+  var customerLandscape = false;
+  function paintCustomerRotation() {
+    var root = byId('est-customer'); if (!root) return;
+    var on = customerLandscape && curPage() === 'est-customer';
+    var vw = viewport.clientWidth, vh = viewport.clientHeight;
+    if (on) {
+      root.style.width = vh + 'px'; root.style.height = vw + 'px';
+      root.style.left = ((vw - vh) / 2) + 'px'; root.style.top = ((vh - vw) / 2) + 'px';
+      root.style.transform = 'rotate(90deg)';
+    } else {
+      root.style.width = ''; root.style.height = ''; root.style.left = ''; root.style.top = ''; root.style.transform = '';
+    }
+    var ic = $('[data-act="rotateCustomer"]', root);
+    if (ic) ic.textContent = on ? 'stay_current_portrait' : 'screen_rotation';
+  }
+  (function () {
+    var root = byId('est-customer'); if (!root) return;
+    var head = root.children[0]; if (!head) return;
+    var ic = document.createElement('span');
+    ic.className = 'mi'; ic.dataset.act = 'rotateCustomer'; ic.dataset.tap = '1';
+    ic.setAttribute('style', 'font-size:22px;color:#546478;padding:6px;margin:-6px');
+    ic.textContent = 'screen_rotation';
+    head.appendChild(ic);
+  })();
+
   var changesStrip = null;
   function paintDraftAction() {
     var root = byId('est-draft'); if (!root) return;
@@ -3503,6 +3567,12 @@
       changesStrip.innerHTML = '<span class="mi" style="font-size:19px;color:#D97706">edit_note</span>' +
         '<span>Changes requested — the signed estimate stands until the customer approves the revised one.</span>';
       sc.insertBefore(changesStrip, sc.firstChild);
+    }
+    if (changes) {
+      var j = JOBS[jobIdx] || {};
+      changesStrip.children[1].textContent = j.sold
+        ? 'Changes requested — the signed estimate stands until the customer approves the revised one.'
+        : 'The customer asked for changes — revise the options and present again.';
     }
     toggleDisplay(changesStrip, changes);
   }
@@ -4099,7 +4169,7 @@
     // A deposit only counts once the customer has signed for the option it
     // was quoted against. On an estimate nobody bought, no money changed
     // hands, so there is nothing to take off the invoice.
-    var paid = j.sold ? Math.min(deposit, jobTotal) : 0;
+    var paid = j.sold ? Math.min(effectiveDeposit(j.sold.total), jobTotal) : 0;
     payAmount = Math.max(0, jobTotal - paid - invPaidSoFar);
     PAY_SCREENS.forEach(function (id) {
       var root = byId(id); if (!root) return;
@@ -4121,6 +4191,10 @@
     paintVoidRow();
     paintPayPanels();
     paintDetailPanels();
+    var jp = j.plan, fh = $('[data-finhelp]');
+    if (fh) fh.textContent = jp && jp.prepaid
+      ? 'Prepaid maintenance plan (' + fmt(jp.total) + ', invoiced on visit 1). Visit ' + jp.visit + ' of ' + jp.of + ' is covered — create an invoice only for work beyond the plan.'
+      : 'Create the invoice for this job. Items, the approved estimate and payment are added to it.';
   }
 
   /* The sent screen, before it is sent: a grey CREATED badge, a Sent row
@@ -5659,6 +5733,16 @@
       addr: '255 Standish Drive, Tampa, FL 33615', away: '6.8 miles away', phone: '(352) 258-9710',
       est: 'none', inv: 'none',             // nothing quoted yet — the estimate is built on site
       items: [jobLine('SV-2007', 1)], sold: null
+    },
+    /* Marek, Oct 14: a prepaid maintenance plan is invoiced on its first
+       visit; the visits after it are scheduled at zero dollars and carry
+       the plan as a reference. */
+    {
+      name: 'Maria Gomez', when: 'Today, 4:00 PM', brief: 'Maintenance plan · visit 3 of 10 · prepaid', type: 'Maintenance',
+      addr: '1180 W Linebaugh Ave, Tampa, FL 33612', away: '5.1 miles away', phone: '(813) 240-7718',
+      est: 'none', inv: 'none',
+      items: [], sold: null,
+      plan: { visit: 3, of: 10, prepaid: true, total: 6000 }
     }
   ];
 
@@ -6175,6 +6259,13 @@
       '<div data-dephint style="font:400 12px/1.45 Geist;color:#8A97A8;margin-top:9px"></div>';
 
     var chips = $('[data-depchips]', depDrop.panel);
+    [10, 20].forEach(function (p) {
+      var c = document.createElement('span');
+      c.dataset.tap = '1';
+      c.dataset.deppct = String(p);
+      c.textContent = p + '%';
+      chips.appendChild(c);
+    });
     DEPOSIT_QUICK.forEach(function (v) {
       var c = document.createElement('span');
       c.dataset.tap = '1';
@@ -6183,9 +6274,11 @@
       chips.appendChild(c);
     });
     chips.addEventListener('click', function (ev) {
-      var c = ev.target.closest('[data-dep]'); if (!c) return;
+      var c = ev.target.closest('[data-dep],[data-deppct]'); if (!c) return;
       ev.stopPropagation();
-      deposit = +c.dataset.dep;
+      if (c.dataset.deppct) { depositPct = +c.dataset.deppct; deposit = 0; }
+      else { depositPct = 0; deposit = +c.dataset.dep; }
+      remember('depositPct', depositPct);
       var inp = $('[data-depinput]', depDrop.panel);
       inp.value = deposit ? deposit.toFixed(2) : '';
       paintDeposit();
@@ -6193,6 +6286,7 @@
     }, true);
     $('[data-depinput]', depDrop.panel).addEventListener('input', function (ev) {
       deposit = Math.max(0, parseFloat(String(ev.target.value).replace(/[^0-9.]/g, '')) || 0);
+      if (deposit > 0) { depositPct = 0; remember('depositPct', 0); }
       paintDeposit();
       paintPlanEverywhere();
     });
@@ -6223,7 +6317,7 @@
       var txt = [].slice.call(planRefs.down.childNodes).filter(function (n) {
         return n.nodeType === 3 && norm(n.nodeValue);
       })[0];
-      if (txt) txt.nodeValue = deposit ? 'Deposit ' + fmt(deposit) : 'Add deposit';
+      if (txt) txt.nodeValue = depositPct > 0 ? 'Deposit ' + depositPct + '% of each option' : deposit ? 'Deposit ' + fmt(deposit) : 'Add deposit';
     }
   }
 
@@ -7268,6 +7362,24 @@
     var confirm = $('[data-act="estOrder"]', root);
     var footer = confirm && confirm.parentElement;
     if (!footer) { MISS.push('est-customer :: footer'); return; }
+
+    /* Marek, Oct 8: the customer-facing page carries the company, and
+       "request changes" sits beside approve and decline. */
+    var sc = $('.sc', root);
+    if (sc) {
+      var brand = document.createElement('div');
+      brand.setAttribute('style', 'display:flex;align-items:center;gap:11px;padding:4px 2px 14px');
+      brand.innerHTML = '<div style="width:40px;height:40px;border-radius:10px;background:#1C2B3A;color:#fff;display:flex;align-items:center;justify-content:center;font:800 13px/1 Geist;letter-spacing:.02em">AND</div>' +
+        '<div><div style="font:600 15px/1.2 Geist">AND Services</div><div style="font:400 12.5px/1.3 Geist;color:#546478;margin-top:3px">Tampa, FL · (813) 555-0100 · Lic. CAC1819XXX</div></div>';
+      sc.insertBefore(brand, sc.firstChild);
+    }
+    var changes = document.createElement('div');
+    changes.setAttribute('data-act', 'custChanges');
+    changes.dataset.tap = '1';
+    changes.setAttribute('style',
+      'padding:11px 16px 2px;text-align:center;font:600 14px/1 Geist;color:#4A6FA5;background:#fff;flex:none');
+    changes.textContent = 'Request changes';
+    footer.parentElement.insertBefore(changes, footer);
 
     var decline = document.createElement('div');
     decline.setAttribute('data-act', 'estDecline');
@@ -8737,7 +8849,54 @@
   /* ---------- boot ---------- */
   /* Marek, Oct 12: chat is not in the MVP; the notes are the web app's
      job notes, field notes and internal notes. */
+  /* Marek, Oct 12: the history view should put the follow-ups that can
+     turn into revenue first — the ones due today on top. */
+  function paintFollowUps() {
+    var root = byId('history'); if (!root) return;
+    var list = $('.sc', root); if (!list) return;
+    var card = $('[data-followups]', list);
+    if (!card) {
+      card = document.createElement('div');
+      card.dataset.followups = '1';
+      card.setAttribute('style', 'background:#fff;border:1px solid #DDE3EE;border-radius:12px;padding:13px 14px;margin-bottom:11px');
+      list.insertBefore(card, list.firstChild);
+    }
+    var rows = [];
+    if (recall('declined', false) && followUpDays >= 0) {
+      var j = JOBS[jobIdx] || {};
+      rows.push({ who: j.name || '', what: 'Estimate declined · thinking about it', due: followUpDays === 0 ? 'Today' : followDate(followUpDays), today: followUpDays === 0 });
+    }
+    rows.push({ who: 'Lisa Tran', what: 'Option C $1,109 · "call me after the 20th"', due: 'Oct 21', today: false });
+    rows.push({ who: 'Dale Whitaker', what: 'Estimate sent Oct 9 · no answer yet', due: 'Today', today: true });
+    rows.sort(function (a, b) { return (b.today ? 1 : 0) - (a.today ? 1 : 0); });
+    card.innerHTML = '<div style="display:flex;align-items:center;gap:9px;margin-bottom:6px"><span class="mi" style="font-size:20px;color:#D97706">event_repeat</span>' +
+      '<span style="flex:1;font:600 16px/1 Geist">Follow-ups</span><span style="font:600 12px/1 Geist;color:#D97706;background:#FEF3E2;border-radius:5px;padding:5px 8px">' + rows.length + '</span></div>';
+    rows.forEach(function (r) {
+      var d = document.createElement('div');
+      d.dataset.tap = '1'; d.dataset.act = 'histDetails'; d.dataset.job = r.who;
+      d.setAttribute('style', 'display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid #EDF0F5');
+      d.innerHTML = '<div style="flex:1;min-width:0"><div style="font:600 14.5px/1.2 Geist"></div><div style="font:400 12.5px/1.35 Geist;color:#546478;margin-top:3px"></div></div>' +
+        '<span style="font:600 12px/1 Geist;border-radius:5px;padding:5px 8px;white-space:nowrap;' + (r.today ? 'color:#fff;background:#D97706' : 'color:#546478;background:#EDF0F5') + '"></span>';
+      d.children[0].children[0].textContent = r.who;
+      d.children[0].children[1].textContent = r.what;
+      d.children[1].textContent = r.due;
+      card.appendChild(d);
+    });
+  }
   function mvpTrim() {
+    paintFollowUps();
+    /* Marek, Oct 12: weekly timesheet submission is out of the MVP */
+    $$('button').forEach(function (b) { if (/Submit week/.test(b.textContent)) b.style.display = 'none'; });
+    /* and the estimate's note to the customer is its terms and warranty, optional */
+    ['est-draft', 'est-customer', 'est-preview', 'est-new-option'].forEach(function (id) {
+      var root = byId(id); if (!root) return;
+      var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); var n;
+      while ((n = walker.nextNode())) {
+        if (/Write additional special notes/.test(n.nodeValue)) n.nodeValue = 'Warranty and customer-facing terms, if any';
+        else if (/Special notes/.test(n.nodeValue)) n.nodeValue = n.nodeValue.replace('Special notes', 'Terms & warranty');
+      }
+      $$('textarea', root).forEach(function (t) { if (/special notes/i.test(t.placeholder)) t.placeholder = 'Warranty and customer-facing terms, if any'; });
+    });
     var chatTab = $('#tabbar [data-tab="chat"]');
     if (chatTab) chatTab.style.display = 'none';
     var ROOTS = ['home', 'home-active', 'job-general', 'job-notes', 'ov-note-detailed', 'ov-note-tech', 'ov-note-private', 'cust-jobs'];
