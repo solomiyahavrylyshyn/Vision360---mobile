@@ -3607,6 +3607,49 @@
     card.parentElement.insertBefore(btn, card.nextSibling);
   })();
 
+  /* The open option's price card was the old slider too. Same as the form:
+     the list price, the price the technician types, and the saving. */
+  (function () {
+    var root = byId('est-option'); if (!root) return;
+    var head = sel(root, 'Price adjustment')[0];
+    var card = head && head.nextElementSibling;
+    if (!card) { MISS.push('est-option :: price card'); return; }
+    head.textContent = 'Adjust the price';
+    var MONEY = /^\$[\d,]+\.\d\d$/;
+    var adjLabel = sel(root, 'Adjusted total')[0];
+    var adjVal = adjLabel && $$('span', adjLabel.parentElement).filter(function (x) { return MONEY.test(norm(x.textContent)); })[0];
+    var totLabel = sel(root, 'Total')[0];
+    var totVal = totLabel && $$('span', totLabel.parentElement).filter(function (x) { return x !== totLabel && MONEY.test(norm(x.textContent)); })[0];
+    var base = adjVal ? money(adjVal.textContent) : 0;
+    card.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center;font:400 13.5px/1 Geist;color:#546478">' +
+      '<span>List price</span><span data-olist style="font:600 14.5px/1 Geist;color:#1A2332"></span></div>' +
+      '<div style="font:500 12.5px/1 Geist;color:#546478;margin:14px 0 7px">Revised price</div>' +
+      '<div style="display:flex;align-items:center;gap:8px;height:50px;padding:0 13px;background:#fff;border:1.5px solid #4A6FA5;border-radius:10px">' +
+      '<span style="font:600 17px/1 Geist;color:#8A97A8">$</span>' +
+      '<input data-oprice class="inp" inputmode="decimal" style="flex:1;height:auto;border:0;padding:0;background:transparent;font:600 17px/1 Geist"></div>' +
+      '<div data-osave style="font:500 13px/1.3 Geist;color:#8A97A8;margin-top:9px"></div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:13px;border-top:1px solid #EDF0F5">' +
+      '<span style="font:400 14px/1 Geist;color:#546478">Adjusted total</span><span data-oadj style="font:700 18px/1 Geist"></span></div>';
+    var list = $('[data-olist]', card), inp = $('[data-oprice]', card), save = $('[data-osave]', card), adj = $('[data-oadj]', card);
+    function paint(revised) {
+      list.textContent = fmt(base);
+      inp.placeholder = base.toFixed(2);
+      var now = revised > 0 ? revised : base;
+      adj.textContent = fmt(now);
+      if (totVal) totVal.textContent = fmt(now);
+      var diff = base - now;
+      if (!(revised > 0) || Math.abs(diff) < 0.005) { save.textContent = 'List price — no change'; save.style.color = '#8A97A8'; }
+      else if (diff > 0) { save.textContent = 'Saving ' + Math.round(diff / base * 100) + '% · ' + fmt(diff) + ' off'; save.style.color = '#16A34A'; }
+      else { save.textContent = '+' + Math.round(-diff / base * 100) + '% · ' + fmt(-diff) + ' above list'; save.style.color = '#D97706'; }
+    }
+    inp.addEventListener('input', function () {
+      var v = parseFloat(String(inp.value).replace(/[^0-9.]/g, ''));
+      paint(isFinite(v) ? v : 0);
+    });
+    paint(0);
+  })();
+
   /* job tab strips */
   ['job-general', 'job-notes', 'rc-overview', 'est-empty', 'est-draft', 'est-review',
     'est-ready', 'est-approved', 'fin-empty', 'add-empty', 'add-items', 'inv-paid', 'inv-sent']
@@ -3940,7 +3983,6 @@
     catalogFilter();
   })();
   seg('est-new-option', ['Monthly payment + Total', 'Total only', 'Monthly payment only'], 0);
-  seg('est-option', ['−20%', '0%', '+20%'], 1);
   /* The radio the customer actually taps. Everything downstream used to
      assume Option C no matter what was ticked, so the KPI, the day's sold
      figure and the confirmation all recorded an option nobody chose. */
