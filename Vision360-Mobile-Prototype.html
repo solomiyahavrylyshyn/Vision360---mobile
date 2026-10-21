@@ -238,6 +238,22 @@ body.dev #indexBtn{display:flex}
 .rng{-webkit-appearance:none;appearance:none;height:8px;border-radius:4px;background:#EDF0F5;outline:none}
 .rng::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:26px;height:26px;border-radius:13px;background:#4A6FA5;border:3px solid #fff;box-shadow:0 2px 6px rgba(26,35,50,.25);cursor:pointer}
 .rng::-moz-range-thumb{width:26px;height:26px;border-radius:13px;background:#4A6FA5;border:3px solid #fff;box-shadow:0 2px 6px rgba(26,35,50,.25);cursor:pointer}
+
+/* a finished job being read: what would change it is dimmed and inert */
+#phone[data-readonly] .screen [data-minus], #phone[data-readonly] .screen [data-plus], #phone[data-readonly] .screen [data-drop],
+#phone[data-readonly] .screen [data-explus], #phone[data-readonly] .screen [data-exminus], #phone[data-readonly] .screen [data-notedel],
+#phone[data-readonly] .screen [data-go="ov-media-source"], #phone[data-readonly] .screen [data-go="files"],
+#phone[data-readonly] .screen [data-go="add-catalog"], #phone[data-readonly] .screen [data-go="est-catalog"],
+#phone[data-readonly] .screen [data-act="jobAddItem"], #phone[data-readonly] .screen [data-act="createInvoice"],
+#phone[data-readonly] .screen [data-act="newOption"], #phone[data-readonly] .screen [data-act="optAddItem"],
+#phone[data-readonly] .screen [data-act="estSendReview"], #phone[data-readonly] .screen [data-act="estChanges"],
+#phone[data-readonly] .screen [data-act="attachEst"], #phone[data-readonly] .screen [data-takebtn],
+#phone[data-readonly] .screen [data-sendbtn], #phone[data-readonly] .screen [data-act="saveBillTo"],
+#phone[data-readonly] .screen [data-act="rcSave"], #phone[data-readonly] .screen [data-rated] > div,
+#phone[data-readonly] .screen [data-rcpick], #phone[data-readonly] .screen input, #phone[data-readonly] .screen textarea {
+  opacity: .45;
+  pointer-events: none;
+}
 </style>
 </head>
 <body>
@@ -3050,10 +3066,12 @@ body.dev #indexBtn{display:flex}
      claimed: $1,109 at 7.99% over 24 gives $50.15, which is the $50.20
      it drew. The term was the typo, so the term is what changed.
      ========================================================= */
+  /* Marek, Oct 12: a finance plan is a name and a percentage kept in
+     settings, applied to the option's full price — not a lender's card. */
   var PLANS = [
-    { name: 'Ally', rate: 7.99, apr: 8.35, months: 24 },
-    { name: 'Synchrony', rate: 9.99, apr: 10.4, months: 36 },
-    { name: 'GreenSky', rate: 6.99, apr: 7.25, months: 12 },
+    { name: '12 months', rate: 6.99, apr: 6.99, months: 12 },
+    { name: '24 months', rate: 7.99, apr: 7.99, months: 24 },
+    { name: '36 months', rate: 9.99, apr: 9.99, months: 36 },
     { name: 'Pay in full', rate: 0, apr: 0, months: 0 }
   ];
   var planIdx = 0;
@@ -3629,7 +3647,7 @@ body.dev #indexBtn{display:flex}
             sku: known ? known.sku : '',
             name: texts[0] || 'Item',
             desc: texts[1] || '',
-            warranty: texts[2] || '',
+            warranty: '',
             price: priceOf(p),
             // every item carries its own type and category — Marek, Sep 10
             type: known ? known.type : 'service',
@@ -3814,7 +3832,16 @@ body.dev #indexBtn{display:flex}
           if (pickedOption === was) pickedOption = wanted;
         }
       }
+      var warranty = typedWarranty();
       var added = first ? true : addOption(total, optionItems, false, wanted);
+      if (added) {
+        var wname = first ? (wanted || 'Option A') : (Object.keys(OPTION_TOTALS).filter(function (k) { return OPTION_TOTALS[k] === total; }).slice(-1)[0] || wanted);
+        if (warranty) optionWarranties[wname] = warranty; else delete optionWarranties[wname];
+        remember('optionWarranties', optionWarranties);
+        var wcard = optList && $$(':scope > div', optList).filter(function (c) { return optionName(c) === wname; })[0];
+        paintCardWarranty(wcard, wname);
+        if (warrantyField) warrantyField.value = '';
+      }
       if (optionNoteText) {
         optionNotes['Option ' + String.fromCharCode(65 + Math.max(0, optCount - 1))] = optionNoteText;
         optionNoteText = '';
@@ -5589,6 +5616,9 @@ body.dev #indexBtn{display:flex}
   })();
   function paintVoidRow() {
     if (voidRow) toggleDisplay(voidRow, state.inv === 'sent' || state.inv === 'created');
+    // what went out is what went out; what is paid is paid
+    var edit = $('#ov-inv-share [data-go="inv-details"]');
+    if (edit) toggleDisplay(edit, state.inv === 'created');
   }
   ACT.voidInvoice = function () {
     var n = invNo();
@@ -6403,6 +6433,8 @@ body.dev #indexBtn{display:flex}
   toggleDisplay(viewBar, false);
   function paintView() {
     toggleDisplay(viewBar, !!viewPast);
+    // the controls that would change the job look locked, not just refuse
+    if (viewPast) phone.dataset.readonly = '1'; else delete phone.dataset.readonly;
     if (typeof paintStartButtons === 'function') paintStartButtons();
     var back = $('[data-act="reopenRequest"]', viewBar);
     if (back) toggleDisplay(back, !!viewPast && !viewPast.visit);
@@ -6446,7 +6478,7 @@ body.dev #indexBtn{display:flex}
 
   var VIEW_ACTS = { jobGeneral: 1, jobNotes: 1, jobRC: 1, jobEst: 1, jobFin: 1, histReopen: 1, reopenRequest: 1, histDetails: 1, openApproved: 1 };
   var VIEW_GO = { BACK: 1, 'ov-note-detailed': 1, 'ov-note-tech': 1, 'ov-note-private': 1, photos: 1, 'photo-detail': 1,
-    'est-preview': 1, 'est-approved': 1, 'job-general': 1, 'job-notes': 1, 'rc-overview': 1, 'cust-jobs': 1, files: 1 };
+    'est-preview': 1, 'est-approved': 1, 'job-general': 1, 'job-notes': 1, 'rc-overview': 1, 'cust-jobs': 1 };
   function viewGuard(ev) {
     if (!viewPast) return;
     var scr = ev.target.closest('.screen,.overlay');
@@ -6462,7 +6494,7 @@ body.dev #indexBtn{display:flex}
       byIcon(hit, 'expand_more').concat(byIcon(hit, 'expand_less'), byIcon(hit, 'chevron_right')).length) return;
     ev.stopPropagation();
     ev.preventDefault();
-    if (ev.type === 'click') toast('Completed job — read only. Set it back to active to change it', 'lock');
+    if (ev.type === 'click') toast(viewPast.visit ? 'Past visit — read only' : 'Completed job — read only. Ask your manager to reopen it', 'lock');
   }
   document.addEventListener('click', viewGuard, true);
   document.addEventListener('mousedown', viewGuard, true);
@@ -7848,6 +7880,22 @@ body.dev #indexBtn{display:flex}
     paintAdjustVisible();
   })();
 
+  // the warranty field sits under the price, in the option's own form
+  (function () {
+    var root = byId('est-new-option'); if (!root || !adjustBox) return;
+    var box = document.createElement('div');
+    box.setAttribute('style', 'margin-top:16px');
+    box.innerHTML = '<div style="font:600 16px/1 Geist;margin-bottom:10px">Warranty <span style="font:400 13px/1 Geist;color:#8A97A8">optional · up to 3 lines</span></div>' +
+      '<textarea data-warranty-field class="inp" rows="3" maxlength="200" placeholder="e.g. 10-year parts · 2-year labour · 1 year on refrigerant" ' +
+      'style="width:100%;height:auto;min-height:84px;padding:12px 13px;background:#fff;border:1px solid #DDE3EE;border-radius:10px;font:400 14.5px/1.45 Geist;resize:none"></textarea>';
+    adjustBox.insertAdjacentElement('afterend', box);
+    warrantyField = $('[data-warranty-field]', box);
+    warrantyField.addEventListener('input', function () {
+      var lines = warrantyField.value.split('\n');
+      if (lines.length > 3) warrantyField.value = lines.slice(0, 3).join('\n');
+    });
+  })();
+
   // nothing to discount until something has a price
   function paintAdjustVisible() {
     var on = optionItems.length > 0;
@@ -8947,11 +8995,35 @@ body.dev #indexBtn{display:flex}
      cannot deliver is not possible — with no financing there is no
      monthly to show.
      ========================================================= */
-  var PREVIEW = ['both', 'total', 'monthly'];
-  var previewMode = 'both';
-  var PREVIEW_LABELS = ['Monthly payment + Total', 'Total only', 'Monthly payment only'];
+  /* Marek, Oct 12: as in the web app — the customer is shown either the
+     full amount or the monthly payment under the plan; the full price is
+     a tap away from the monthly. */
+  var PREVIEW = ['total', 'monthly'];
+  var previewMode = 'monthly';
+  var PREVIEW_LABELS = ['Full amount', 'Monthly payment'];
   // the letter the option gets if the technician leaves the field alone
   var optionNameTyped = '';
+  /* Marek, Oct 12: warranty is written on the option — up to three lines,
+     optional — and read on its card. */
+  var optionWarranties = recall('optionWarranties', {});
+  var warrantyField;          // assigned where the form is built, earlier in the file; no initialiser
+  function typedWarranty() { return warrantyField ? norm(warrantyField.value) : ''; }
+  function paintCardWarranty(card, name) {
+    if (!card) return;
+    var line = $('[data-warranty]', card);
+    var text = optionWarranties[name] || '';
+    if (!text) { if (line) line.remove(); return; }
+    if (!line) {
+      line = document.createElement('div');
+      line.dataset.warranty = '1';
+      line.setAttribute('style', 'display:flex;gap:7px;align-items:flex-start;margin-top:9px;font:400 12.5px/1.4 Geist;color:#546478');
+      line.innerHTML = '<span class="mi" style="font-size:16px;color:#4A6FA5;flex:none">verified_user</span><span style="white-space:pre-line"></span>';
+      var t = optionTitleEl(card);
+      var anchor = t ? t.closest('div') : null;
+      (anchor && anchor.parentElement === card ? anchor : card.firstElementChild).insertAdjacentElement('afterend', line);
+    }
+    line.children[1].textContent = text;
+  }
   function paintOptionName() {
     optionNameTyped = freeOptionName();
     var e = $('[data-optname]'); if (!e) return;
@@ -9005,13 +9077,13 @@ body.dev #indexBtn{display:flex}
     field.dataset.tap = '1';
     field.setAttribute('style', FIELD + ';position:relative');
     field.innerHTML = '<div data-open style="display:flex;align-items:center;gap:10px">' +
-      '<div style="flex:1"><div style="' + FIELD_LABEL + '">Pricing preview type</div>' +
+      '<div style="flex:1"><div style="' + FIELD_LABEL + '">Show the customer</div>' +
       '<div data-previewval style="' + FIELD_VALUE + '"></div></div>' +
       '<span class="mi" data-chev style="font-size:22px;color:#546478">expand_more</span></div>';
     holder.insertBefore(field, head);
     head.remove();
     previewField = $('[data-previewval]', field);
-    previewField.textContent = 'Monthly payment + Total';
+    previewField.textContent = PREVIEW_LABELS[PREVIEW.indexOf(previewMode)];
 
     /* The board's three rows are cards, and three cards inside a dropdown
        are three cards inside a dropdown. The control keeps its choices and
@@ -9056,9 +9128,7 @@ body.dev #indexBtn{display:flex}
       paintPanel();
       paintPlanEverywhere();
       close();
-      toast(i === 0 ? 'Customer sees the monthly and the total'
-        : i === 1 ? 'Customer sees the total only'
-          : 'Customer sees the monthly only', 'visibility');
+      toast(i === 0 ? 'Customer sees the full amount' : 'Customer sees the monthly payment — the full amount is a tap away', 'visibility');
     }, true);
     paintPanel();
     panel.addEventListener('click', function (ev) { ev.stopPropagation(); }, true);
@@ -9206,9 +9276,9 @@ body.dev #indexBtn{display:flex}
     planDrop = dropdown(row);
     if (!planDrop) return;
     PLANS.forEach(function (p, i) {
-      planDrop.panel.appendChild(pickRow(i, i === 0, p.name, p.months
-        ? p.rate.toFixed(2) + '% over ' + p.months + ' months · APR ' + p.apr.toFixed(2) + '%'
-        : 'The customer pays the total, no monthly', 'plan'));
+      planDrop.panel.appendChild(pickRow(i, i === 0, p.months ? p.name + ' · ' + p.rate.toFixed(2) + '%' : p.name, p.months
+        ? 'Monthly worked out from the full price · set in Settings'
+        : 'The customer pays the full amount', 'plan'));
     });
     row.addEventListener('click', function (ev) {
       if (ev.target.closest('[data-plan]')) return;
@@ -9287,7 +9357,7 @@ body.dev #indexBtn{display:flex}
     var p = plan();
     if (planRefs.label) {
       planRefs.label.textContent = p.months
-        ? p.name + ' — ' + p.rate.toFixed(2) + '% / ' + p.months + ' mo'
+        ? p.name + ' · ' + p.rate.toFixed(2) + '%'
         : p.name;
     }
     var vals = [
@@ -10462,7 +10532,7 @@ body.dev #indexBtn{display:flex}
 
   function planLine() {
     var p = plan();
-    return p.months ? p.name + ' — ' + p.rate.toFixed(2) + '% / ' + p.months + ' mo' : p.name;
+    return p.months ? p.name + ' · ' + p.rate.toFixed(2) + '%' : p.name;
   }
   function planTerms(withInterest) {
     var p = plan();
@@ -11776,10 +11846,18 @@ body.dev #indexBtn{display:flex}
     var order = ['auth', 'home', 'job', 'estimate', 'estimate-states', 'finance', 'finance-2',
       'rc-system', 'history', 'home-2', 'notes-media', 'app'];
     var html = '', n = 0;
+    // screens the flow no longer passes through, and words it no longer uses
+    var GONE = { 'est-review': 1, 'est-ready': 1, closeout: 1, 'pay-card': 1, 'pay-cash': 1, 'pay-check': 1, 'pay-apps': 1,
+      'add-empty': 1, 'add-items': 1, 'ov-pay-method': 1, chat: 1, 'chat-thread': 1 };
+    var WORDS = [[/6 options/g, '4 options'], [/slider/gi, 'revised price'], [/private notes/gi, 'internal notes'],
+      [/Private/g, 'Internal'], [/Technician['\u2019]s/g, 'Field'], [/Detailed/g, 'Job'], [/Send to review/g, 'Present to customer'], [/manager review/gi, 'presentation']];
     order.forEach(function (k) {
       if (!groups[k]) return;
+      var kept = groups[k].filter(function (s) { return !GONE[s.id]; });
+      if (!kept.length) return;
       html += '<div class="grp">' + (SECT[k] || k) + '</div>';
-      groups[k].forEach(function (s) {
+      kept.forEach(function (s) {
+        WORDS.forEach(function (p) { s.title = String(s.title || '').replace(p[0], p[1]); s.desc = String(s.desc || '').replace(p[0], p[1]); });
         n++;
         html += '<div class="it" data-jump="' + s.id + '"><span class="n">' + n + '</span>' +
           '<span class="tx">' + s.title + (s.desc ? '<small>' + s.desc + '</small>' : '') + '</span></div>';
@@ -11874,6 +11952,21 @@ body.dev #indexBtn{display:flex}
   }
   function mvpTrim() {
     paintFollowUps();
+    /* the address is the service address, as the web app calls it */
+    ['job-general', 'cust-jobs', 'home', 'home-active'].forEach(function (id) {
+      var root = byId(id); if (!root) return;
+      var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); var n;
+      while ((n = walker.nextNode())) if (/Work address/.test(n.nodeValue)) n.nodeValue = n.nodeValue.replace('Work address', 'Service address');
+    });
+    /* warranty is written on the option now, not printed on every catalog item */
+    ['est-catalog', 'add-catalog', 'est-preview', 'est-option', 'est-new-option', 'est-draft', 'est-customer'].forEach(function (id) {
+      var root = byId(id); if (!root) return;
+      $$('div,span', root).forEach(function (e) {
+        if (!e.children.length && /^Warranty: \d+ years?$/.test(norm(e.textContent))) e.remove();
+      });
+    });
+    /* chat is Pro: dispatch is called, not messaged */
+    var msg = $('#more-help [data-go="chat-thread"]'); if (msg) msg.style.display = 'none';
     /* Marek, Oct 12: weekly timesheet submission is out of the MVP */
     $$('button').forEach(function (b) { if (/Submit week/.test(b.textContent)) b.style.display = 'none'; });
     /* and the estimate's note to the customer is its terms and warranty, optional */
