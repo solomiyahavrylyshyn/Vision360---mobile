@@ -1178,6 +1178,12 @@
     /* A finished job opens to be read, not changed: Set back to active is
        the one way to change it, and it says so at the top. */
     histDetails: function (el) {
+      // the card's own link, or the sheet opened from that card's ⋮
+      function histCard(el, who) {
+        var src = el.dataset && el.dataset.when ? el
+          : $$('#history [data-act="histDetails"]').filter(function (l) { return l.dataset.job === who; })[0];
+        return src && src.dataset.when ? { when: src.dataset.when, brief: src.dataset.brief, type: src.dataset.type } : null;
+      }
       var who = el.dataset.job || histJob;
       var at = -1;
       for (var i = 0; i < JOBS.length; i++) if (JOBS[i].name === who) at = i;
@@ -1186,7 +1192,10 @@
       histJob = who;
       // History is the past: whatever is opened from it is read, not worked.
       // A finished job can be set back to active; a visit cannot.
-      viewPast = { idx: jobIdx, visit: !JOBS[at].done };
+      viewPast = { idx: jobIdx, visit: !JOBS[at].done,
+        // the card it was opened from says which visit this is: its date,
+        // what it was for and its type are what the job shows (M1-1b, M4-15)
+        card: histCard(el, who) };
       jobIdx = at;
       loadJob();
       paintJob();
@@ -4369,6 +4378,10 @@
 
       var who = norm(name.textContent);
       link.dataset.job = who;
+      // M4-15: the job opened from a card is the visit the card shows
+      link.dataset.when = dayLabel(HIST_AGO[i]);
+      link.dataset.brief = norm(typeRow.children[0] ? typeRow.children[0].textContent : '');
+      link.dataset.type = t;
       var kebab = document.createElement('span');
       kebab.className = 'mi';
       kebab.dataset.tap = '1';
@@ -9315,7 +9328,11 @@
     var ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em.value.trim());
     em.classList.toggle('bad', !ok); byId('fg-em-e').classList.toggle('on', !ok);
     if (!ok) return;
-    go('otp', 'push'); startOtpTimer(); toast('Code sent to (813) ••• 4471', 'sms');
+    // M1-8: the code goes to the work email, never by SMS (SMS is Pro)
+    var at = em.value.trim().split('@');
+    var masked = at[0].slice(0, Math.min(5, Math.max(1, at[0].length - 2))) + '•••@' + at[1];
+    var to = byId('otp-to'); if (to) to.textContent = masked;
+    go('otp', 'push'); startOtpTimer(); toast('Code emailed to ' + masked, 'mail');
   });
 
   var otpTimer;
@@ -9331,7 +9348,7 @@
     }, 1000);
   }
   byId('otp-rs').addEventListener('click', function () {
-    if (/Resend code/.test(this.textContent)) { startOtpTimer(); toast('New code sent', 'sms'); }
+    if (/Resend code/.test(this.textContent)) { startOtpTimer(); toast('New code emailed', 'mail'); }
   });
   var digits = $$('.otp-d');
   digits.forEach(function (d, i) {
@@ -9353,15 +9370,31 @@
     go('newpass', 'push');
   });
 
+  /* M1-8: the web's password policy — at least 8 characters, an upper, a
+     lower, a number and a special character. Each rule ticks as it is met,
+     and the first one missing is what the error names. */
+  var PW_RULES = [
+    ['len', function (v) { return v.length >= 8; }, 'At least 8 characters.'],
+    ['up', function (v) { return /[A-Z]/.test(v); }, 'Add an uppercase letter.'],
+    ['low', function (v) { return /[a-z]/.test(v); }, 'Add a lowercase letter.'],
+    ['num', function (v) { return /\d/.test(v); }, 'Add a number.'],
+    ['sym', function (v) { return /[^A-Za-z0-9]/.test(v); }, 'Add a special character.']
+  ];
+  function pwMissing(v) { return PW_RULES.filter(function (r) { return !r[1](v); }); }
   function strength(v) {
-    var n = 0;
-    if (v.length >= 8) n++;
-    if (/\d/.test(v)) n++;
-    if (/[^A-Za-z0-9]/.test(v) || (/[a-z]/.test(v) && /[A-Z]/.test(v))) n++;
-    return n;
+    var met = PW_RULES.length - pwMissing(v).length;
+    return met === PW_RULES.length ? 3 : met >= 3 ? 2 : met ? 1 : 0;
   }
   byId('np-a').addEventListener('input', function () {
-    var n = strength(this.value);
+    var v = this.value;
+    PW_RULES.forEach(function (r) {
+      var e = $('#np-rules [data-rule="' + r[0] + '"]'); if (!e) return;
+      var on = r[1](v);
+      e.style.color = on ? '#16A34A' : '#8A97A8';
+      $('.mi,.mif', e).className = on ? 'mif' : 'mi';
+      $('.mi,.mif', e).textContent = on ? 'check_circle' : 'radio_button_unchecked';
+    });
+    var n = strength(v);
     var cols = ['#EDF0F5', '#DC2626', '#D97706', '#16A34A'];
     var names = ['&mdash; &nbsp;', 'Weak', 'Fair', 'Strong'];
     $$('.np-seg').forEach(function (s, i) { s.style.background = i < n ? cols[n] : '#EDF0F5'; });
@@ -9369,14 +9402,17 @@
   });
   byId('np-go').addEventListener('click', function () {
     var a = byId('np-a'), b = byId('np-b');
-    var ok = a.value.length >= 8 && /\d/.test(a.value) && a.value === b.value;
+    var miss = pwMissing(a.value);
+    var ok = !miss.length && a.value === b.value;
     byId('np-e').classList.toggle('on', !ok);
-    byId('np-e').textContent = a.value.length < 8 ? 'At least 8 characters with one number.'
-      : (a.value !== b.value ? 'Passwords don’t match yet.' : '');
-    b.classList.toggle('bad', !ok);
+    byId('np-e').textContent = miss.length ? miss[0][2] : (a.value !== b.value ? 'Passwords don’t match yet.' : '');
+    a.classList.toggle('bad', !!miss.length);
+    b.classList.toggle('bad', !ok && !miss.length);
     if (!ok) return;
-    go('login', 'root');
-    toast('Password updated — sign in again', 'lock_reset');
+    // FR-1.4: a successful reset signs in
+    remember('signedIn', true);
+    go(homeScreen(), 'root');
+    toast('Password updated — you’re signed in', 'lock_reset');
   });
 
   byId('logout').addEventListener('click', function () { ACT.logout(); });
@@ -9880,11 +9916,9 @@
   })();
   ACT.lockNow = function () { lockApp(); };
   ACT.unlockBio = function () { unlockApp('bio'); };
-  setInterval(function () {
-    var pid = curPage();
-    if (!recall('signedIn', false) || /^(splash|login|forgot|otp|newpass|applock)$/.test(pid || '')) return;
-    if (Date.now() - lastTouch > LOCK_AFTER_MS) lockApp();
-  }, 15000);
+  /* Decision 29.10 (M1-9): the app has no PIN of its own — the phone's
+     screen lock protects it — so it never locks itself after idle time and
+     More has no App lock. The lock screen above stays unused. */
 
   /* =========================================================
      A salaried technician's day (OD-16). Pay is not by the job, but
@@ -9961,11 +9995,14 @@
     var lastFirst = function (n) { var p = String(n || '').split(' '); return p.length > 1 ? p.slice(1).join(' ') + ', ' + p[0] : n; };
     var paintGeneral = function () {
       var j = JOBS[jobIdx]; if (!j) return;
+      // a visit opened from a History card is that past visit, dated as the card is
+      var c = viewPast && viewPast.card;
+      var time = String(j.when).split(', ').pop();
       nameEl.textContent = lastFirst(j.name);
       refs.contact.textContent = lastFirst(j.name);
-      if (refs.when) refs.when.textContent = j.when;
-      if (refs.brief) refs.brief.textContent = j.brief;
-      if (refs.type) refs.type.textContent = j.type;
+      if (refs.when) refs.when.textContent = c ? c.when + ', ' + time : j.when;
+      if (refs.brief) refs.brief.textContent = c ? c.brief : j.brief;
+      if (refs.type) refs.type.textContent = c ? c.type : j.type;
       var cut = j.addr.indexOf(', ');
       refs.addr.textContent = '';
       refs.addr.appendChild(document.createTextNode(cut > 0 ? j.addr.slice(0, cut + 1) : j.addr));
