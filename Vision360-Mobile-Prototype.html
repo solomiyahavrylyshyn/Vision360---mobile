@@ -3336,6 +3336,7 @@ body.dev #indexBtn{display:flex}
   function chrome() {
     var pid = curPage(); if (!pid) return;
     if (pid === 'est-draft' && typeof paintDraftAction === 'function') paintDraftAction();
+    if (pid === 'est-customer' && typeof paintCustomerOptions === 'function') paintCustomerOptions();
     if (typeof paintCustomerRotation === 'function') paintCustomerRotation();
     if (viewPast && (!isJobScreen(pid) || (viewPast.visit && pid === 'cust-jobs'))) leaveView();
     // the stage the tech moved this job to belongs to the job, not the session
@@ -3837,6 +3838,9 @@ body.dev #indexBtn{display:flex}
       }
       optionItems = [];              // a new option starts empty
       optAdjust = 0;
+      optRevised = null;
+      editingOption = null;
+      paintFormTitle();
       optionNoteText = '';
       renderOptionItems();
       paintOptionName();
@@ -3849,32 +3853,34 @@ body.dev #indexBtn{display:flex}
         toast('Add at least one item before saving the option', 'info');
         return;
       }
+      /* An option opened to be changed is saved over itself: its items and
+         its price, the revised one included, under the same name. */
+      if (editingOption) {
+        var en = editingOption;
+        editingOption = null;
+        addOption(optionAdjusted(), optionItems, false, en);
+        optionItems = []; optAdjust = 0; optRevised = null;
+        renderOptionItems();
+        paintFormTitle();
+        go('est-draft', 'root');
+        queued('Estimate');
+        toast(en + ' saved', 'check_circle');
+        return;
+      }
       var first = state.est === 'none';
       state.est = 'draft';
       var total = optionAdjusted();
       var wanted = typedOptionName();
-      if (first) {
-        /* The draft ships with Option A, B and C, and the export does not
-           keep them in the order the board shows them — so the first option
-           is found by its name, not by being first in the list. */
-        var firstCard = optList && $$(':scope > div', optList).filter(function (c) {
-          return optionName(c) === 'Option A';
-        })[0];
-        var t = firstCard && optionTitleEl(firstCard);
-        if (t && wanted && wanted !== norm(t.textContent)) {
-          var was = norm(t.textContent);
-          t.textContent = wanted;
-          if (OPTION_TOTALS[was] !== undefined) {
-            OPTION_TOTALS[wanted] = OPTION_TOTALS[was]; delete OPTION_TOTALS[was];
-          }
-          if (OPTION_ITEMS[was]) { OPTION_ITEMS[wanted] = OPTION_ITEMS[was]; delete OPTION_ITEMS[was]; }
-          if (pickedOption === was) pickedOption = wanted;
-        }
-      }
+      /* The first option on an empty estimate used to take over the demo's
+         Option A — its name, but the demo's items and price, so what the
+         technician built was thrown away and B and C came along with it.
+         The demo options go; the estimate holds what was built. */
+      if (first) { clearSeedOptions(); remember('seedCleared', true); }
       var warranty = typedWarranty();
-      var added = first ? true : addOption(total, optionItems, false, wanted);
+      var added = addOption(total, optionItems, false, wanted);
+      if (added && first) pickedOption = Object.keys(OPTION_TOTALS)[0] || pickedOption;
       if (added) {
-        var wname = first ? (wanted || 'Option A') : (Object.keys(OPTION_TOTALS).filter(function (k) { return OPTION_TOTALS[k] === total; }).slice(-1)[0] || wanted);
+        var wname = (Object.keys(OPTION_TOTALS).filter(function (k) { return OPTION_TOTALS[k] === total; }).slice(-1)[0] || wanted);
         if (warranty) optionWarranties[wname] = warranty; else delete optionWarranties[wname];
         remember('optionWarranties', optionWarranties);
         var wcard = optList && $$(':scope > div', optList).filter(function (c) { return optionName(c) === wname; })[0];
@@ -7092,6 +7098,68 @@ body.dev #indexBtn{display:flex}
   seg('est-customer', ['Option A^1', 'Option B^1', 'Option C^1'], 0, function (i, label) {
     pickedOption = label.split('^')[0];
   });
+  /* The customer's screen drew the board's three cards — A, B and C, with
+     the board's items — whatever the draft held. An option added on the
+     draft never reached the customer, and one built on an empty estimate
+     showed the demo's items under its name. The cards are the draft's
+     options now, built from what each holds, every time it is presented. */
+  function paintCustomerOptions() {
+    var root = byId('est-customer'); if (!root) return;
+    var head = sel(root, 'Choose your option')[0];
+    var box = head && head.nextElementSibling; if (!box) return;
+    var names = optList ? $$(':scope > div', optList).map(optionName).filter(Boolean) : Object.keys(OPTION_TOTALS);
+    names = names.filter(function (n, i) { return names.indexOf(n) === i && OPTION_TOTALS[n] !== undefined; });
+    if (!names.length) return;
+    if (names.indexOf(pickedOption) < 0) pickedOption = names[0];
+    box.innerHTML = '';
+    names.forEach(function (n) {
+      var on = n === pickedOption;
+      var card = document.createElement('div');
+      card.dataset.custopt = n;
+      card.setAttribute('style', on
+        ? 'background:#fff;border:1.5px solid #4A6FA5;border-radius:12px;overflow:hidden;box-shadow:0 2px 10px rgba(74,111,165,.14)'
+        : 'background:#fff;border:1px solid #DDE3EE;border-radius:12px;overflow:hidden');
+      var top = '<div data-tap="1" style="display:flex;align-items:center;gap:9px;padding:12px 14px' + (on ? ';border-bottom:1px solid #EDF0F5' : '') + '">' +
+        '<span class="' + (on ? 'mif' : 'mi') + '" style="font-size:21px;color:' + (on ? '#4A6FA5' : '#A9B4C2') + '">' +
+        (on ? 'radio_button_checked' : 'radio_button_unchecked') + '</span>' +
+        '<span data-optitle="1" style="flex:1;font:600 16px/1.2 Geist"></span>' +
+        (on ? '' : '<span style="font:700 15px/1 Geist">' + fmt(OPTION_TOTALS[n]) + '</span>') + '</div>';
+      var body = '';
+      if (on) {
+        body = '<div data-items style="padding:10px 14px;display:flex;flex-direction:column;gap:7px"></div>' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 14px;background:#EBF0F8;border-top:1px solid #C8D5E8">' +
+          '<span style="font:700 20px/1 Geist">' + fmt(OPTION_TOTALS[n]) + '</span>' +
+          '<span style="font:500 12.5px/1 Geist;color:#4A6FA5">Tap for total</span></div>';
+      }
+      card.innerHTML = top + body;
+      $('[data-optitle]', card).textContent = n;
+      var list = $('[data-items]', card);
+      // only the chosen option opens to its items; the rest are one line
+      (list ? OPTION_ITEMS[n] || [] : []).forEach(function (it) {
+        var r = document.createElement('div');
+        r.setAttribute('style', 'display:flex;gap:10px;font:400 14px/1.3 Geist');
+        r.innerHTML = '<span style="font-weight:600;color:#8A97A8;min-width:16px"></span>';
+        r.firstChild.textContent = String(it.qty || 1);
+        r.appendChild(document.createTextNode(it.name));
+        list.appendChild(r);
+      });
+      card.firstElementChild.addEventListener('click', function () {
+        if (pickedOption === n) return;
+        pickedOption = n;
+        paintCustomerOptions();
+      });
+      box.appendChild(card);
+    });
+    paintOptionPrices('est-customer');
+    // the summary above the cards counts and spans the same options
+    var count = valueFor(root, 'Options'), range = valueFor(root, 'Price range');
+    var totals = names.map(function (n) { return OPTION_TOTALS[n]; });
+    if (count) count.textContent = String(names.length);
+    if (range) {
+      var lo = Math.min.apply(null, totals), hi = Math.max.apply(null, totals);
+      range.textContent = lo === hi ? fmt(lo) : fmt(lo) + ' – ' + fmt(hi);
+    }
+  }
   /* =========================================================
      Jobs history.
 
@@ -10991,6 +11059,8 @@ body.dev #indexBtn{display:flex}
     });
     if (!optCard || !optList || !optFooters.length) { MISS.push('est-draft :: options'); return; }
     ['est-ready', 'est-draft', 'est-review'].forEach(seedOptionItems);
+    // an estimate built from empty has no demo options under it
+    if (recall('seedCleared', false)) clearSeedOptions();
     // rebuild the options the tech added before the reload
     addedOptions.slice().forEach(function (o) { addOption(o.total, o.items, true, o.name); });
     paintOptions();
@@ -11065,7 +11135,62 @@ body.dev #indexBtn{display:flex}
     });
   }
 
+  /* Changing an option opened the board's "Option with items" screen,
+     which never knew which option it was showing and whose Save wrote
+     into the new-option form — a price typed there was lost. An option
+     is changed in the form it was built in, filled with what it holds. */
+  var editingOption = null;
+  function paintFormTitle() {
+    var root = byId('est-new-option'); if (!root) return;
+    var t = $('[data-formtitle]', root) || sel(root, 'Add new option')[0];
+    if (!t) return;
+    t.dataset.formtitle = '1';
+    t.textContent = editingOption ? 'Edit ' + editingOption : 'Add new option';
+  }
+  function editOption(n) {
+    if (!n || OPTION_TOTALS[n] === undefined) return false;
+    optionItems = (OPTION_ITEMS[n] || []).map(function (it) { var c = {}; for (var k in it) c[k] = it[k]; return c; });
+    var list = optionList(n);
+    optAdjust = 0;
+    optRevised = list && OPTION_TOTALS[n] < list - 0.005 ? OPTION_TOTALS[n] : null;
+    editingOption = n;
+    renderOptionItems();
+    optionNameTyped = n;
+    var nf = $('[data-optname]'); if (nf) nf.value = n;
+    paintFormTitle();
+    paintAdjust();
+    paintOptionSummary();
+    go('est-new-option', 'modal');
+    return true;
+  }
+  document.addEventListener('click', function (ev) {
+    var el = ev.target.closest && ev.target.closest('[data-go="est-option"]');
+    if (!el) return;
+    var n = '';
+    if (el.closest('#ov-option-menu')) n = menuName();
+    else if (optList && optList.contains(el)) {
+      var card = $$(':scope > div', optList).filter(function (c) { return c.contains(el); })[0];
+      n = card ? optionName(card) : '';
+    }
+    if (!n) return;
+    ev.stopPropagation(); ev.preventDefault();
+    closeOverlays(true);
+    editOption(n);
+  }, true);
+
+  function clearSeedOptions() {
+    if (!optList) return;
+    $$(':scope > div', optList).forEach(function (c) {
+      var n = optionName(c); if (!n) return;
+      c.remove();
+      delete OPTION_TOTALS[n]; delete OPTION_ITEMS[n];
+    });
+    optCount = 0;
+  }
+
   function freeOptionName() {
+    // an empty estimate starts at A — the demo options are cleared on save
+    if (state.est === 'none') return 'Option A';
     // the next free letter, not the next number: an option can be deleted
     var taken = {};
     if (optList) {
@@ -11082,9 +11207,16 @@ body.dev #indexBtn{display:flex}
 
   function addOption(total, items, replay, wanted) {
     if (!optCard || !optList) return false;
+    var name = norm(wanted || '') || freeOptionName();
+    // an option saved again under its own name replaces the card it had —
+    // after an edit, and on a reload that replays an edited demo option
+    $$(':scope > div', optList).forEach(function (c) {
+      if (optionName(c) !== name) return;
+      c.remove(); optCount = Math.max(0, optCount - 1);
+    });
+    addedOptions = addedOptions.filter(function (o) { return replay || o.name !== name; });
     if (optCount >= MAX_OPTIONS) return false;
     var copy = optCard.cloneNode(true);
-    var name = norm(wanted || '') || freeOptionName();
     // the template is a clone of a card that may itself have been renamed,
     // so the title is found by its mark and not by the letter it started with
     var title = optionTitleEl(copy);
