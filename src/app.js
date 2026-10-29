@@ -5389,6 +5389,7 @@
   }
   function paintLastSync() {
     var e = byId('moreLastSync'); if (e && lastSyncAt) e.textContent = 'Last sync ' + lastSyncAt + ' · ' + net.queue + ' pending';
+    var w = byId('offWaiting'); if (w) w.textContent = net.queue ? net.queue + (net.queue === 1 ? ' change' : ' changes') : 'Nothing';
   }
   function goOffline() { net.online = false; net.syncing = false; paintNet(); }
   function goOnline() {
@@ -8750,17 +8751,19 @@
       seg: 'Detailed', title: 'Detailed description',
       shared: true, readOnly: true, add: ''
     },
-    /* Marek, Oct 21 + OD: field notes are for the office — they are not
-       printed on anything the customer gets. */
+    /* M4-4, open decision A56 at its default (29.10): field notes can reach
+       the customer — Marek, 05.10 — so the banner says they may be printed,
+       and points anything private to an internal note. */
     tech: {
       seg: "Technician's", title: "Technician's Notes",
       shared: false, readOnly: false, add: 'Add field note',
-      banner: 'For the office — not printed on customer documents'
+      icon: 'visibility',
+      banner: 'Field notes are visible to the office and may be printed on customer documents. Use an internal note for anything the customer must not see.'
     },
     private: {
       seg: 'Private', title: 'Private Notes',
       shared: false, readOnly: false, add: 'Add private note',
-      banner: 'Internal only — the customer never sees these'
+      banner: 'Internal notes are never shown to the customer.'
     }
   };
   var NOTE_ORDER = ['detailed', 'tech', 'private'];
@@ -8826,7 +8829,7 @@
     el.setAttribute('style', 'display:' + (k.banner ? 'flex' : 'none') + ';align-items:center;gap:8px;margin:0 16px 12px;' +
       'padding:10px 12px;border-radius:10px;font:500 12.5px/1.35 Geist;' +
       'background:#FEF3E2;border:1px solid #F3D9AE;color:#8A6114');
-    el.innerHTML = '<span class="mi" style="font-size:18px;flex:none">lock</span><span></span>';
+    el.innerHTML = '<span class="mi" style="font-size:18px;flex:none">' + (k.icon || 'lock') + '</span><span></span>';
     el.children[1].textContent = k.banner || '';
     return el;
   }
