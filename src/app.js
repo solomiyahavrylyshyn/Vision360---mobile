@@ -78,12 +78,14 @@
   var formPlanIdx = DEFAULT_PLAN;     // the plan on the option being built
   /* The warranty line on an option, as the web app keeps it — up here
      because the option form that fills it is built long before the block
-     that reads it. A new option starts with it empty. */
+     that reads it. A new option starts as the web's does: the label
+     "Warranty", the title and detail empty. */
   var WARRANTY_FIELDS = [
     { key: 'label', label: 'Label', max: 20 },
     { key: 'title', label: 'Title', max: 24 },
     { key: 'detail', label: 'Detail', max: 36 }
   ];
+  var NEW_WARRANTY = { label: 'Warranty', title: '', detail: '' };
   var deposit = 0;                    // what the customer hands over on the day
   /* Marek, Oct 8 + 12: the deposit applies to every option and is part of
      its full price — 10% as a rule; a fixed sum is the other way to say it.
@@ -880,7 +882,7 @@
       renderOptionItems();
       paintOptionName();
       paintOptionNote();
-      fillWarranty(null);   // a new option starts with no warranty line, as in the web
+      fillWarranty(NEW_WARRANTY);   // as in the web: the label "Warranty", title and detail empty
       setFormPlan(DEFAULT_PLAN);
       paintAdjust();
       go('est-new-option', 'modal');
@@ -5228,8 +5230,8 @@
 
   /* The warranty line sits under the price, in the option's own form.
      As the web draws it: three short, optional fields — a label, a title
-     and a detail, 20 / 24 / 36 characters — typed on this option; empty
-     prints nothing. */
+     and a detail, 20 / 24 / 36 characters — typed on this option; with
+     no title and no detail nothing is printed. */
   (function () {
     var root = byId('est-new-option'); if (!root || !adjustBox) return;
     var box = document.createElement('div');
@@ -5249,7 +5251,7 @@
       warrantyField[f.key] = inp;
       inp.addEventListener('input', paintWarrantyCounts);
     });
-    fillWarranty(null);
+    fillWarranty(NEW_WARRANTY);
   })();
 
   // nothing to discount until something has a price
@@ -6427,13 +6429,13 @@
      optional — and read on its card. */
   var optionWarranties = recall('optionWarranties', {});
   var warrantyField;          // assigned where the form is built, earlier in the file; no initialiser
-  // the three fields as one line; nothing typed in any of them is no warranty
+  // the three fields as one line; a label with no title and no detail is no warranty
   function typedWarranty() {
     if (!warrantyField) return null;
     var w = {}, any = false;
     WARRANTY_FIELDS.forEach(function (f) {
       w[f.key] = warrantyField[f.key] ? norm(warrantyField[f.key].value) : '';
-      if (w[f.key]) any = true;
+      if (w[f.key] && f.key !== 'label') any = true;
     });
     return any ? w : null;
   }
@@ -6467,7 +6469,7 @@
     remember('optionPlans', optionPlans);
     var card = optList && $$(':scope > div', optList).filter(function (c) { return optionName(c) === name; })[0];
     paintCardWarranty(card, name);
-    fillWarranty(null);
+    fillWarranty(NEW_WARRANTY);
     paintPlanEverywhere();
   }
   function paintCardWarranty(card, name) {
