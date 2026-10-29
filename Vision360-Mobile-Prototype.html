@@ -592,7 +592,7 @@ body.dev #indexBtn{display:flex}
 
             <div style="display:flex;align-items:center;gap:10px;background:#EBF0F8;border:1px solid #C8D5E8;border-radius:11px;padding:12px 13px;margin-bottom:16px">
               <span class="mi" style="font-size:20px;color:#4A6FA5">cloud_done</span>
-              <div style="flex:1;font:500 13.5px/1.35 Geist;color:#1A2332">All synced<div style="font:400 12px/1.3 Geist;color:#546478;margin-top:2px">Last sync 9:28 AM &middot; 0 pending</div></div>
+              <div style="flex:1;font:500 13.5px/1.35 Geist;color:#1A2332">All synced<div id="moreLastSync" style="font:400 12px/1.3 Geist;color:#546478;margin-top:2px">Last sync 9:42 AM &middot; 0 pending</div></div>
               <span class="lnk" style="font-size:13px" data-toast="Syncing…">Sync now</span>
             </div>
 
@@ -8577,8 +8577,9 @@ body.dev #indexBtn{display:flex}
       if (upPending) pend.push(upPending + ' ' + plural(upPending));
       if (net.queue) pend.push(net.queue + (net.queue === 1 ? ' change' : ' changes'));
       icon = 'cloud_off';
-      text = pend.length ? 'Offline · ' + pend.join(' and ') + ' will send when you’re back'
-        : 'Offline — working from saved data';
+      // the strip says how old the saved data is: the last time it synced
+      text = 'Offline · last sync ' + (lastSyncAt || '9:42 AM') + (pend.length ? ' · ' + pend.join(' and ') + ' will send when you’re back'
+        : ' · working from saved data');
     } else if (net.syncing) { cls = 'sync'; icon = 'cloud_sync'; text = 'Back online — sending…'; }
     else if (up.phase === 'uploading') { cls = 'up'; icon = 'cloud_upload'; text = up.text; }
     else if (up.phase === 'done') { cls = 'ok'; icon = 'cloud_done'; text = up.text; }
@@ -8589,6 +8590,7 @@ body.dev #indexBtn{display:flex}
     netmsg.textContent = text;
     netFill.style.width = up.phase === 'uploading' ? up.pct + '%' : '0';
     paintCloseoutBlocker();
+    paintLastSync();
   }
   function flashThenHide(ms) {
     clearTimeout(netHide);
@@ -8602,14 +8604,26 @@ body.dev #indexBtn{display:flex}
     paintNet();
     return what;
   }
+  /* When the phone last synced: the offline strip and More both say it.
+     It moves when a sync finishes after the phone is back online. */
+  var lastSyncAt = recall('lastSyncAt', '9:42 AM');
+  function markSynced() {
+    lastSyncAt = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    remember('lastSyncAt', lastSyncAt);
+    paintLastSync();
+  }
+  function paintLastSync() {
+    var e = byId('moreLastSync'); if (e && lastSyncAt) e.textContent = 'Last sync ' + lastSyncAt + ' · ' + net.queue + ' pending';
+  }
   function goOffline() { net.online = false; net.syncing = false; paintNet(); }
   function goOnline() {
     net.online = true;
-    if (!net.queue && !upPending) { paintNet(); return; }
+    if (!net.queue && !upPending) { markSynced(); paintNet(); return; }
     // US-M14-2: queued work goes up by itself — no manual "Generate Report"
     net.syncing = true; paintNet();
     setTimeout(function () {
       net.queue = 0; net.syncing = false;
+      markSynced();
       if (upPending) startUpload(upPending, upLastBound);
       else { net.sentFlash = true; paintNet(); flashThenHide(2200); }
     }, 1100);
