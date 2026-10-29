@@ -5382,6 +5382,7 @@
      It moves when a sync finishes after the phone is back online. */
   var lastSyncAt = recall('lastSyncAt', '9:42 AM');
   function markSynced() {
+    if (typeof clearNotesWaiting === 'function') clearNotesWaiting();
     lastSyncAt = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
     remember('lastSyncAt', lastSyncAt);
     paintLastSync();
@@ -8802,6 +8803,14 @@
     noteSeed('ov-note-detailed');          // still need the card template
   }
   function saveNotes() { remember('notes.v2', notes); }
+  // the queue went out: nothing on the notes is waiting any more
+  function clearNotesWaiting() {
+    var any = false;
+    Object.keys(notes || {}).forEach(function (k) {
+      (notes[k] || []).forEach(function (r) { if (r.waiting) { r.waiting = ''; any = true; } });
+    });
+    if (any) { saveNotes(); paintNotes(); }
+  }
 
   function noteStampNow() { return noteStamp(); }
 
@@ -8833,6 +8842,17 @@
     // date and author move together so the actions get the right-hand side
     meta.innerHTML = '<span></span>';
     meta.firstElementChild.textContent = rec.stamp + (rec.author ? ' · ' + rec.author : '');
+    /* R-011, M4-4b: a note added or changed without signal says so until the
+       queue sends it — the office does not have it yet. */
+    if (rec.waiting) {
+      var w = document.createElement('span');
+      w.setAttribute('style', 'display:inline-flex;align-items:center;gap:4px;margin-left:8px;' +
+        'font:600 11.5px/1 Geist;color:#B45309;background:#FEF3E2;border-radius:5px;padding:3px 6px;white-space:nowrap');
+      w.innerHTML = '<span class="mi" style="font-size:13px">schedule</span>';
+      w.appendChild(document.createTextNode(rec.waiting === 'edit' ? 'Change waiting' : 'Waiting'));
+      w.title = 'Not sent yet — goes to the office when you’re back online';
+      meta.firstElementChild.appendChild(w);
+    }
     meta.setAttribute('style', 'display:flex;justify-content:space-between;align-items:center;' +
       'gap:10px;margin-top:11px;font:500 12.5px/1 Geist;color:#8A97A8');
 
@@ -8923,6 +8943,7 @@
       rec.text = text;
       rec.stamp = noteStampNow();
       rec.author = 'Marek Stroz';          // whoever last touched it owns it
+      rec.waiting = !net.online ? 'edit' : '';
       saveNotes();
       paintNotes(kind);
       queued('Note');
@@ -8971,7 +8992,7 @@
       if (!ev.target.closest('[data-save]')) return;
       var text = ta.value.trim();
       if (!text) { ta.focus(); return; }
-      notes[kind].unshift({ text: text, stamp: noteStampNow(), author: 'Marek Stroz' });
+      notes[kind].unshift({ text: text, stamp: noteStampNow(), author: 'Marek Stroz', waiting: !net.online ? 'add' : '' });
       saveNotes();
       setDraft(kind, '');
       paintNotes(kind);
