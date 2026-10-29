@@ -3236,16 +3236,14 @@ body.dev #indexBtn{display:flex}
   var DEFAULT_PLAN = 1;               // the company's default for a new option
   var optionPlans = recall('optionPlans', {});   // option name -> plan index
   var formPlanIdx = DEFAULT_PLAN;     // the plan on the option being built
-  /* OD-22: the warranty line on an option, as the web app keeps it — up
-     here because the option form that fills it is built long before the
-     block that reads it. The default is the company's, from Settings →
-     Estimates. */
+  /* The warranty line on an option, as the web app keeps it — up here
+     because the option form that fills it is built long before the block
+     that reads it. A new option starts with it empty. */
   var WARRANTY_FIELDS = [
     { key: 'label', label: 'Label', max: 20 },
     { key: 'title', label: 'Title', max: 24 },
     { key: 'detail', label: 'Detail', max: 36 }
   ];
-  var WARRANTY_DEFAULT = { label: 'Warranty', title: '1 yr labor · 10 yr parts', detail: 'Registered within 60 days' };
   var deposit = 0;                    // what the customer hands over on the day
   /* Marek, Oct 8 + 12: the deposit applies to every option and is part of
      its full price — 10% as a rule; a fixed sum is the other way to say it.
@@ -4042,7 +4040,7 @@ body.dev #indexBtn{display:flex}
       renderOptionItems();
       paintOptionName();
       paintOptionNote();
-      fillWarranty(WARRANTY_DEFAULT);   // the company's line, changed here if this option differs
+      fillWarranty(null);   // a new option starts with no warranty line, as in the web
       setFormPlan(DEFAULT_PLAN);
       paintAdjust();
       go('est-new-option', 'modal');
@@ -8389,9 +8387,9 @@ body.dev #indexBtn{display:flex}
   })();
 
   /* The warranty line sits under the price, in the option's own form.
-     OD-22, as the web draws it: three short fields — a label, a title and
-     a detail, 20 / 24 / 36 characters — that start from the company's
-     default line and are changed here when this option differs. */
+     As the web draws it: three short, optional fields — a label, a title
+     and a detail, 20 / 24 / 36 characters — typed on this option; empty
+     prints nothing. */
   (function () {
     var root = byId('est-new-option'); if (!root || !adjustBox) return;
     var box = document.createElement('div');
@@ -8399,7 +8397,7 @@ body.dev #indexBtn{display:flex}
     var FIN = 'width:100%;height:46px;padding:0 13px;background:#fff;border:1px solid #DDE3EE;border-radius:10px;font:400 14.5px/1 Geist';
     var FLB = 'display:flex;justify-content:space-between;font:500 12.5px/1 Geist;color:#546478;margin:0 0 6px';
     box.innerHTML = '<div style="font:600 16px/1 Geist;margin-bottom:4px">Warranty</div>' +
-      '<div style="font:400 12.5px/1.4 Geist;color:#8A97A8;margin-bottom:10px">Starts from your company’s default · change it for this option if it differs</div>' +
+      '<div style="font:400 12.5px/1.4 Geist;color:#8A97A8;margin-bottom:10px">Optional · printed at the bottom of this option</div>' +
       WARRANTY_FIELDS.map(function (f) {
         return '<div style="margin-top:9px"><div style="' + FLB + '"><span>' + f.label + '</span><span data-wcount="' + f.key + '"></span></div>' +
           '<input data-warranty-field="' + f.key + '" class="inp" maxlength="' + f.max + '" style="' + FIN + '"></div>';
@@ -8411,7 +8409,7 @@ body.dev #indexBtn{display:flex}
       warrantyField[f.key] = inp;
       inp.addEventListener('input', paintWarrantyCounts);
     });
-    fillWarranty(WARRANTY_DEFAULT);
+    fillWarranty(null);
   })();
 
   // nothing to discount until something has a price
@@ -9629,7 +9627,7 @@ body.dev #indexBtn{display:flex}
     remember('optionPlans', optionPlans);
     var card = optList && $$(':scope > div', optList).filter(function (c) { return optionName(c) === name; })[0];
     paintCardWarranty(card, name);
-    fillWarranty(WARRANTY_DEFAULT);
+    fillWarranty(null);
     paintPlanEverywhere();
   }
   function paintCardWarranty(card, name) {
