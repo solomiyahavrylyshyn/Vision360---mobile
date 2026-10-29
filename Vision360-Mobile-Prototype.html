@@ -509,29 +509,43 @@ body.dev #indexBtn{display:flex}
             <div class="card" style="overflow:hidden;margin-bottom:14px">
               <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5">
                 <span style="font:500 14px/1 Geist;color:#546478">Visits completed</span>
-                <span style="font:600 14.5px/1 Geist" id="tsVisits">0 &middot; $0.00 base</span>
+                <span style="font:600 14.5px/1 Geist" id="tsVisits">0</span>
               </div>
               <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5">
                 <span style="font:500 14px/1 Geist;color:#546478">Sold today</span>
                 <span style="font:600 14.5px/1 Geist" id="tsSold">$0.00</span>
               </div>
-              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px">
                 <span style="font:500 14px/1 Geist;color:#546478">On the clock today</span>
                 <span style="font:600 14.5px/1 Geist" id="tsToday">0h 00m</span>
               </div>
-              <!-- compensation is recorded in two halves, never one bucket -->
+            </div>
+            <!-- Marek, Oct 21: most companies pay an hourly rate or a salary, so
+                 the pay is hours × the rate the office set on the employee.
+                 Commission and other pay plans come with Pro. Whether drive
+                 time is paid is a company setting, paid out of the box. -->
+            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">Pay this week</div>
+            <div class="card" style="overflow:hidden;margin-bottom:10px">
               <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5">
-                <span style="font:500 14px/1 Geist;color:#546478">Labour</span>
-                <span style="font:600 14.5px/1 Geist" id="tsLabor">$0.00</span>
+                <span style="font:500 14px/1 Geist;color:#546478">Pay rate</span>
+                <span style="font:600 14.5px/1 Geist" id="tsRate">Hourly &middot; $20.00/h</span>
               </div>
-              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px">
-                <span style="font:500 14px/1 Geist;color:#546478">Commission</span>
-                <span style="font:600 14.5px/1 Geist" id="tsCommission">$0.00</span>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5">
+                <span style="font:500 14px/1 Geist;color:#546478">Paid hours<small style="display:block;font:400 11.5px/1.4 Geist;color:#8A97A8;margin-top:3px" id="tsPaidNote">Regular + drive</small></span>
+                <span style="font:600 14.5px/1 Geist" id="tsPaidHours">0.0h</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5">
+                <span style="font:500 14px/1 Geist;color:#546478">Overtime<small style="display:block;font:400 11.5px/1.4 Geist;color:#8A97A8;margin-top:3px">at 1.5&times; the rate</small></span>
+                <span style="font:600 14.5px/1 Geist" id="tsOtPay">$0.00</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;background:#EBF0F8">
+                <span style="font:600 15px/1 Geist">Earned so far</span>
+                <span style="font:700 19px/1 Geist;letter-spacing:-.01em" id="tsPay">$0.00</span>
               </div>
             </div>
             <div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px;margin-bottom:18px">
               <span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">info</span>
-              <div style="font:400 12.5px/1.45 Geist;color:#546478">$15 base per visit. Labour and commission are recorded separately, not as one lump &mdash; the split is what workers&rsquo; comp is rated on. Check both before the week is submitted.</div>
+              <div style="font:400 12.5px/1.45 Geist;color:#546478" id="tsPayInfo">Your office sets your rate and whether drive time is paid.</div>
             </div>
             <div style="font:600 16px/1 Geist;margin-bottom:10px">Week of Dec 8</div>
             <div class="card" style="overflow:hidden">
@@ -573,9 +587,12 @@ body.dev #indexBtn{display:flex}
             </div>
 
             <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <div class="rowi" data-go="more-equipment" data-mode="push"><span class="mi">hvac</span><span class="t">Equipment</span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-go="more-assets" data-mode="push"><span class="mi">inventory_2</span><span class="t">Assets<small>42 items on truck 14</small></span><span class="mi ch">chevron_right</span></div>
+              <!-- Marek, Oct 21: inventory, truck stock and equipment are not in the MVP -->
               <div class="rowi" data-go="est-catalog" data-mode="push"><span class="mi">menu_book</span><span class="t">Price book</span><span class="mi ch">chevron_right</span></div>
+            </div>
+
+            <div class="card" style="overflow:hidden;margin-bottom:14px">
+              <div class="rowi" data-act="toggleLocation"><span class="mi">my_location</span><span class="t">Location services<small id="locNote">On &middot; needed to start a job</small></span><span id="locSw" style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none"><span style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span></span></div>
             </div>
 
             <div class="card" style="overflow:hidden;margin-bottom:14px">
@@ -1068,7 +1085,7 @@ body.dev #indexBtn{display:flex}
               <div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div>
             </div>
             <div style="display:flex;align-items:center;gap:10px;padding:6px 16px 12px;border-bottom:1px solid #EDF0F5;flex:none">
-              <span style="flex:1;font:600 18px/1.25 Geist">Options not taken</span>
+              <span style="flex:1;font:600 18px/1.25 Geist">Declined options</span>
               <span class="mi" data-back style="font-size:22px;color:#546478">close</span>
             </div>
             <div class="sc" id="rejectedList" style="flex:1;overflow-y:auto;padding:12px 16px 20px"></div>
@@ -3092,6 +3109,21 @@ body.dev #indexBtn{display:flex}
   var invBase = recall('invBase', null);          // an invoice kept as it was when the estimate changed
   var quickClose = false;                         // completing the job without the closeout form
   var startAnyway = false;                        // the technician said to start away from the address
+  var START_RADIUS_FT = 100;                      // Marek, Oct 21: "50 to 100 feet"
+  var locationOn = recall('locationOn', true);    // the phone's location services, switched in More
+  function setLocation(on) {
+    locationOn = !!on; remember('locationOn', locationOn);
+    paintLocation();
+  }
+  function paintLocation() {
+    var sw = document.getElementById('locSw'), note = document.getElementById('locNote');
+    if (sw) {
+      sw.style.background = locationOn ? '#4A6FA5' : '#DDE3EE';
+      var knob = sw.firstElementChild;
+      if (knob) { knob.style.right = locationOn ? '3px' : ''; knob.style.left = locationOn ? '' : '3px'; }
+    }
+    if (note) note.textContent = locationOn ? 'On · needed to start a job' : 'Off · jobs can’t be started';
+  }
   var changesPrevTotal = null;                    // what the estimate was worth before changes were requested
 
   function plan() { return PLANS[planIdx]; }
@@ -3314,7 +3346,7 @@ body.dev #indexBtn{display:flex}
       remember('state', state);
       remember('jobIdx', viewPast ? viewPast.idx : jobIdx);   // a job being looked at is not the job
       remember('jobs', JOBS.map(function (j) {
-        return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done };
+        return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses };
       }));
     }
     paintDash();
@@ -3748,11 +3780,23 @@ body.dev #indexBtn{display:flex}
     start: function () {
       /* Marek, Oct 12: the phone's distance from the job address can gate
          Start — payroll checks timesheets against GPS by hand today. */
-      var miles = jobAwayMiles();
-      if (!startAnyway && miles > 0.25) {
+      /* Marek, Oct 21: no location, no start — "You need to trigger turning
+         your location on." And the warning starts at 50–100 feet from the
+         address, not a quarter of a mile. */
+      if (!locationOn) {
         confirmSheet({
-          title: 'You are ' + miles + ' miles from the job',
-          text: ((JOBS[jobIdx] || {}).addr || 'The job address') + '. Starting here puts the clock on before you arrive.',
+          title: 'Turn on location to start',
+          text: 'Starting a job checks where you are against the service address. Location services are off on this phone.',
+          ok: 'Turn on location', alt: null,
+          onOk: function () { setLocation(true); toast('Location on', 'my_location'); ACT.start(); }
+        });
+        return;
+      }
+      var miles = jobAwayMiles();
+      if (!startAnyway && miles * 5280 > START_RADIUS_FT) {
+        confirmSheet({
+          title: 'You are ' + (miles < 0.2 ? Math.round(miles * 5280) + ' feet' : miles + ' miles') + ' from the job',
+          text: ((JOBS[jobIdx] || {}).addr || 'The job address') + '. Start is meant for within ' + START_RADIUS_FT + ' feet of the address — starting here puts the clock on before you arrive.',
           ok: 'Start anyway', alt: null, danger: true,
           onOk: function () { startAnyway = true; ACT.start(); }
         });
@@ -3871,6 +3915,7 @@ body.dev #indexBtn{display:flex}
       changesPrevTotal = j.sold ? j.sold.total : null;
       state.est = 'changes';
       estPresented = false;
+      resetCustomerSignature();
       closeOverlays(true);
       go('est-draft', 'root');
       paintDraftAction();
@@ -3887,6 +3932,9 @@ body.dev #indexBtn{display:flex}
       var j = JOBS[jobIdx] || {};
       changesPrevTotal = j.sold ? j.sold.total : null;
       state.est = 'changes';
+      /* Marek, Oct 21: the old signature stands for the old version only —
+         the revised one is signed again before it becomes the order. */
+      resetCustomerSignature();
       closeOverlays(true);
       go('est-draft', 'root');
       paintDraftAction();
@@ -3906,15 +3954,22 @@ body.dev #indexBtn{display:flex}
       state.est = 'approved';
       paintApproved();
       if (j) {
-        j.sold = { option: pick, total: total };
+        /* Marek, Oct 21: a revised price is not a lower price on the items.
+           The items keep their list prices and the difference is a discount
+           line of its own — reports can then say who discounted how much. */
+        var list = optionList(pick);
+        j.sold = { option: pick, total: total, list: list || total, discount: optionDiscount(pick) };
         /* Marek: the items on the approved option are the job's items. Nobody
            retypes them — an approval that doesn't carry its own items leaves
            the crew working from a number. */
-        j.items = mergeItems(j.items || [], (OPTION_ITEMS[pick] || []).map(function (it) {
-          var c = {}; for (var k in it) c[k] = it[k];
-          c.from = 'estimate';
-          return c;
-        }));
+        /* A revised estimate replaces what the earlier version put on the
+           job; what was added on the job itself stays. */
+        j.items = mergeItems((j.items || []).filter(function (it) { return it.from !== 'estimate'; }),
+          (OPTION_ITEMS[pick] || []).map(function (it) {
+            var c = {}; for (var k in it) c[k] = it[k];
+            c.from = 'estimate';
+            return c;
+          }));
       }
       renderJobItems();
       kpiSale(total);                              // the dashboard on Home moves
@@ -3943,13 +3998,22 @@ body.dev #indexBtn{display:flex}
       go('est-draft', 'root');
       queued('Estimate');
       // a decline with a date on it is a visit; without one it is a shrug
-      toast(followUpDays >= 0
-        ? 'Declined — follow up on ' + followDate(followUpDays)
-        : 'Declined — estimate stays open, no follow-up date set',
-        'history_toggle_off');
+      toast('Declined — the estimate stays open', 'history_toggle_off');
     },
     openExtras: function () { go(extraItems.length ? 'add-items' : 'add-empty', 'replace'); },
     reinvoice: function () {
+      /* Marek, Oct 21: a job can have several invoices — the next one bills
+         only what the earlier ones did not, e.g. an upsell sold after. */
+      var j = JOBS[jobIdx];
+      if (j) {
+        if (j.sold) j.sold.invoiced = true;
+        (j.items || []).forEach(function (it) { it.inv = true; });
+        saveJobs();
+      }
+      invBase = null; remember('invBase', null);
+      invPaidSoFar = 0; remember('invPaidSoFar', 0);
+      renderJobItems();
+      paintPayScreens();
       state.inv = 'none';                  // a second invoice on the same job
       invCreatedAt = invSentAt = invPaidAt = '';
       remember('invCreatedAt', ''); remember('invSentAt', ''); remember('invPaidAt', '');
@@ -3986,6 +4050,11 @@ body.dev #indexBtn{display:flex}
     },
 
     createInvoice: function () {
+      var jn = JOBS[jobIdx];
+      if (jn && !invoiceRows(jn).length && (jn.sold && jn.sold.invoiced || (jn.items || []).some(function (it) { return it.inv; }))) {
+        toast('Everything on this job is already invoiced — add the extra work to the job first', 'info');
+        return;
+      }
       invPaidSoFar = 0; remember('invPaidSoFar', 0);
       invBase = null; remember('invBase', null);
       /* Creating an invoice sent it in the same tap — the technician had no
@@ -4026,18 +4095,23 @@ body.dev #indexBtn{display:flex}
     addItemsDone: function () {
       var picked = addCatalog ? addCatalog.selection() : [];
       if (addCatalog) addCatalog.clear();
-      picked.forEach(function (it) {
-        var seen = extraItems.filter(function (o) { return o.name === it.name; })[0];
-        if (seen) seen.qty += (it.qty || 1);
-        else extraItems.push({
-          sku: it.sku, name: it.name, desc: it.desc, price: it.price,
-          type: it.type, cat: it.cat, labor: it.labor, qty: it.qty || 1
-        });
-      });
-      remember('extraItems', extraItems);
-      state.extra = extraItems.length > 0;
-      renderExtras();
+      /* Marek, Oct 21: what is added on site goes on the job, and the
+         invoice is made from the job — not straight onto the invoice,
+         where the job would no longer match it. */
+      var j = JOBS[jobIdx];
+      if (j) {
+        j.items = mergeItems(j.items || [], picked.map(function (it) {
+          return {
+            sku: it.sku, name: it.name, desc: it.desc, price: it.price,
+            type: it.type, cat: it.cat, labor: it.labor, qty: it.qty || 1, from: 'site'
+          };
+        }));
+        saveJobs();
+      }
+      renderJobItems();
+      paintPayScreens();
       go(finScreen(), 'replace');
+      if (picked.length) toast(picked.length + (picked.length === 1 ? ' item' : ' items') + ' added to the job and the invoice', 'add_task');
       var n = picked.reduce(function (a, it) { return a + (it.qty || 1); }, 0);
       toast(n ? n + ' ' + (n === 1 ? 'item' : 'items') + ' added to the invoice'
         : 'Nothing added', 'playlist_add');
@@ -5878,7 +5952,7 @@ body.dev #indexBtn{display:flex}
     var area = $('[data-payfields]', P.panel);
     area.innerHTML = m.fields.map(function (row) {
       return '<div style="display:flex;gap:10px;margin-top:10px">' + row.map(fieldHtml).join('') + '</div>';
-    }).join('');
+    }).join('') + dlSlotHtml(m);
     // a date field is a list of the days around today
     $$('[data-pdatebox]', area).forEach(function (box) {
       var key = box.dataset.pdatebox;
@@ -5965,8 +6039,40 @@ body.dev #indexBtn{display:flex}
     return r;
   }
 
+  /* Marek, Oct 21: a photo of the customer's driver's licence with the
+     payment is a company setting — off out of the box ("eight out of nine
+     companies… will say the software is too difficult"), and when it is on
+     the company picks the payment methods it applies to. AND Services has
+     it on for card, check and financing; not for cash or app transfers. */
+  // a function, not a var: the pay panel is built before this line runs
+  function dlRequired(m) { return { card: 1, check: 1, financing: 1, consumer: 1 }[m.id] === 1; }
+  function dlSlotHtml(m) {
+    if (!dlRequired(m)) return '';
+    var got = !!(pay.dl && pay.dl[m.id]);
+    return '<div data-act="dlPhoto" data-tap="1" style="display:flex;align-items:center;gap:12px;margin-top:12px;padding:12px 13px;' +
+      'background:' + (got ? '#F0FAF3' : '#fff') + ';border:1.5px ' + (got ? 'solid #16A34A' : 'dashed #C8D5E8') + ';border-radius:10px">' +
+      '<span class="mi" style="font-size:24px;color:' + (got ? '#16A34A' : '#4A6FA5') + '">' + (got ? 'badge' : 'add_a_photo') + '</span>' +
+      '<div style="flex:1;min-width:0"><div style="font:600 14px/1.25 Geist">' + (got ? 'Driver’s licence photo added' : 'Photo of the driver’s licence') + '</div>' +
+      '<div style="font:400 12px/1.4 Geist;color:#8A97A8;margin-top:3px">' + (got ? 'Attached to this payment · tap to retake'
+        : 'Required by your company for ' + m.name.toLowerCase() + ' payments') + '</div></div>' +
+      (got ? '<span class="mif" style="font-size:20px;color:#16A34A">check_circle</span>' : '<span style="font:600 11px/1 Geist;color:#DC2626">REQUIRED</span>') +
+      '</div>';
+  }
+  ACT.dlPhoto = function () {
+    var m = payMethodDef();
+    pay.dl = pay.dl || {};
+    pay.dl[m.id] = true; savePay();
+    payPanels.forEach(function (P) { P.rendered = ''; });
+    paintPayPanels();
+    toast('Driver’s licence photo attached to the payment', 'badge');
+  };
+
   ACT.payInline = function () {
     var m = payMethodDef();
+    if (dlRequired(m) && !(pay.dl && pay.dl[m.id])) {
+      toast('Take a photo of the customer’s driver’s licence first', 'badge');
+      return;
+    }
     if (m.id === 'card' && !net.online) {
       toast('No signal — the card can’t be charged yet', 'cloud_off');
       return;
@@ -5988,7 +6094,7 @@ body.dev #indexBtn{display:flex}
       invPaidSoFar += taking; remember('invPaidSoFar', invPaidSoFar);
       if (!invSentAt) { invSentAt = stamp(); remember('invSentAt', invSentAt); if (state.inv === 'created') state.inv = 'sent'; }
       kpiPaid(taking);
-      pay.values = {}; pay.dates = {}; savePay();
+      pay.values = {}; pay.dates = {}; pay.dl = {}; savePay();
       payPanels.forEach(function (P) { P.rendered = ''; });
       paintPayScreens();
       closeOverlays(true);
@@ -6003,7 +6109,7 @@ body.dev #indexBtn{display:flex}
     payMethod = m.name;
     paintReceipt('inline');
     kpiPaid(payAmount);
-    pay.values = {}; pay.dates = {}; savePay();
+    pay.values = {}; pay.dates = {}; pay.dl = {}; savePay();
     payPanels.forEach(function (P) { P.rendered = ''; });
     paintPayScreens();
     closeOverlays(true);
@@ -6148,7 +6254,7 @@ body.dev #indexBtn{display:flex}
         list.appendChild(r);
       });
     }
-    total.textContent = fmt(j.sold.total);
+    total.textContent = fmt(j.sold.total) + (j.sold.discount ? ' · incl. −' + fmt(j.sold.discount) + ' discount' : '');
   }
 
   var invLines = null;
@@ -6201,18 +6307,11 @@ body.dev #indexBtn{display:flex}
   function paintInvLines() {
     if (!invLines) return;
     var j = JOBS[jobIdx] || {};
-    // sold off an estimate: the signed option is one line at its signed
-    // price — its items are inside it; otherwise the job's own items
-    var rows = j.sold
-      ? [{ name: j.sold.option + ' — approved estimate', price: j.sold.total }]
-      : ((j.items) || []).map(function (it) {
-        return { name: (it.qty > 1 ? it.qty + ' × ' : '') + it.name, price: (it.price || 0) * (it.qty || 1) };
-      });
-    extraItems.forEach(function (it) {
-      rows.push({ name: (it.qty > 1 ? it.qty + ' × ' : '') + it.name + ' (added on site)', price: it.price * it.qty });
-    });
+    // the signed option at list price, its discount as a line of its own,
+    // then whatever was added on site — the same lines the job adds up
+    var rows = invoiceRows(j);
     invLines.lines.innerHTML = '';
-    if (state.est === 'approved' && j.sold && invAttachEst) {
+    if (state.est === 'approved' && j.sold && !j.sold.invoiced && invAttachEst) {
       var a = document.createElement('div');
       a.setAttribute('style', 'display:flex;align-items:center;gap:7px;padding:6px 0 10px;font:500 13px/1.3 Geist;color:#4A6FA5');
       a.innerHTML = '<span class="mi" style="font-size:17px">attach_file</span><span></span>';
@@ -6225,7 +6324,8 @@ body.dev #indexBtn{display:flex}
         (i ? ';border-top:1px solid #EDF0F5' : ''));
       d.innerHTML = '<span></span><span style="font-weight:600;color:#1A2332;white-space:nowrap"></span>';
       d.children[0].textContent = r.name;
-      d.children[1].textContent = fmt(r.price);
+      d.children[1].textContent = r.price < 0 ? '−' + fmt(-r.price) : fmt(r.price);
+      if (r.disc) d.children[1].style.color = '#16A34A';
       invLines.lines.appendChild(d);
     });
     invLines.total.textContent = fmt(invoiceTotal());
@@ -6540,11 +6640,13 @@ body.dev #indexBtn{display:flex}
   /* The draft's one button: Present to customer — or, with changes
      requested on an approved estimate, Resend for approval — and a strip
      saying why the draft is open again. */
-  var customerLandscape = false;
+  /* Marek, Oct 21: the presentation opens in landscape, with a button for
+     portrait. A screen that is already wider than tall needs no turning. */
+  var customerLandscape = true;
   function paintCustomerRotation() {
     var root = byId('est-customer'); if (!root) return;
-    var on = customerLandscape && curPage() === 'est-customer';
     var vw = viewport.clientWidth, vh = viewport.clientHeight;
+    var on = customerLandscape && curPage() === 'est-customer' && vh > vw;
     if (on) {
       root.style.width = vh + 'px'; root.style.height = vw + 'px';
       root.style.left = ((vw - vh) / 2) + 'px'; root.style.top = ((vh - vw) / 2) + 'px';
@@ -7216,8 +7318,8 @@ body.dev #indexBtn{display:flex}
   function invoiceTotal() {
     // the extras render before the job list exists, so this is asked early
     var j = (typeof JOBS === 'undefined' ? null : JOBS[jobIdx]) || {};
-    var base = invBase !== null ? invBase : (j.sold ? j.sold.total : jobItemsTotal(j));
-    return base + extrasTotal();
+    var sum = invoiceRows(j).reduce(function (a, r) { return a + r.price; }, 0);
+    return Math.round(sum * 100) / 100;
   }
 
   function paintPayScreens() {
@@ -7227,7 +7329,7 @@ body.dev #indexBtn{display:flex}
     // A deposit only counts once the customer has signed for the option it
     // was quoted against. On an estimate nobody bought, no money changed
     // hands, so there is nothing to take off the invoice.
-    var paid = j.sold ? Math.min(effectiveDeposit(j.sold.total), jobTotal) : 0;
+    var paid = j.sold && !j.sold.invoiced ? Math.min(effectiveDeposit(j.sold.total), jobTotal) : 0;
     payAmount = Math.max(0, jobTotal - paid - invPaidSoFar);
     PAY_SCREENS.forEach(function (id) {
       var root = byId(id); if (!root) return;
@@ -7761,10 +7863,10 @@ body.dev #indexBtn{display:flex}
      is what the product does. */
   function jobLine(sku, qty, from) {
     var it = ITEMS[sku];
-    if (!it) return { sku: sku, name: sku, type: 'material', cat: '', price: 0, labor: 0, qty: qty || 1, from: from || 'manual' };
+    if (!it) return { sku: sku, name: sku, type: 'material', cat: '', price: 0, labor: 0, qty: qty || 1, from: from || 'job' };
     return {
       sku: it.sku, name: it.name, type: it.type, cat: it.cat,
-      price: it.price, labor: it.labor, qty: qty || 1, from: from || 'manual'
+      price: it.price, labor: it.labor, qty: qty || 1, from: from || 'job'
     };
   }
 
@@ -7843,7 +7945,8 @@ body.dev #indexBtn{display:flex}
   // the app already has an optionTotal() that reads a card; this one is the
   // option being built, after whatever the slider did to it
   function optionAdjusted() {
-    if (optRevised !== null && optRevised > 0) return Math.round(optRevised * 100) / 100;
+    // a revised price only ever comes down from the list — up is not a discount
+    if (optRevised !== null && optRevised > 0 && optRevised <= optionBase()) return Math.round(optRevised * 100) / 100;
     return Math.round(optionBase() * (1 + optAdjust / 100) * 100) / 100;
   }
 
@@ -7868,9 +7971,9 @@ body.dev #indexBtn{display:flex}
     if (document.activeElement !== inp) inp.value = optRevised !== null ? optRevised.toFixed(2) : '';
     inp.placeholder = base.toFixed(2);
     var diff = base - now;
-    if (optRevised === null || Math.abs(diff) < 0.005) { sav.textContent = 'List price — no change'; sav.style.color = '#8A97A8'; }
-    else if (diff > 0) { sav.textContent = 'Saving ' + Math.round(diff / base * 100) + '% · ' + fmt(diff) + ' off'; sav.style.color = '#16A34A'; }
-    else { sav.textContent = '+' + Math.round(-diff / base * 100) + '% · ' + fmt(-diff) + ' above list'; sav.style.color = '#D97706'; }
+    if (optRevised !== null && optRevised > base + 0.005) { sav.textContent = 'Can’t be above the list price — the list price stays'; sav.style.color = '#DC2626'; }
+    else if (optRevised === null || Math.abs(diff) < 0.005) { sav.textContent = 'List price — no change'; sav.style.color = '#8A97A8'; }
+    else { sav.textContent = 'Discount line −' + fmt(diff) + ' (' + Math.round(diff / base * 100) + '%) · item prices stay as listed'; sav.style.color = '#16A34A'; }
   }
 
   /* It was a button, then a sheet over the numbers it changes, then a link
@@ -7904,7 +8007,12 @@ body.dev #indexBtn{display:flex}
       '<div style="display:flex;align-items:center;gap:8px;height:50px;padding:0 13px;background:#fff;border:1.5px solid #4A6FA5;border-radius:10px">' +
       '<span style="font:600 17px/1 Geist;color:#8A97A8">$</span>' +
       '<input id="adjPrice" class="inp" inputmode="decimal" placeholder="0.00" style="flex:1;height:auto;border:0;padding:0;background:transparent;font:600 17px/1 Geist"></div>' +
-      '<div id="adjSave" style="font:500 13px/1.3 Geist;color:#8A97A8;margin-top:9px"></div>';
+      '<div id="adjSave" style="font:500 13px/1.3 Geist;color:#8A97A8;margin-top:9px"></div>' +
+      /* Marek, Oct 21: adjusting the price is a permission of its own — on
+         for managers, off for technicians unless the office turns it on */
+      '<div style="display:flex;gap:7px;align-items:flex-start;margin-top:12px;padding-top:11px;border-top:1px solid #EDF0F5;font:400 12px/1.4 Geist;color:#8A97A8">' +
+      '<span class="mi" style="font-size:15px;color:#4A6FA5">admin_panel_settings</span>' +
+      '<span>You have the <b style="font-weight:600;color:#546478">Adjust price</b> permission. It is on for managers and off for technicians by default; the office sets it per person.</span></div>';
     btn.parentElement.insertBefore(adjustBox, btn.nextElementSibling);
 
     var inp = $('#adjPrice', adjustBox);
@@ -8086,6 +8194,9 @@ body.dev #indexBtn{display:flex}
   var jobTimerEl = sel(phone, '43:45')[0] || null;   // the bar left home-active
   var VISIT_BASE = 15;
   var WEEK = { regular: 32.5, overtime: 4.0, drive: 6.2 };   // Mon–Thu, already banked
+  // set in the web app: the rate on the employee's invite form, drive time
+  // compensable as a company setting (on out of the box)
+  var PAY = { type: 'hourly', rate: 20, drivePaid: true };
   var clock = { drive: 0, work: 0, mode: 'off', since: 0, visits: 0, sold: 0, labor: 0, commission: 0 };
   // a running clock keeps running through a reload — `since` is a timestamp
   Object.assign(clock, recall('clock', {}));
@@ -8142,12 +8253,21 @@ body.dev #indexBtn{display:flex}
     set('tsRegular', (WEEK.regular + work / 3600).toFixed(1) + 'h');
     set('tsToday', hm(drive + work));
     paintDriveTime(drive);
-    set('tsVisits', clock.visits + ' · ' + fmt(clock.visits * VISIT_BASE) + ' base');
+    set('tsVisits', String(clock.visits));
     set('tsSold', fmt(clock.sold));
-    // labour earned on the work, commission earned on the sale — two numbers,
-    // because workers' comp is rated on the first one alone
-    set('tsLabor', fmt(clock.visits * VISIT_BASE + clock.labor));
-    set('tsCommission', fmt(clock.commission));
+    /* Marek, Oct 21: "My hourly rate is 20 bucks an hour" — regular hours,
+       plus drive hours when the company pays for driving, times the rate;
+       overtime on top. Commission and pay plans are Pro. */
+    var reg = WEEK.regular + work / 3600, drv = WEEK.drive + drive / 3600;
+    var paidHrs = reg + (PAY.drivePaid ? drv : 0);
+    var otPay = WEEK.overtime * PAY.rate * 1.5;
+    set('tsRate', 'Hourly · ' + fmt(PAY.rate) + '/h');
+    set('tsPaidHours', paidHrs.toFixed(1) + 'h');
+    set('tsPaidNote', PAY.drivePaid ? 'Regular + drive' : 'Regular only — drive time isn’t paid');
+    set('tsOtPay', fmt(otPay));
+    set('tsPay', fmt(paidHrs * PAY.rate + otPay));
+    set('tsPayInfo', 'Your office sets your rate on your employee profile. Drive time is ' +
+      (PAY.drivePaid ? 'paid' : 'not paid') + ' at your company — a company setting.');
 
     // the header timer on the in-progress screen is the same work clock
     if (jobTimerEl) {
@@ -8854,9 +8974,47 @@ body.dev #indexBtn{display:flex}
   function jobItemsTotal(j) {
     return ((j && j.items) || []).reduce(function (a, it) { return a + it.price * it.qty; }, 0);
   }
+  /* Marek, Oct 21: "We want the job amount and invoice amount to match."
+     Work added on site goes on the job, so the job is worth the signed
+     option (after its discount) plus everything added since. The estimate
+     is allowed to differ — the customer asked for more. */
+  function siteItems(j) {
+    return ((j && j.items) || []).filter(function (it) { return !(j.sold && it.from === 'estimate'); });
+  }
+  function jobAmount(j) {
+    if (!j) return 0;
+    var site = siteItems(j).reduce(function (a, it) { return a + it.price * it.qty; }, 0);
+    return Math.round(((j.sold ? j.sold.total : 0) + site) * 100) / 100;
+  }
+  /* The invoice is made from the job. A job can have several invoices (an
+     upsell after the first one is paid), so whatever an earlier invoice
+     already billed is not billed again. */
+  function invoiceRows(j) {
+    var rows = [];
+    if (!j) return rows;
+    if (j.sold && !j.sold.invoiced) {
+      if (invBase !== null) rows.push({ name: j.sold.option + ' — approved estimate (as invoiced)', price: invBase });
+      else {
+        rows.push({ name: j.sold.option + ' — approved estimate', price: j.sold.list || j.sold.total });
+        if (j.sold.discount) rows.push({ name: 'Discount', price: -j.sold.discount, disc: true });
+      }
+    }
+    siteItems(j).forEach(function (it) {
+      if (it.inv) return;
+      rows.push({
+        name: (it.qty > 1 ? it.qty + ' × ' : '') + it.name + (it.from === 'site' || it.from === 'manual' ? ' (added on site)' : ''),
+        price: (it.price || 0) * (it.qty || 1)
+      });
+    });
+    return rows;
+  }
   function mergeItems(into, add) {
     add.forEach(function (it) {
-      var seen = it.sku && into.filter(function (o) { return o.sku === it.sku; })[0];
+      // a part added on site is its own line, even when the signed option
+      // has the same part — and nothing joins a line already invoiced
+      var seen = it.sku && into.filter(function (o) {
+        return o.sku === it.sku && (o.from === 'estimate') === (it.from === 'estimate') && !o.inv;
+      })[0];
       if (seen) seen.qty += it.qty || 1;
       else into.push(it);
     });
@@ -8954,7 +9112,7 @@ body.dev #indexBtn{display:flex}
 
   function saveJobs() {
     remember('jobs', JOBS.map(function (j) {
-      return { est: j.est, inv: j.inv, items: j.items, sold: j.sold };
+      return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses };
     }));
   }
 
@@ -8965,7 +9123,7 @@ body.dev #indexBtn{display:flex}
     if (!jobTotalEl) return;
     var j = JOBS[jobIdx] || {};
     var tot = $('[data-tot]', jobTotalEl);
-    if (tot) tot.textContent = fmt(j.sold ? j.sold.total : jobItemsTotal(j));
+    if (tot) tot.textContent = fmt(jobAmount(j));
   }
 
   function renderJobItems() {
@@ -8999,7 +9157,16 @@ body.dev #indexBtn{display:flex}
     });
 
     var sold = j.sold;
-    var total = sold ? sold.total : jobItemsTotal(j);
+    var total = jobAmount(j);
+    if (sold && sold.discount) {
+      var dl = document.createElement('div');
+      dl.setAttribute('data-jobitem', '1');
+      dl.setAttribute('style', 'display:flex;justify-content:space-between;gap:10px;padding:11px 0 3px;' +
+        'border-top:1px solid #EDF0F5;font:500 13.5px/1.3 Geist;color:#546478');
+      dl.innerHTML = '<span>Discount <span style="font-weight:400;color:#8A97A8">· on ' + sold.option + '</span></span>' +
+        '<span style="font-weight:600;color:#16A34A;white-space:nowrap">−' + fmt(sold.discount) + '</span>';
+      R.card.insertBefore(dl, R.add);
+    }
     var foot = document.createElement('div');
     jobTotalEl = foot;
     foot.setAttribute('data-jobitem', '1');
@@ -9008,9 +9175,10 @@ body.dev #indexBtn{display:flex}
     foot.innerHTML = '<div><div style="font:600 14.5px/1 Geist">Total</div>' +
       '<div data-src style="font:400 11.5px/1.4 Geist;color:#8A97A8;margin-top:5px"></div></div>' +
       '<span data-tot style="font:700 17px/1 Geist;white-space:nowrap"></span>';
+    var extra = siteItems(j).length;
     $('[data-src]', foot).textContent = sold
-      ? sold.option + ' approved — the signed estimate sets the price'
-      : 'Job items at unit price — no estimate on this job';
+      ? sold.option + ' approved' + (extra ? ' + ' + extra + ' more ' + (extra === 1 ? 'item' : 'items') + ' on the job' : '') + ' — the invoice bills the same'
+      : 'Job items at unit price — the invoice bills the same';
     $('[data-tot]', foot).textContent = fmt(total);
     R.card.insertBefore(foot, R.add);
   }
@@ -9433,6 +9601,20 @@ body.dev #indexBtn{display:flex}
         return /^\$[\d,]+\.\d\d/.test(norm(e.textContent)) && /font:700/.test(e.getAttribute('style') || '');
       })[0];
       if (!priceEl) return;
+      // Marek, Oct 21: the customer sees the discount — it is part of the sale
+      var off = optionDiscount(optionName(c));
+      var disc = $('[data-disc]', c);
+      if (off && !disc) {
+        disc = document.createElement('div');
+        disc.dataset.disc = '1';
+        // the price row is the card's footer: the line continues it
+        disc.setAttribute('style', 'font:500 12.5px/1.35 Geist;color:#16A34A;padding:0 14px 11px;margin-top:-3px;background:#F8FAFD');
+        priceEl.parentElement.insertAdjacentElement('afterend', disc);
+      }
+      if (disc) {
+        disc.hidden = !off;
+        disc.textContent = off ? 'List ' + fmt(optionList(optionName(c))) + ' · Discount −' + fmt(off) : '';
+      }
       var canFinance = !!plan().months;
       // nothing to show a monthly from, or the technician chose not to
       if (hint && (!canFinance || previewMode === 'total')) {
@@ -9475,6 +9657,18 @@ body.dev #indexBtn{display:flex}
      The design's option cards already list them, so they are read back out
      of the accepted markup rather than invented alongside it. */
   var OPTION_ITEMS = {};
+  /* Marek, Oct 21: the option's items at their own prices, and whatever the
+     technician took off it as a separate discount line. */
+  function optionList(name) {
+    return Math.round((OPTION_ITEMS[name] || []).reduce(function (a, it) {
+      return a + (it.price || 0) * (it.qty || 1);
+    }, 0) * 100) / 100;
+  }
+  function optionDiscount(name) {
+    var list = optionList(name), total = OPTION_TOTALS[name] || 0;
+    var d = Math.round((list - total) * 100) / 100;
+    return list && d > 0.004 ? d : 0;
+  }
   function seedOptionItems(screenId) {
     var root = byId(screenId); if (!root) return;
     var cards = $$('div', root).filter(function (e) {
@@ -9736,6 +9930,7 @@ body.dev #indexBtn{display:flex}
     state.est = j ? j.est : 'none';
     state.inv = j ? j.inv : 'none';
     renderJobItems();
+    renderExpenses();
   }
   function wireCurrentJob() {
     var root = byId('home'); if (!root) return;
@@ -9891,6 +10086,7 @@ body.dev #indexBtn{display:flex}
     JOBS[i].est = s.est; JOBS[i].inv = s.inv; JOBS[i].done = !!s.done;
     if (s.items) JOBS[i].items = s.items;
     if (s.sold !== undefined) JOBS[i].sold = s.sold;
+    if (s.expenses) JOBS[i].expenses = s.expenses;
   });
   /* A day is empty when there are no jobs left in it — nothing else.
      Before the queue could be browsed, progress was a cursor and
@@ -9905,6 +10101,17 @@ body.dev #indexBtn{display:flex}
   if (!JOBS[jobIdx] || JOBS[jobIdx].done) {
     var stillOpen = openJobs();
     jobIdx = stillOpen.length ? stillOpen[0] : JOBS.length;
+  }
+  /* Extras used to live on the invoice alone. A phone that saved some puts
+     them on the job they were added to, where the invoice now reads them. */
+  if (extraItems.length && JOBS[jobIdx]) {
+    JOBS[jobIdx].items = mergeItems(JOBS[jobIdx].items || [], extraItems.map(function (it) {
+      var c = {}; for (var k in it) c[k] = it[k];
+      c.from = 'site';
+      return c;
+    }));
+    extraItems = []; remember('extraItems', []);
+    saveJobs();
   }
   loadJob();
   (function () {
@@ -10194,11 +10401,13 @@ body.dev #indexBtn{display:flex}
   }
 
   // customer signs the chosen estimate option — the Pending chip flips to signed
+  var resetCustomerSignature = function () { estSigned = false; };
   (function () {
     var root = byId('est-customer'); if (!root) return;
     var pending = sel(root, 'Pending')[0];
     var when = sel(root, 'Oct 7, 2025, 9:09 AM')[0];
-    signaturePad('est-customer', 'Sign here', function () {
+    var pendingStyle = pending && pending.getAttribute('style');
+    var pad = signaturePad('est-customer', 'Sign here', function () {
       estSigned = true;
       estSignedAt = stamp();
       paintOrderBtn();
@@ -10210,6 +10419,12 @@ body.dev #indexBtn{display:flex}
         pending.style.color = '#fff';
       }
     });
+    resetCustomerSignature = function () {
+      estSigned = false;
+      if (pad) pad.clear();
+      if (pending) { pending.textContent = 'Pending'; if (pendingStyle) pending.setAttribute('style', pendingStyle); }
+      paintOrderBtn();
+    };
   })();
 
   // Report Card waiver (49–50) and the technician's own signature (54)
@@ -10605,6 +10820,15 @@ body.dev #indexBtn{display:flex}
       R.items.appendChild(row);
     });
     R.total.textContent = fmt(OPTION_TOTALS[pick] || 0);
+    // Marek, Oct 21: the discount is on the record the customer signed
+    var off = optionDiscount(pick), dl = R.total.parentElement && $('[data-disc]', R.total.parentElement.parentElement);
+    if (off && !dl && R.total.parentElement) {
+      dl = document.createElement('div');
+      dl.dataset.disc = '1';
+      dl.setAttribute('style', 'font:500 12.5px/1.35 Geist;color:#16A34A;margin-top:6px');
+      R.total.parentElement.insertAdjacentElement('afterend', dl);
+    }
+    if (dl) { dl.hidden = !off; dl.textContent = off ? 'List ' + fmt(optionList(pick)) + ' · Discount −' + fmt(off) : ''; }
 
     var when = estSignedAt || stamp();
     R.stamp.textContent = when;
@@ -10645,8 +10869,11 @@ body.dev #indexBtn{display:flex}
       '<div data-followval style="font:500 15.5px/1.2 Geist;margin-top:6px"></div></div>' +
       '<span class="mi" style="font-size:21px;color:#A9B4C2">chevron_right</span>';
     box.parentElement.insertBefore(fu, box.nextSibling);
+    // Marek, Oct 21: follow-ups are Pro — the row is kept out of the Core app
+    fu.dataset.followrow = '1';
+    fu.style.display = 'none';
     followField = $('[data-followval]', fu);
-    followUpDays = recall('followUpDays', -1);
+    followUpDays = -1;
     paintFollowUp();
     var ta = document.createElement('textarea');
     ta.className = 'inp';
@@ -10660,7 +10887,11 @@ body.dev #indexBtn{display:flex}
   (function () {
     var root = byId('est-approved'); if (!root) return;
     var sc = $$('.sc', root).pop(); if (!sc) { MISS.push('est-approved :: body'); return; }
-    var card = sc.children[1], sig = sc.children[2], rej = sc.children[3], pl = sc.children[4];
+    /* found by what they say, not where they sit: the Request changes
+       button is put in between them before this runs */
+    var kids = [].slice.call(sc.children);
+    var find = function (re) { return kids.filter(function (k) { return re.test(norm(k.textContent)); })[0]; };
+    var card = sc.children[1], sig = find(/^Customer signature/), rej = find(/^(Rejected|Declined) options/), pl = find(/^Plan selected/);
     var stampEl = sel(root, 'Oct 7, 2025, 9:09 AM')[0];
     var head = card && card.children[0];
     var items = card && card.children[1];
@@ -11108,6 +11339,7 @@ body.dev #indexBtn{display:flex}
     var rej = sel(root, 'Rejected options')[0];
     var row = rej && rej.parentElement;
     if (!row) { MISS.push('est-approved :: rejected row'); return; }
+    rej.textContent = 'Declined options';
     row.dataset.tap = '1';
     row.dataset.go = 'ov-rejected';
     row.dataset.mode = 'overlay';
@@ -11119,8 +11351,10 @@ body.dev #indexBtn{display:flex}
           var card = document.createElement('div');
           card.setAttribute('style', 'background:#fff;border:1px solid #DDE3EE;border-radius:12px;' +
             'padding:13px 14px;margin-bottom:9px');
+          // Marek, Oct 21: the chosen option is approved, the others declined
           card.innerHTML = '<div style="display:flex;align-items:baseline;gap:10px">' +
             '<span data-n style="flex:1;font:600 15.5px/1.2 Geist"></span>' +
+            '<span style="font:600 11px/1 Geist;letter-spacing:.04em;color:#DC2626;background:#FDECEC;border-radius:5px;padding:4px 7px">DECLINED</span>' +
             '<span data-t style="font:600 15px/1 Geist;color:#546478"></span></div>' +
             '<div data-i style="margin-top:9px;font:400 13px/1.6 Geist;color:#8A97A8"></div>';
           $('[data-n]', card).textContent = n;
@@ -11988,7 +12222,20 @@ body.dev #indexBtn{display:flex}
     });
   }
   function mvpTrim() {
-    paintFollowUps();
+    /* Marek, Oct 21: follow-ups are Pro ("if we're designing MVP, let's
+       design MVP"), so History opens on the jobs, not on a callback list. */
+    var fuCard = $('#history [data-followups]'); if (fuCard) fuCard.remove();
+    /* Marek, Oct 21: inventory, truck stock and equipment are not in the
+       MVP — the job menu's Equipment and Assets go with the More rows. */
+    $$('#ov-job-actions .mi').forEach(function (ic) {
+      var row = ic.parentElement;
+      if (row && /^(hvac|inventory_2)$/.test(norm(ic.textContent)) && /Equipment|Assets/.test(row.textContent)) row.style.display = 'none';
+    });
+    // chat is Pro: nothing to be notified about
+    $$('#more-notifications span').forEach(function (s) {
+      if (norm(s.textContent) === 'New chat message' && s.parentElement) s.parentElement.style.display = 'none';
+    });
+    paintLocation();
     /* the address is the service address, as the web app calls it */
     ['job-general', 'cust-jobs', 'home', 'home-active'].forEach(function (id) {
       var root = byId(id); if (!root) return;
@@ -12032,8 +12279,90 @@ body.dev #indexBtn{display:flex}
       }
     });
   }
+  ACT.toggleLocation = function () {
+    setLocation(!locationOn);
+    toast(locationOn ? 'Location on' : 'Location off — jobs can’t be started until it is back on',
+      locationOn ? 'my_location' : 'location_disabled');
+  };
+
+  /* =========================================================
+     Marek, Oct 21: expenses. "Technicians cannot create any expenses not
+     related to the jobs" — a manager adds general ones in the web app.
+     So the technician's expenses live on the job, under General: what it
+     was, what it cost, and the receipt.
+     ========================================================= */
+  var expRefs = null;
+  (function () {
+    if (!jobItemsRefs) return;
+    var card = document.createElement('div');
+    card.setAttribute('style', jobItemsRefs.card.getAttribute('style') || 'background:#fff;border:1px solid #DDE3EE;border-radius:12px;padding:14px');
+    card.style.marginTop = '12px';
+    card.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">' +
+      '<span style="font:600 16px/1 Geist">Expenses</span><span data-expsum style="font:600 14px/1 Geist;color:#546478"></span></div>' +
+      '<div data-explist></div>' +
+      '<div data-expform style="display:none;padding-top:12px;border-top:1px solid #EDF0F5;margin-top:8px">' +
+      '<input data-expdesc class="inp" placeholder="What was it — e.g. permit, parts run" style="width:100%;height:46px;padding:0 13px;border:1px solid #DDE3EE;border-radius:10px;font:400 14.5px/1 Geist">' +
+      '<div style="display:flex;gap:9px;margin-top:9px">' +
+      '<div style="flex:1;display:flex;align-items:center;gap:6px;height:46px;padding:0 13px;border:1px solid #DDE3EE;border-radius:10px">' +
+      '<span style="font:600 15px/1 Geist;color:#8A97A8">$</span><input data-expamt class="inp" inputmode="decimal" placeholder="0.00" style="flex:1;height:auto;border:0;padding:0;background:transparent;font:500 15px/1 Geist"></div>' +
+      '<div data-expphoto data-tap="1" style="display:flex;align-items:center;gap:6px;height:46px;padding:0 13px;border:1px dashed #C8D5E8;border-radius:10px;font:500 13.5px/1 Geist;color:#4A6FA5">' +
+      '<span class="mi" style="font-size:19px">receipt_long</span><span data-expphototx>Receipt</span></div></div>' +
+      '<div style="display:flex;gap:9px;margin-top:11px">' +
+      '<div data-expcancel data-tap="1" style="flex:1;height:44px;display:flex;align-items:center;justify-content:center;border:1px solid #DDE3EE;border-radius:10px;font:600 14px/1 Geist;color:#546478">Cancel</div>' +
+      '<div data-expsave data-tap="1" style="flex:1;height:44px;display:flex;align-items:center;justify-content:center;background:#4A6FA5;color:#fff;border-radius:10px;font:600 14px/1 Geist">Save expense</div></div></div>' +
+      '<div data-expadd data-tap="1" style="height:44px;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:12px;background:#fff;border:1px solid #C8D5E8;color:#4A6FA5;border-radius:10px;font:600 14px/1 Geist">' +
+      '<span class="mi" style="font-size:19px">add</span>Add expense</div>';
+    jobItemsRefs.card.insertAdjacentElement('afterend', card);
+    expRefs = { card: card, list: $('[data-explist]', card), sum: $('[data-expsum]', card), form: $('[data-expform]', card),
+      add: $('[data-expadd]', card), desc: $('[data-expdesc]', card), amt: $('[data-expamt]', card), photoTx: $('[data-expphototx]', card), photo: false };
+    var R = expRefs;
+    function openForm(on) {
+      R.form.style.display = on ? '' : 'none';
+      R.add.style.display = on ? 'none' : 'flex';
+      if (on) { R.desc.value = ''; R.amt.value = ''; R.photo = false; R.photoTx.textContent = 'Receipt'; R.desc.focus(); }
+    }
+    card.addEventListener('click', function (ev) {
+      if (ev.target.closest('[data-expadd]')) { openForm(true); return; }
+      if (ev.target.closest('[data-expcancel]')) { openForm(false); return; }
+      if (ev.target.closest('[data-expphoto]')) { R.photo = true; R.photoTx.textContent = 'Receipt ✓'; return; }
+      if (ev.target.closest('[data-expsave]')) {
+        var amt = parseFloat(String(R.amt.value).replace(/[^0-9.]/g, ''));
+        if (!norm(R.desc.value) || !isFinite(amt) || amt <= 0) { toast('Say what it was and how much it cost', 'info'); return; }
+        var j = JOBS[jobIdx]; if (!j) return;
+        (j.expenses = j.expenses || []).push({ desc: norm(R.desc.value), amount: Math.round(amt * 100) / 100, receipt: R.photo, at: stamp() });
+        saveJobs();
+        openForm(false);
+        renderExpenses();
+        queued('Expense');
+        toast('Expense added to ' + j.name + '’s job', 'receipt_long');
+      }
+    });
+  })();
+  function renderExpenses() {
+    var R = expRefs; if (!R) return;
+    var j = JOBS[jobIdx] || {}, ex = j.expenses || [];
+    R.list.innerHTML = '';
+    if (!ex.length) {
+      R.list.innerHTML = '<div style="padding:10px 0 2px;font:400 13.5px/1.5 Geist;color:#8A97A8">No expenses on this job. Only job-related expenses are added here; the office adds general ones in the web app.</div>';
+    }
+    ex.forEach(function (e, i) {
+      var d = document.createElement('div');
+      d.setAttribute('style', 'display:flex;align-items:center;gap:10px;padding:10px 0;' + (i ? 'border-top:1px solid #EDF0F5' : ''));
+      d.innerHTML = '<span class="mi" style="font-size:19px;color:' + (e.receipt ? '#16A34A' : '#A9B4C2') + '">' + (e.receipt ? 'receipt_long' : 'receipt') + '</span>' +
+        '<div style="flex:1;min-width:0"><div style="font:500 14px/1.25 Geist"></div><div style="font:400 12px/1.3 Geist;color:#8A97A8;margin-top:3px"></div></div>' +
+        '<span style="font:600 14px/1 Geist;white-space:nowrap"></span>';
+      d.children[1].children[0].textContent = e.desc;
+      d.children[1].children[1].textContent = (e.receipt ? 'Receipt attached' : 'No receipt') + ' · ' + e.at;
+      d.children[2].textContent = fmt(e.amount);
+      R.list.appendChild(d);
+    });
+    R.sum.textContent = ex.length ? fmt(ex.reduce(function (a, e) { return a + e.amount; }, 0)) : '';
+  }
+
   function boot() {
     mvpTrim();
+    renderExpenses();
     paintDraftAction();
     stack = [{ id: 'splash', mode: 'root' }];
     $$('.screen,.overlay', phone).forEach(function (e) { e.classList.remove('on', 'leaving'); });

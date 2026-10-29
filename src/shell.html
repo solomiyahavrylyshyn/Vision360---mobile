@@ -255,29 +255,43 @@
             <div class="card" style="overflow:hidden;margin-bottom:14px">
               <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5">
                 <span style="font:500 14px/1 Geist;color:#546478">Visits completed</span>
-                <span style="font:600 14.5px/1 Geist" id="tsVisits">0 &middot; $0.00 base</span>
+                <span style="font:600 14.5px/1 Geist" id="tsVisits">0</span>
               </div>
               <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5">
                 <span style="font:500 14px/1 Geist;color:#546478">Sold today</span>
                 <span style="font:600 14.5px/1 Geist" id="tsSold">$0.00</span>
               </div>
-              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px">
                 <span style="font:500 14px/1 Geist;color:#546478">On the clock today</span>
                 <span style="font:600 14.5px/1 Geist" id="tsToday">0h 00m</span>
               </div>
-              <!-- compensation is recorded in two halves, never one bucket -->
+            </div>
+            <!-- Marek, Oct 21: most companies pay an hourly rate or a salary, so
+                 the pay is hours × the rate the office set on the employee.
+                 Commission and other pay plans come with Pro. Whether drive
+                 time is paid is a company setting, paid out of the box. -->
+            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">Pay this week</div>
+            <div class="card" style="overflow:hidden;margin-bottom:10px">
               <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5">
-                <span style="font:500 14px/1 Geist;color:#546478">Labour</span>
-                <span style="font:600 14.5px/1 Geist" id="tsLabor">$0.00</span>
+                <span style="font:500 14px/1 Geist;color:#546478">Pay rate</span>
+                <span style="font:600 14.5px/1 Geist" id="tsRate">Hourly &middot; $20.00/h</span>
               </div>
-              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px">
-                <span style="font:500 14px/1 Geist;color:#546478">Commission</span>
-                <span style="font:600 14.5px/1 Geist" id="tsCommission">$0.00</span>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5">
+                <span style="font:500 14px/1 Geist;color:#546478">Paid hours<small style="display:block;font:400 11.5px/1.4 Geist;color:#8A97A8;margin-top:3px" id="tsPaidNote">Regular + drive</small></span>
+                <span style="font:600 14.5px/1 Geist" id="tsPaidHours">0.0h</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5">
+                <span style="font:500 14px/1 Geist;color:#546478">Overtime<small style="display:block;font:400 11.5px/1.4 Geist;color:#8A97A8;margin-top:3px">at 1.5&times; the rate</small></span>
+                <span style="font:600 14.5px/1 Geist" id="tsOtPay">$0.00</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;background:#EBF0F8">
+                <span style="font:600 15px/1 Geist">Earned so far</span>
+                <span style="font:700 19px/1 Geist;letter-spacing:-.01em" id="tsPay">$0.00</span>
               </div>
             </div>
             <div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px;margin-bottom:18px">
               <span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">info</span>
-              <div style="font:400 12.5px/1.45 Geist;color:#546478">$15 base per visit. Labour and commission are recorded separately, not as one lump &mdash; the split is what workers&rsquo; comp is rated on. Check both before the week is submitted.</div>
+              <div style="font:400 12.5px/1.45 Geist;color:#546478" id="tsPayInfo">Your office sets your rate and whether drive time is paid.</div>
             </div>
             <div style="font:600 16px/1 Geist;margin-bottom:10px">Week of Dec 8</div>
             <div class="card" style="overflow:hidden">
@@ -319,9 +333,12 @@
             </div>
 
             <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <div class="rowi" data-go="more-equipment" data-mode="push"><span class="mi">hvac</span><span class="t">Equipment</span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-go="more-assets" data-mode="push"><span class="mi">inventory_2</span><span class="t">Assets<small>42 items on truck 14</small></span><span class="mi ch">chevron_right</span></div>
+              <!-- Marek, Oct 21: inventory, truck stock and equipment are not in the MVP -->
               <div class="rowi" data-go="est-catalog" data-mode="push"><span class="mi">menu_book</span><span class="t">Price book</span><span class="mi ch">chevron_right</span></div>
+            </div>
+
+            <div class="card" style="overflow:hidden;margin-bottom:14px">
+              <div class="rowi" data-act="toggleLocation"><span class="mi">my_location</span><span class="t">Location services<small id="locNote">On &middot; needed to start a job</small></span><span id="locSw" style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none"><span style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span></span></div>
             </div>
 
             <div class="card" style="overflow:hidden;margin-bottom:14px">
@@ -814,7 +831,7 @@
               <div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div>
             </div>
             <div style="display:flex;align-items:center;gap:10px;padding:6px 16px 12px;border-bottom:1px solid #EDF0F5;flex:none">
-              <span style="flex:1;font:600 18px/1.25 Geist">Options not taken</span>
+              <span style="flex:1;font:600 18px/1.25 Geist">Declined options</span>
               <span class="mi" data-back style="font-size:22px;color:#546478">close</span>
             </div>
             <div class="sc" id="rejectedList" style="flex:1;overflow-y:auto;padding:12px 16px 20px"></div>
