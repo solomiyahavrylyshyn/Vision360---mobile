@@ -227,7 +227,7 @@
             <div style="background:#1C2B3A;border-radius:14px;padding:16px;margin-bottom:14px;color:#fff">
               <div style="display:flex;justify-content:space-between;align-items:flex-start">
                 <div>
-                  <div style="font:500 12.5px/1 Geist;color:#9DB4D6;letter-spacing:.05em;text-transform:uppercase" id="tsMode">Off the clock</div>
+                  <div style="font:500 12.5px/1 Geist;color:#9DB4D6;letter-spacing:.05em;text-transform:uppercase" id="tsMode">Not on a job</div>
                   <div style="font:600 32px/1.1 Geist;letter-spacing:-.02em;margin-top:7px" id="tsClock">00:00:00</div>
                   <div style="font:400 13px/1 Geist;color:#7E93B2;margin-top:6px" id="tsSince">Not started</div>
                 </div>
@@ -341,6 +341,14 @@
               <div class="rowi" data-act="toggleLocation"><span class="mi">my_location</span><span class="t">Location services<small id="locNote">On &middot; needed to start a job</small></span><span id="locSw" style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none"><span style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span></span></div>
             </div>
 
+            <!-- PRD 776: English and Spanish in the first release, chosen on the
+                 phone; a PIN after 5 minutes idle; the devices signed in -->
+            <div class="card" style="overflow:hidden;margin-bottom:14px">
+              <div class="rowi" data-go="more-language" data-mode="push"><span class="mi">language</span><span class="t">Language<small id="langNote">English</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-lock" data-mode="push"><span class="mi">lock</span><span class="t">App lock<small id="lockNote">PIN or fingerprint after 5 min idle</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-devices" data-mode="push"><span class="mi">devices</span><span class="t">My devices<small>2 signed in</small></span><span class="mi ch">chevron_right</span></div>
+            </div>
+
             <div class="card" style="overflow:hidden;margin-bottom:14px">
               <div class="rowi" data-go="more-notifications" data-mode="push"><span class="mi">notifications_none</span><span class="t">Notifications</span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-go="more-offline" data-mode="push"><span class="mi">wifi_off</span><span class="t">Offline mode<small>Cache last 7 days of jobs</small></span><span class="mi ch">chevron_right</span></div>
@@ -351,6 +359,8 @@
               <div class="rowi" id="logout"><span class="mi" style="color:#DC2626">logout</span><span class="t" style="color:#DC2626">Log out</span></div>
             </div>
             <div class="rowi" data-act="resetDemo" style="justify-content:center;gap:8px;margin-top:10px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">restart_alt</span>Reset demo data</div>
+            <!-- demo only: shows Home as a salaried technician sees it (OD-16) -->
+            <div class="rowi" data-act="toggleSalaried" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">badge</span><span id="salariedNote">Demo: show as a salaried technician</span></div>
             <div style="text-align:center;font:400 12px/1 Geist;color:#8A97A8;padding:20px 0 6px">Vision 360 v2.4.1 &middot; build 2411</div>
           </div>
         </div>
@@ -851,6 +861,127 @@
               <span class="mi" data-back style="font-size:22px;color:#546478">close</span>
             </div>
             <div id="followList" style="padding-bottom:18px"></div>
+          </div>
+        </div>
+
+<!-- ============ ESTIMATE TYPE (R-007.1, FR-5.19) ============ -->
+        <!-- The web app does not create an estimate without a type; the
+             types are the company's, from Settings. -->
+        <div class="overlay" id="ov-esttype">
+          <div style="position:absolute;inset:0;background:rgba(28,43,58,.40)" data-back></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:22px 22px 0 0;box-shadow:0 -8px 30px rgba(26,35,50,.22)">
+            <div style="display:flex;justify-content:center;padding:10px 0 4px">
+              <div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:6px 16px 4px">
+              <span style="flex:1;font:600 18px/1.25 Geist">Estimate type</span>
+              <span class="mi" data-back style="font-size:22px;color:#546478">close</span>
+            </div>
+            <div style="padding:0 16px 10px;font:400 12.5px/1.45 Geist;color:#8A97A8;border-bottom:1px solid #EDF0F5">Required before the first option · the types are set in the web app</div>
+            <div id="estTypeList" style="padding-bottom:18px"></div>
+          </div>
+        </div>
+
+<!-- ============ STRIPE CARD SHEET (OD-3) ============ -->
+        <!-- Stripe's own payment sheet, drawn for the prototype. The card is
+             typed here, by the customer, and never reaches Vision 360. -->
+        <div class="overlay" id="ov-stripe">
+          <div style="position:absolute;inset:0;background:rgba(28,43,58,.40)" data-back></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:22px 22px 0 0;box-shadow:0 -8px 30px rgba(26,35,50,.22)">
+            <div style="display:flex;justify-content:center;padding:10px 0 4px">
+              <div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:6px 18px 12px;border-bottom:1px solid #EDF0F5">
+              <span class="mi" style="font-size:20px;color:#635BFF">lock</span>
+              <span style="flex:1"><span style="display:block;font:600 16px/1.2 Geist">Stripe · secure payment</span><span style="display:block;font:400 12px/1.3 Geist;color:#8A97A8;margin-top:3px">Stripe&rsquo;s card form &middot; not part of Vision 360</span></span>
+              <span class="mi" data-back style="font-size:22px;color:#546478">close</span>
+            </div>
+            <div style="padding:16px 18px 22px">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px"><span style="font:500 13.5px/1 Geist;color:#546478">AND Services</span><span data-stripeamt style="font:700 20px/1 Geist">$0.00</span></div>
+              <div style="font:500 12.5px/1 Geist;color:#546478;margin-bottom:7px">Card information</div>
+              <div style="border:1px solid #DDE3EE;border-radius:9px;overflow:hidden;margin-bottom:10px">
+                <div style="display:flex;align-items:center;gap:10px;height:46px;padding:0 13px;border-bottom:1px solid #DDE3EE;font:400 15px/1 Geist;color:#1A2332"><span style="flex:1">4242 4242 4242 4242</span><span class="mi" style="font-size:20px;color:#635BFF">credit_card</span></div>
+                <div style="display:flex;height:46px;font:400 15px/46px Geist;color:#1A2332"><span style="flex:1;padding:0 13px;border-right:1px solid #DDE3EE">12 / 28</span><span style="flex:1;padding:0 13px">123</span></div>
+              </div>
+              <div style="font:400 12px/1.45 Geist;color:#8A97A8;margin-bottom:16px">Typed by the customer on Stripe&rsquo;s form. Vision 360 only gets the result.</div>
+              <div data-act="stripePay" data-tap="1" style="height:52px;display:flex;align-items:center;justify-content:center;background:#635BFF;color:#fff;border-radius:10px;font:600 16px/1 Geist"><span data-stripebtn>Pay</span></div>
+            </div>
+          </div>
+        </div>
+
+<!-- ============ COMPLETION SIGN-OFF (OD-12) ============ -->
+        <div class="screen" id="signoff" data-tabs="off" style="background:#F5F7FA">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Customer sign-off</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div style="display:flex;gap:9px;background:#EBF0F8;border:1px solid #C8D5E8;border-radius:11px;padding:13px;margin-bottom:14px">
+              <span class="mi" style="font-size:20px;color:#4A6FA5">info</span>
+              <div style="font:400 13.5px/1.5 Geist;color:#2E4E7E">Your company asks the customer to sign off the completed work. Hand the device over, or email the sign-off link if the customer isn&rsquo;t here.</div>
+            </div>
+            <div class="card" style="padding:14px;margin-bottom:12px">
+              <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin-bottom:8px">Job</div>
+              <div id="soJob" style="font:600 16px/1.3 Geist">Job</div>
+              <div id="soWhat" style="font:400 13.5px/1.45 Geist;color:#546478;margin-top:4px"></div>
+            </div>
+            <div style="font:400 14px/1.5 Geist;color:#1A2332;margin:4px 2px 10px">I confirm the work on this job was completed.</div>
+            <div class="card" style="padding:14px">
+              <div style="height:120px;border:1px dashed #C8D5E8;border-radius:9px;background:#FBFCFE;display:flex;align-items:flex-end;justify-content:center;padding-bottom:12px"><span style="font:400 12.5px/1 Geist;color:#A9B4C2">Customer signs off here</span></div>
+              <div style="display:flex;justify-content:space-between;margin-top:10px;font:400 12.5px/1 Geist;color:#8A97A8"><span>Customer signature</span><span id="soWhen">Not signed</span></div>
+            </div>
+          </div>
+          <div style="padding:12px 16px;background:#fff;border-top:1px solid #DDE3EE;flex:none">
+            <div id="soDone" data-tap data-act="signoffDone" style="height:52px;display:flex;align-items:center;justify-content:center;gap:7px;background:#EDF0F5;color:#A9B4C2;border-radius:11px;font:600 16px/1 Geist"><span class="mi" style="font-size:20px">task_alt</span>Sign off and complete</div>
+            <div data-tap data-act="signoffLink" style="height:46px;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:8px;color:#4A6FA5;font:600 14.5px/1 Geist"><span class="mi" style="font-size:19px">mail</span>Customer isn&rsquo;t here &middot; email the sign-off link</div>
+          </div>
+        </div>
+
+<!-- ============ LANGUAGE ============ -->
+        <div class="screen" id="more-language" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Language</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div class="card" style="overflow:hidden;margin-bottom:12px" id="langList"></div>
+            <div style="font:400 12.5px/1.45 Geist;color:#8A97A8;padding:0 4px">Set on this phone. The customer&rsquo;s documents keep the company&rsquo;s language.</div>
+          </div>
+        </div>
+
+<!-- ============ APP LOCK ============ -->
+        <div class="screen" id="more-lock" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">App lock</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div class="card" style="overflow:hidden;margin-bottom:12px">
+              <div class="rowi"><span class="mi">pin</span><span class="t">PIN<small>4 digits &middot; set on this phone</small></span><span style="font:600 13px/1 Geist;color:#16A34A">On</span></div>
+              <div class="rowi"><span class="mi">fingerprint</span><span class="t">Fingerprint or face<small>Instead of the PIN, where the phone has it</small></span><span style="font:600 13px/1 Geist;color:#16A34A">On</span></div>
+              <div class="rowi"><span class="mi">timer</span><span class="t">Lock after<small>Set by your company</small></span><span style="font:600 13px/1 Geist;color:#546478">5 min idle</span></div>
+            </div>
+            <div class="card" style="overflow:hidden">
+              <div class="rowi" data-act="lockNow"><span class="mi">lock_clock</span><span class="t">Lock now</span><span class="mi ch">chevron_right</span></div>
+            </div>
+          </div>
+        </div>
+
+<!-- ============ MY DEVICES ============ -->
+        <div class="screen" id="more-devices" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">My devices</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div class="card" style="overflow:hidden;margin-bottom:12px">
+              <div class="rowi"><span class="mi">smartphone</span><span class="t">This phone<small>iPhone 15 &middot; active now</small></span><span style="font:600 11px/1 Geist;color:#16A34A;background:#E8F6ED;border-radius:5px;padding:4px 7px">THIS DEVICE</span></div>
+              <div class="rowi"><span class="mi">tablet_mac</span><span class="t">Truck tablet<small>iPad (10th gen) &middot; last active Oct 27, 2026</small></span></div>
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px">
+              <span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">admin_panel_settings</span>
+              <div style="font:400 12.5px/1.45 Geist;color:#546478">Lost a device? Your admin signs it out and erases its data in the web app.</div>
+            </div>
+          </div>
+        </div>
+
+<!-- ============ APP LOCKED ============ -->
+        <div class="screen" id="applock" data-tabs="off" style="background:#1C2B3A;color:#fff">
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px">
+            <span class="mi" style="font-size:40px;color:#9DB4D6;margin-bottom:14px">lock</span>
+            <div style="font:600 20px/1.2 Geist;margin-bottom:6px">Vision 360 is locked</div>
+            <div style="font:400 13.5px/1.4 Geist;color:#9DB4D6;margin-bottom:22px">Enter your PIN</div>
+            <div id="pinDots" style="display:flex;gap:14px;margin-bottom:28px"></div>
+            <div id="pinPad" style="display:grid;grid-template-columns:repeat(3,72px);gap:12px"></div>
+            <div data-tap data-act="unlockBio" style="display:flex;align-items:center;gap:7px;margin-top:22px;font:600 14.5px/1 Geist;color:#9DB4D6"><span class="mi" style="font-size:22px">fingerprint</span>Use fingerprint</div>
           </div>
         </div>
 

@@ -63,13 +63,29 @@
      ========================================================= */
   /* Marek, Oct 12: a finance plan is a name and a percentage kept in
      settings, applied to the option's full price — not a lender's card. */
+  /* Marek, Oct 21 + R-007.1: the plan is chosen on each option, not once
+     for the estimate — the full amount, or one of the company's finance
+     plans, a name and a monthly percentage. APR, terms and a monthly
+     factor tile are the lender's business and are not shown. */
   var PLANS = [
-    { name: '12 months', rate: 6.99, apr: 6.99, months: 12 },
-    { name: '24 months', rate: 7.99, apr: 7.99, months: 24 },
-    { name: '36 months', rate: 9.99, apr: 9.99, months: 36 },
-    { name: 'Pay in full', rate: 0, apr: 0, months: 0 }
+    { name: 'Full amount', rate: 0 },
+    { name: 'Low monthly', rate: 1.25 },
+    { name: 'Ally', rate: 1.29 },
+    { name: 'Easy pay', rate: 1.79 }
   ];
-  var planIdx = 0;
+  var DEFAULT_PLAN = 1;               // the company's default for a new option
+  var optionPlans = recall('optionPlans', {});   // option name -> plan index
+  var formPlanIdx = DEFAULT_PLAN;     // the plan on the option being built
+  /* OD-22: the warranty line on an option, as the web app keeps it — up
+     here because the option form that fills it is built long before the
+     block that reads it. The default is the company's, from Settings →
+     Estimates. */
+  var WARRANTY_FIELDS = [
+    { key: 'label', label: 'Label', max: 20 },
+    { key: 'title', label: 'Title', max: 24 },
+    { key: 'detail', label: 'Detail', max: 36 }
+  ];
+  var WARRANTY_DEFAULT = { label: 'Warranty', title: '1 yr labor · 10 yr parts', detail: 'Registered within 60 days' };
   var deposit = 0;                    // what the customer hands over on the day
   /* Marek, Oct 8 + 12: the deposit applies to every option and is part of
      its full price — 10% as a rule; a fixed sum is the other way to say it.
@@ -91,8 +107,9 @@
   var invPaidSoFar = recall('invPaidSoFar', 0);   // partial payments taken against the invoice
   var invBase = recall('invBase', null);          // an invoice kept as it was when the estimate changed
   var quickClose = false;                         // completing the job without the closeout form
-  var startAnyway = false;                        // the technician said to start away from the address
+  var SIGNOFF_REQUIRED = true;                    // company setting: AND Services asks for a completion sign-off
   var START_RADIUS_FT = 100;                      // Marek, Oct 21: "50 to 100 feet"
+  var GPS_SLACK_FT = 50;                          // the phone's own accuracy, allowed on top of the radius
   var locationOn = recall('locationOn', true);    // the phone's location services, switched in More
   function setLocation(on) {
     locationOn = !!on; remember('locationOn', locationOn);
@@ -109,18 +126,21 @@
   }
   var changesPrevTotal = null;                    // what the estimate was worth before changes were requested
 
-  function plan() { return PLANS[planIdx]; }
-  // payment per dollar financed — what the card calls the monthly factor
-  function planFactor() {
-    var p = plan();
-    if (!p.months) return 0;
-    var r = p.rate / 100 / 12;
-    if (!r) return 1 / p.months;
-    return r / (1 - Math.pow(1 + r, -p.months));
+  // an option's own plan; one saved before plans were per option gets the default
+  function planIdxOf(name) {
+    var i = optionPlans[name];
+    return typeof i === 'number' && PLANS[i] ? i : DEFAULT_PLAN;
   }
-  function monthlyFor(total) {
-    if (!plan().months) return 0;
-    return Math.max(0, total - effectiveDeposit(total)) * planFactor();   // a deposit under the total is financed
+  function planOf(name) { return PLANS[planIdxOf(name)]; }
+  // a plan's monthly percentage of the amount financed
+  function planFactor(p) {
+    return p.rate / 100;
+  }
+  // with no plan given, the option being built
+  function monthlyFor(total, p) {
+    p = p || PLANS[formPlanIdx];
+    if (!p.rate) return 0;
+    return Math.max(0, total - effectiveDeposit(total)) * planFactor(p);   // a deposit under the total is financed
   }
   var MONTHLY_FACTOR = 0.0129;        // kept for anything still reading it directly
 
@@ -311,6 +331,7 @@
     files: 'home', 'image-desc': 'home', closeout: 'home',
     'more-profile': 'more', 'more-equipment': 'more', 'more-assets': 'more',
     'more-notifications': 'more', 'more-offline': 'more', 'more-help': 'more',
+    'more-language': 'more', 'more-lock': 'more', 'more-devices': 'more',
     history: 'history', 'hist-filters': 'history', 'hist-search': 'history',
     'period-quarter': 'home', 'period-week': 'home',
     chat: 'chat', 'chat-thread': 'chat', timesheet: 'timesheet', more: 'more'
@@ -330,7 +351,8 @@
       remember('state', state);
       remember('jobIdx', viewPast ? viewPast.idx : jobIdx);   // a job being looked at is not the job
       remember('jobs', JOBS.map(function (j) {
-        return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses };
+        return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
+          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null };
       }));
     }
     paintDash();
@@ -738,6 +760,26 @@
     });
   }
 
+  // close-out without the form; says whether the job actually closed
+  function finishJob() {
+    var j = JOBS[jobIdx];
+    quickClose = true; ACT.closeoutComplete(); quickClose = false;
+    return !!(j && j.done);
+  }
+
+  // the job goes live: on the tech's own Start, or when the office starts it
+  function beginJob() {
+    state.onsite = true;
+    state.paused = false;
+    state.enroute = false;          // you've arrived — the en route state is spent
+    paintEnroute();
+    paintJob();
+    setClock('work');
+    go('home-active', 'root');
+    queued('Job status');
+    toast('Job started · timer running', 'play_circle');
+  }
+
   /* --- named actions --- */
   var ACT = {
     jobGeneral: function () { go('job-general', 'replace'); },
@@ -776,26 +818,34 @@
         });
         return;
       }
+      /* Marek, Oct 21: "without geolocation you can't start". There is no
+         Start anyway: beyond the radius, plus what the GPS may be off by,
+         the technician asks the office, and the office starts the job in
+         the web app. */
       var miles = jobAwayMiles();
-      if (!startAnyway && miles * 5280 > START_RADIUS_FT) {
+      if (miles * 5280 > START_RADIUS_FT + GPS_SLACK_FT) {
         confirmSheet({
           title: 'You are ' + (miles < 0.2 ? Math.round(miles * 5280) + ' feet' : miles + ' miles') + ' from the job',
-          text: ((JOBS[jobIdx] || {}).addr || 'The job address') + '. Start is meant for within ' + START_RADIUS_FT + ' feet of the address — starting here puts the clock on before you arrive.',
-          ok: 'Start anyway', alt: null, danger: true,
-          onOk: function () { startAnyway = true; ACT.start(); }
+          text: ((JOBS[jobIdx] || {}).addr || 'The job address') + '. A job starts within ' + START_RADIUS_FT +
+            ' feet of the service address. If you are there and the phone disagrees, ask the office — they start it in the web app.',
+          ok: 'Ask office to start', alt: null,
+          onOk: function () { ACT.askOfficeStart(); }
         });
         return;
       }
-      startAnyway = false;
-      state.onsite = true;
-      state.paused = false;
-      state.enroute = false;          // you've arrived — the en route state is spent
-      paintEnroute();
-      paintJob();
-      setClock('work');
-      go('home-active', 'root');
-      queued('Job status');
-      toast('Job started · timer running', 'play_circle');
+      beginJob();
+    },
+    askOfficeStart: function () {
+      var j = JOBS[jobIdx] || {};
+      queued('Start request');
+      if (!net.online) { toast('Request to start saved — it goes to the office when there is signal', 'cloud_off'); return; }
+      toast('Request sent — the office will start ' + (j.name ? j.name + '’s' : 'the') + ' job', 'support_agent');
+      // the demo plays the office's part: a dispatcher starts it from the web
+      setTimeout(function () {
+        if (state.onsite || JOBS[jobIdx] !== j) return;
+        beginJob();
+        toast('The office started the job · timer running', 'play_circle');
+      }, 4000);
     },
     enroute: function () {
       state.enroute = !state.enroute;
@@ -819,6 +869,10 @@
         toast('Maximum ' + MAX_OPTIONS + ' options per job', 'block');
         return;
       }
+      /* R-007.1 / FR-5.19: the web app does not create an estimate without
+         a type, so the first option asks for it before anything else. */
+      var jt = JOBS[jobIdx];
+      if (state.est === 'none' && jt && !jt.estType) { askEstType(); return; }
       optionItems = [];              // a new option starts empty
       optAdjust = 0;
       optRevised = null;
@@ -828,6 +882,8 @@
       renderOptionItems();
       paintOptionName();
       paintOptionNote();
+      fillWarranty(WARRANTY_DEFAULT);   // the company's line, changed here if this option differs
+      setFormPlan(DEFAULT_PLAN);
       paintAdjust();
       go('est-new-option', 'modal');
     },
@@ -842,6 +898,7 @@
         var en = editingOption;
         editingOption = null;
         addOption(optionAdjusted(), optionItems, false, en);
+        keepOptionExtras(en, typedWarranty());
         optionItems = []; optAdjust = 0; optRevised = null;
         renderOptionItems();
         paintFormTitle();
@@ -864,11 +921,7 @@
       if (added && first) pickedOption = Object.keys(OPTION_TOTALS)[0] || pickedOption;
       if (added) {
         var wname = (Object.keys(OPTION_TOTALS).filter(function (k) { return OPTION_TOTALS[k] === total; }).slice(-1)[0] || wanted);
-        if (warranty) optionWarranties[wname] = warranty; else delete optionWarranties[wname];
-        remember('optionWarranties', optionWarranties);
-        var wcard = optList && $$(':scope > div', optList).filter(function (c) { return optionName(c) === wname; })[0];
-        paintCardWarranty(wcard, wname);
-        if (warrantyField) warrantyField.value = '';
+        keepOptionExtras(wname, warranty);
       }
       if (optionNoteText) {
         optionNotes['Option ' + String.fromCharCode(65 + Math.max(0, optCount - 1))] = optionNoteText;
@@ -890,7 +943,7 @@
         toast('Add an option before presenting it', 'info');
         return;
       }
-      estPresented = true;
+      markPresented();
       go('est-customer', 'modal');
     },
     estApprove: function () { go('est-draft', 'replace'); },
@@ -903,6 +956,7 @@
       var j = JOBS[jobIdx] || {};
       changesPrevTotal = j.sold ? j.sold.total : null;
       state.est = 'changes';
+      j.sentAt = '';                 // Changes requested, until it is resent
       estPresented = false;
       resetCustomerSignature();
       closeOverlays(true);
@@ -921,6 +975,7 @@
       var j = JOBS[jobIdx] || {};
       changesPrevTotal = j.sold ? j.sold.total : null;
       state.est = 'changes';
+      j.sentAt = '';
       /* Marek, Oct 21: the old signature stands for the old version only —
          the revised one is signed again before it becomes the order. */
       resetCustomerSignature();
@@ -1114,7 +1169,7 @@
       if (!scr || scr.id !== 'rc-overview') back();
       toast(net.online ? 'Report Card saved' : 'Report Card saved locally — will sync');
     },
-    present: function () { estPresented = true; go('est-customer', 'modal'); },
+    present: function () { markPresented(); go('est-customer', 'modal'); },
     /* A finished job opens to be read, not changed: Set back to active is
        the one way to change it, and it says so at the top. */
     histDetails: function (el) {
@@ -1242,16 +1297,37 @@
       else if (state.inv === 'paid') lines.push('Invoice ' + invNo() + ' paid.');
       else if (state.inv !== 'none') lines.push('Invoice ' + invNo() + (due > 0 ? ' — ' + fmt(due) + ' still due.' : ' — nothing due.'));
       if (upPending > 0) lines.push(upPending + ' ' + plural(upPending) + ' still uploading.');
+      /* OD-17 / R-009.6: the install template is the seller's, and Core. An
+         empty one is said here, once — it does not stop the job closing. */
+      var gaps = installMissing();
+      if (gaps.length) lines.push('Install template not filled in — ' + gaps.join(', ') + ' missing. You can still complete; the office sees it.');
       var jt = $('[data-jobtime]');
       lines.push('Photos this visit: ' + photosThisVisit + '. Time on site: ' + (jt ? norm(jt.textContent) : '0:00') + '.');
       confirmSheet({
         title: 'Complete the job?',
         text: lines.join(' '),
-        ok: 'Complete job', alt: (state.inv === 'none' || due > 0) ? 'Go to Finance' : null,
+        ok: SIGNOFF_REQUIRED ? 'Continue to sign-off' : 'Complete job', alt: (state.inv === 'none' || due > 0) ? 'Go to Finance' : null,
         danger: due > 0,
-        onOk: function () { quickClose = true; ACT.closeoutComplete(); quickClose = false; },
+        onOk: function () {
+          if (SIGNOFF_REQUIRED) { openSignoff(); return; }
+          finishJob();
+        },
         onAlt: function () { go(finScreen(), 'push'); }
       });
+    },
+    /* OD-12: when the company asks for a completion sign-off, the customer
+       who is there signs on this device; one who isn't gets the emailed
+       link, and the job waits on it as "Awaiting sign-off". */
+    signoffDone: function () {
+      if (!signoffPad || !signoffPad.isSigned()) { toast('The customer signs first', 'draw'); return; }
+      var j = JOBS[jobIdx];
+      if (j) j.signoff = { state: 'signed', at: stamp(), via: 'device' };
+      if (finishJob() && j) toast('Signed off by ' + j.name + ' on the device · job completed', 'task_alt');
+    },
+    signoffLink: function () {
+      var j = JOBS[jobIdx];
+      if (j) j.signoff = { state: 'awaiting', at: stamp(), via: 'link' };
+      if (finishJob() && j) toast('Sign-off link emailed to ' + j.name + ' · job is Awaiting sign-off', 'mark_email_read');
     },
     closeoutSave: function () {
       queued('Closeout');
@@ -1425,7 +1501,7 @@
       ['Done', 'act:estCatalogDone']
     ],
     'est-custom-item': [
-      ['Save', 'BACK']
+      ['Save', 'act:customItemSave']
     ],
     'est-option': [
       ['Save', 'act:estSaveOption'],
@@ -1483,8 +1559,7 @@
     ],
     'pay-card': [
       ['@expand_more^1', 'ov-pay-method'],   // the whole method box, not just the chevron
-      ['@lock^1', 'act:payDone'],
-      ['@photo_camera', 'act:scanCard']
+      ['@lock^1', 'act:payDone']
     ],
     'pay-cash': [
       ['@expand_more^1', 'ov-pay-method'],   // the whole method box, not just the chevron
@@ -2083,11 +2158,6 @@
     });
   }
 
-  function paintPlanRows() {
-    if (!planDrop) return;
-    paintTicks(planDrop.panel, 'plan', planIdx);
-  }
-
   /* The deposit was a row that opened an editor with an input and four
      chips under it, no tick on the one in force and nothing to close. Two
      ways to say the same number, and no answer to "what is it now".
@@ -2242,10 +2312,9 @@
     });
   }
 
-  /* Consumer financing, and a card or debit run on a terminal of its own,
-     are all a payment taken somewhere else and recorded here with its
-     reference. They led nowhere; they lead to the same form the apps use,
-     under their own name and without the row of apps. */
+  /* Financing is a payment taken somewhere else and recorded here with
+     its lender's reference. It leads to the same form the apps use, under
+     its own name and without the row of apps. */
   var appsMethod = '';        // '' = one of the apps; otherwise an offline method's name
   var appsPick = 'Zelle';     // the app chip in force on the apps form
   var appsHead = null;        // { text, icon, chips } on the pay-apps form
@@ -2271,14 +2340,14 @@
   }
   (function () {
     var menu = byId('ov-pay-method'); if (!menu) return;
-    [['Consumer financing', 'account_balance'], ['Offline', 'more_horiz']].forEach(function (p) {
+    [['Financing', 'account_balance']].forEach(function (p) {
       var icon = byIcon(menu, p[1])[0];
       var row = icon && icon.parentElement;
       if (!row) { MISS.push('ov-pay-method :: ' + p[0]); return; }
       row.dataset.tap = '1';
       row.dataset.act = 'payOffline';
-      row.dataset.method = p[0] === 'Offline' ? 'Card (offline)' : p[0];
-      row.dataset.icon = p[0] === 'Offline' ? 'credit_card' : p[1];
+      row.dataset.method = p[0];
+      row.dataset.icon = p[1];
       row.removeAttribute('data-go');
     });
     // the apps row itself puts the form back the way the board drew it
@@ -2468,7 +2537,7 @@
         r.sub = (k[2] ? 'Check #' + k[2] : 'Paper check') + (k[1] ? ' · ' + k[1] : '');
       } else if (page === 'pay-apps') {
         var ref = inputsOf('pay-apps')[0];
-        r.icon = appsMethod ? (appsMethod === 'Consumer financing' ? 'account_balance' : 'credit_card') : 'smartphone';
+        r.icon = appsMethod ? (appsMethod === 'Financing' ? 'account_balance' : 'credit_card') : 'smartphone';
         r.sub = (ref ? 'Ref ' + ref : 'No reference') + ' · recorded, not processed here';
       }
       receipt = r;
@@ -2676,7 +2745,7 @@
     if (voidRow) toggleDisplay(voidRow, state.inv === 'sent' || state.inv === 'created');
     // what went out is what went out; what is paid is paid
     var edit = $('#ov-inv-share [data-go="inv-details"]');
-    if (edit) toggleDisplay(edit, state.inv === 'created');
+    if (edit) toggleDisplay(edit, false);        // OD-15: bill-to is the office's
   }
   ACT.voidInvoice = function () {
     var n = invNo();
@@ -2772,20 +2841,6 @@
     });
   }
 
-  /* The camera on the card form reads the card. */
-  ACT.scanCard = function () {
-    var c = $$('input', byId('pay-card') || document.createElement('div'));
-    if (c.length < 3) return;
-    toast('Hold the card in the frame…', 'photo_camera');
-    setTimeout(function () {
-      c[1].value = '5425 2334 3010 9903';
-      c[2].value = '09 / 2029';
-      c[1].dispatchEvent(new Event('input', { bubbles: true }));
-      toast('Card read — check the number and add the CVV', 'credit_score');
-      if (c[3]) { c[3].value = ''; c[3].focus(); }
-    }, 1100);
-  };
-
   /* =========================================================
      Payments, where the board draws them.
 
@@ -2796,31 +2851,28 @@
      section opens in place, the method is a dropdown of the eleven ways a
      customer pays, and the form changes with it.
      ========================================================= */
+  /* Marek, Oct 21 + OD-3: a card is never typed into this app. It is taken
+     on Stripe's own card sheet, or the customer pays from the emailed link;
+     no Tap to Pay. Credit and debit "(offline)" went with that, and the two
+     financing rows were one thing: a lender and an application number.
+     The rest are the ways the web app records money that came in. */
   var PAY_METHODS = [
-    { id: 'card', name: 'Credit Card', icon: 'credit_card', btn: 'Make payment',
-      fields: [[{ l: 'Name on the card' }], [{ l: 'Card number', k: 'num' }],
-        [{ l: 'Expiration date', k: 'exp' }, { l: 'CVV / CVC', k: 'num' }]] },
+    { id: 'card', name: 'Card', icon: 'credit_card', btn: 'Pay by card', fields: [] },
     { id: 'cash', name: 'Cash', icon: 'payments', btn: 'Confirm payment',
       fields: [[{ l: 'Cash received', k: 'amount' }]] },
     { id: 'check', name: 'Check', icon: 'receipt', btn: 'Confirm payment',
       fields: [[{ l: 'Name on the check' }], [{ l: 'Bank name' }], [{ l: 'Check number', k: 'num' }],
         [{ l: 'Check date', k: 'date' }]] },
     { id: 'financing', name: 'Financing', icon: 'account_balance', btn: 'Confirm payment',
-      fields: [[{ l: 'Lender' }], [{ l: 'Contract number' }], [{ l: 'Payment date', k: 'date' }]] },
-    { id: 'bank', name: 'Bank transfer (offline)', icon: 'account_balance', btn: 'Confirm payment',
+      fields: [[{ l: 'Lender' }], [{ l: 'Application number' }]] },
+    { id: 'bank', name: 'Bank transfer', icon: 'account_balance', btn: 'Confirm payment',
       fields: [[{ l: 'Reference number' }], [{ l: 'Payment date', k: 'date' }]] },
-    { id: 'consumer', name: 'Consumer financing', icon: 'account_balance', btn: 'Confirm payment',
-      fields: [[{ l: 'Lender' }], [{ l: 'Approval code' }], [{ l: 'Payment date', k: 'date' }]] },
-    { id: 'credit-off', name: 'Credit (offline)', icon: 'credit_card', btn: 'Confirm payment',
-      fields: [[{ l: 'Last 4 digits', k: 'num' }], [{ l: 'Authorization code' }], [{ l: 'Payment date', k: 'date' }]] },
-    { id: 'cashapp', name: 'Cash App', icon: 'smartphone', btn: 'Confirm payment',
-      fields: [[{ l: '$Cashtag' }], [{ l: 'Reference number' }], [{ l: 'Payment date', k: 'date' }]] },
-    { id: 'venmo', name: 'Venmo', icon: 'smartphone', btn: 'Confirm payment',
-      fields: [[{ l: 'Venmo username' }], [{ l: 'Reference number' }], [{ l: 'Payment date', k: 'date' }]] },
     { id: 'zelle', name: 'Zelle', icon: 'smartphone', btn: 'Confirm payment',
       fields: [[{ l: 'Phone or email used' }], [{ l: 'Confirmation number' }], [{ l: 'Payment date', k: 'date' }]] },
-    { id: 'debit-off', name: 'Debit (offline)', icon: 'credit_card', btn: 'Confirm payment',
-      fields: [[{ l: 'Last 4 digits', k: 'num' }], [{ l: 'Authorization code' }], [{ l: 'Payment date', k: 'date' }]] }
+    { id: 'venmo', name: 'Venmo', icon: 'smartphone', btn: 'Confirm payment',
+      fields: [[{ l: 'Venmo username' }], [{ l: 'Reference number' }], [{ l: 'Payment date', k: 'date' }]] },
+    { id: 'cashapp', name: 'Cash App', icon: 'smartphone', btn: 'Confirm payment',
+      fields: [[{ l: '$Cashtag' }], [{ l: 'Reference number' }], [{ l: 'Payment date', k: 'date' }]] }
   ];
   var pay = recall('payInline', null) || { method: 'card', values: {}, dates: {}, open: true };
   function payMethodDef() {
@@ -2939,7 +2991,7 @@
   function renderPayFields(P) {
     var m = payMethodDef();
     var area = $('[data-payfields]', P.panel);
-    area.innerHTML = m.fields.map(function (row) {
+    area.innerHTML = (m.id === 'card' ? cardPanelHtml() : '') + m.fields.map(function (row) {
       return '<div style="display:flex;gap:10px;margin-top:10px">' + row.map(fieldHtml).join('') + '</div>';
     }).join('') + dlSlotHtml(m);
     // a date field is a list of the days around today
@@ -3013,8 +3065,7 @@
     var v = function (l) { return norm(pay.values[m.id + '|' + l] || ''); };
     var r = { icon: m.icon, title: m.name, sub: '' };
     if (m.id === 'card') {
-      var digits = v('Card number').replace(/\D/g, '');
-      r.sub = (digits ? '•••• ' + digits.slice(-4) : 'Card') + (v('Name on the card') ? ' · ' + v('Name on the card') : '');
+      r.sub = 'Visa •••• 4242 · charged on Stripe’s card form';
     } else if (m.id === 'cash') {
       var got = cashReceived();
       r.sub = got > payAmount ? fmt(got) + ' received · ' + fmt(got - payAmount) + ' change' : 'Paid in full';
@@ -3034,7 +3085,7 @@
      the company picks the payment methods it applies to. AND Services has
      it on for card, check and financing; not for cash or app transfers. */
   // a function, not a var: the pay panel is built before this line runs
-  function dlRequired(m) { return { card: 1, check: 1, financing: 1, consumer: 1 }[m.id] === 1; }
+  function dlRequired(m) { return { card: 1, check: 1, financing: 1 }[m.id] === 1; }
   function dlSlotHtml(m) {
     if (!dlRequired(m)) return '';
     var got = !!(pay.dl && pay.dl[m.id]);
@@ -3056,6 +3107,60 @@
     toast('Driver’s licence photo attached to the payment', 'badge');
   };
 
+  /* =========================================================
+     The card, as Stripe takes it (OD-3).
+
+     The app never sees a card number: "Pay by card" opens Stripe's own
+     card sheet, the customer types the card there, and what comes back is
+     Stripe's yes or no. The other way is the emailed payment link — the
+     web app's pay page, for the whole balance, paid whenever the customer
+     likes. Both need signal; with none, cash or a check is taken instead.
+     ========================================================= */
+  var stripeApproved = false;       // Stripe's sheet said yes; the payment can be recorded
+  function cardPanelHtml() {
+    // the panel is first drawn at build time, before the network state exists
+    var online = typeof net === 'undefined' ? navigator.onLine !== false : net.online;
+    return '<div style="display:flex;align-items:flex-start;gap:10px;margin-top:10px;padding:12px 13px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:10px">' +
+      '<span class="mi" style="font-size:20px;color:#4A6FA5;margin-top:1px">lock</span>' +
+      '<div style="font:400 12.5px/1.45 Geist;color:#546478">The customer enters the card on Stripe’s secure form. ' +
+      'Card details never go into Vision 360.</div></div>' +
+      (online ? '' :
+        '<div style="display:flex;align-items:flex-start;gap:9px;margin-top:10px;padding:12px 13px;background:#FEF3E2;border:1px solid #F3D9AE;border-radius:10px">' +
+        '<span class="mi" style="font-size:18px;color:#D97706;margin-top:1px">cloud_off</span>' +
+        '<div style="font:400 12.5px/1.45 Geist;color:#7A5B12">No connection — card payments and the payment link are unavailable. ' +
+        'Take cash or a check now, or wait for signal.</div></div>') +
+      '<div data-act="payLink" data-tap="1" style="height:48px;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;' +
+      'background:#fff;border:1px solid #C8D5E8;color:#4A6FA5;border-radius:10px;font:600 14.5px/1 Geist' + (online ? '' : ';opacity:.45') + '">' +
+      '<span class="mi" style="font-size:19px">link</span>Send payment link</div>' +
+      '<div style="font:400 12px/1.4 Geist;color:#8A97A8;margin-top:6px;text-align:center">Emails the customer the pay page for the whole balance</div>';
+  }
+  function openStripeSheet() {
+    var sh = byId('ov-stripe'); if (!sh) return;
+    var amtEl = $$('[data-payamt]').filter(function (e) { return e.offsetParent; })[0];
+    var taking = amtEl ? parseFloat(String(amtEl.value).replace(/[^0-9.]/g, '')) : NaN;
+    if (!isFinite(taking) || taking <= 0) taking = payAmount;
+    $('[data-stripeamt]', sh).textContent = fmt(Math.min(taking, payAmount));
+    $('[data-stripebtn]', sh).textContent = 'Pay ' + fmt(Math.min(taking, payAmount));
+    go('ov-stripe', 'overlay');
+  }
+  ACT.stripePay = function () {
+    var btn = $('#ov-stripe [data-stripebtn]');
+    if (btn) btn.textContent = 'Processing…';
+    setTimeout(function () {
+      closeOverlays(true);
+      stripeApproved = true;
+      ACT.payInline();
+    }, 900);
+  };
+  ACT.payLink = function () {
+    if (!net.online) { toast('No signal — the payment link can’t be sent yet', 'cloud_off'); return; }
+    if (state.inv === 'none') ACT.createInvoice();
+    if (state.inv === 'created') { state.inv = 'sent'; invSentAt = stamp(); remember('invSentAt', invSentAt); remember('state', state); }
+    paintPayScreens();
+    var j = JOBS[jobIdx] || {};
+    toast('Payment link for ' + fmt(payAmount) + ' emailed to ' + (j.name || 'the customer') + ' — the invoice stays open until it is paid', 'mark_email_read');
+  };
+
   ACT.payInline = function () {
     var m = payMethodDef();
     if (dlRequired(m) && !(pay.dl && pay.dl[m.id])) {
@@ -3066,12 +3171,9 @@
       toast('No signal — the card can’t be charged yet', 'cloud_off');
       return;
     }
-    if (m.id === 'card' && norm(pay.values['card|Card number'] || '').replace(/\D/g, '').length < 12) {
-      toast('Enter the card number first', 'credit_card');
-      var inp = $$('[data-pkey="card|Card number"]').filter(function (e) { return e.offsetParent; })[0];
-      if (inp) inp.focus();
-      return;
-    }
+    // the card is typed on Stripe's sheet; it comes back here once Stripe says yes
+    if (m.id === 'card' && !stripeApproved) { openStripeSheet(); return; }
+    stripeApproved = false;
     // money against nothing is an invoice made on the spot
     if (state.inv === 'none') ACT.createInvoice();
     /* Marek, Oct 12: partial payments are supported. Less than the balance
@@ -3325,7 +3427,8 @@
     var sent = state.inv === 'sent';
     toggleDisplay(invLines.send, !sent);
     if (invLines.add) toggleDisplay(invLines.add, !sent);
-    if (invLines.change) toggleDisplay(invLines.change, !sent);
+    // OD-15: the technician never changes who the invoice is made out to
+    if (invLines.change) toggleDisplay(invLines.change, false);
     invLines.take.setAttribute('style', 'height:52px;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:11px;font:600 15.5px/1 Geist;' +
       (sent ? 'background:#16A34A;color:#fff' : 'background:#fff;border:1.5px solid #4A6FA5;color:#4A6FA5') +
       ';margin-top:' + (sent ? '0' : '10px'));
@@ -3523,7 +3626,10 @@
     var back = $('[data-act="reopenRequest"]', viewBar);
     if (back) toggleDisplay(back, !!viewPast && !viewPast.visit);
     var label = viewBar.children[1];
-    if (label) label.textContent = viewPast && viewPast.visit ? 'Past visit · read only' : 'Completed job · read only';
+    var so = viewPast && !viewPast.visit && (JOBS[jobIdx] || {}).signoff;
+    if (label) label.textContent = viewPast && viewPast.visit ? 'Past visit · read only'
+      : so && so.state === 'awaiting' ? 'Awaiting sign-off · read only'
+      : so && so.state === 'signed' ? 'Completed · signed off on the device' : 'Completed job · read only';
     jobHeaderBtns.forEach(function (b) { toggleDisplay(b, !viewPast); });
   }
   function leaveView() {
@@ -3657,8 +3763,39 @@
   })();
 
   var changesStrip = null;
+  /* OD-11 / R-007.5: presenting on the device is sending — the estimate
+     goes to Sent with the device as its channel, and its validity runs
+     from that moment. The draft's badge and the line beside it say so. */
+  function markPresented() {
+    estPresented = true;
+    var j = JOBS[jobIdx];
+    if (j) { j.sentAt = stamp(); j.sentVia = 'device'; saveJobs(); }
+    queued('Estimate');
+    paintEstStatus();
+  }
+  var estBadge = null, estBadgeLine = null, estBadgeStyle = '';
+  function paintEstStatus() {
+    var root = byId('est-draft'); if (!root) return;
+    if (!estBadge) {
+      estBadge = sel(root, 'DRAFT')[0];
+      estBadgeLine = sel(root, 'Autosaved 2 min ago')[0];
+      if (!estBadge || !estBadgeLine) { MISS.push('est-draft :: status badge'); return; }
+      estBadgeStyle = estBadge.getAttribute('style') || '';
+    }
+    var j = JOBS[jobIdx] || {};
+    // a resend after changes is a send of its own, so Sent wins
+    var sent = !!j.sentAt;
+    var changes = !sent && state.est === 'changes';
+    estBadge.textContent = changes ? 'CHANGES REQUESTED' : sent ? 'SENT' : 'DRAFT';
+    estBadge.setAttribute('style', estBadgeStyle + (changes ? ';color:#8A6114;background:#FEF3E2;border-color:#F5D7A8'
+      : sent ? ';color:#4A6FA5;background:#EBF0F8;border-color:#C8D5E8' : ''));
+    estBadgeLine.textContent = sent ? 'Presented on the device · ' + j.sentAt.split(', ').slice(-1)[0]
+      : changes ? 'Revise and resend for approval' : 'Autosaved 2 min ago';
+  }
+
   function paintDraftAction() {
     var root = byId('est-draft'); if (!root) return;
+    paintEstStatus();
     if (!optSendBtn) return;
     var changes = state.est === 'changes';
     var ic = $('.mi,.mif', optSendBtn);
@@ -3951,6 +4088,10 @@
      prices and wording, each tab is given something to hold, and both the
      tabs and the search decide what the list shows.
      ========================================================= */
+  /* R-006.1: the price book's categories are the company's own, kept in
+     the web app's settings and synced down — not a list this app owns.
+     These are AND Services' five. */
+  var CATALOG_CATEGORIES = ['Repairs', 'Equipment', 'Ductwork', 'IAQ', 'Others'];
   var CATALOG_ROWS = [
     ['AC Tune-Up', 'Routine inspection and cleaning of air conditioning system', 129, 'Repairs'],
     ['Blower Motor Repair', 'Diagnose and repair blower motor malfunction', 350, 'Repairs'],
@@ -4066,7 +4207,7 @@
       empty.textContent = q ? 'Nothing matches “' + norm(search.value) + '”.' : 'Nothing in this category yet.';
     };
 
-    seg('est-catalog', ['Repairs', 'Equipment', 'Ductwork', 'IAQ', 'Others'], 0, function (i, label) {
+    seg('est-catalog', CATALOG_CATEGORIES, 0, function (i, label) {
       cat = label;
       if (search) search.value = '';
       catalogFilter();
@@ -4134,6 +4275,7 @@
       box.appendChild(card);
     });
     paintOptionPrices('est-customer');
+    paintCustomerPlan();             // the plan shown is the picked option's own
     // the summary above the cards counts and spans the same options
     var count = valueFor(root, 'Options'), range = valueFor(root, 'Price range');
     var totals = names.map(function (n) { return OPTION_TOTALS[n]; });
@@ -4586,14 +4728,17 @@
      number selectable, which is a checkbox.
      ========================================================= */
   var resetPrice = function () { };
+  /* Marek, Oct 21 + OD-14: follow-ups are Pro, so the filter has no
+     switch for them; the estimate statuses are the web app's; and the job
+     type is a filter of its own in Core. Each group is a set of
+     checkboxes, any number ticked. */
   var resetChips = (function () {
     var root = byId('hist-filters'); if (!root) return function () { };
-    var labels = ['Pending', 'Rejected', 'Accepted'];
-    var boxes = labels.map(function (l) { return sel(root, '~' + l)[0] || sel(root, l)[0]; });
-    if (boxes.some(function (b) { return !b; })) { MISS.push('hist-filters :: statuses'); return function () { }; }
-    var wrap = boxes[0].parentElement;
-    wrap.setAttribute('style', 'display:flex;flex-direction:column');
-    var START = { Pending: true, Rejected: false, Accepted: true };
+    var GROUPS = [
+      { labels: ['Draft', 'Sent', 'Approved', 'Declined', 'Changes requested'], on: { Sent: true, Approved: true } },
+      { labels: ['Demand Service', 'Maintenance', 'Estimate', 'Install'], on: {} }
+    ];
+    var all = [];
     function paint(b, on) {
       b.dataset.on = on ? '1' : '0';
       b.setAttribute('style', 'display:flex;align-items:center;gap:12px;padding:12px 2px;' +
@@ -4603,16 +4748,23 @@
         (on ? 'check_box' : 'check_box_outline_blank') + '</span><span></span>';
       b.lastElementChild.textContent = b.dataset.label;
     }
-    boxes.forEach(function (b) {
-      b.dataset.label = norm(b.textContent).replace(/^check/, '');
-      b.dataset.tap = '1';
-      paint(b, START[b.dataset.label]);
-      b.addEventListener('click', function (ev) {
-        ev.stopPropagation();
-        paint(b, b.dataset.on !== '1');
-      }, true);
+    GROUPS.forEach(function (g) {
+      var boxes = g.labels.map(function (l) { return sel(root, '~' + l)[0] || sel(root, l)[0]; });
+      if (boxes.some(function (b) { return !b; })) { MISS.push('hist-filters :: ' + g.labels[0]); return; }
+      boxes[0].parentElement.setAttribute('style', 'display:flex;flex-direction:column');
+      boxes.forEach(function (b, i) {
+        b.dataset.label = g.labels[i];
+        b.dataset.tap = '1';
+        b.dataset.start = g.on[g.labels[i]] ? '1' : '';
+        paint(b, !!b.dataset.start);
+        b.addEventListener('click', function (ev) {
+          ev.stopPropagation();
+          paint(b, b.dataset.on !== '1');
+        }, true);
+        all.push(b);
+      });
     });
-    return function () { boxes.forEach(function (b) { paint(b, START[b.dataset.label]); }); };
+    return function () { all.forEach(function (b) { paint(b, !!b.dataset.start); }); };
   })();
 
   (function () {
@@ -5076,20 +5228,30 @@
     paintAdjustVisible();
   })();
 
-  // the warranty field sits under the price, in the option's own form
+  /* The warranty line sits under the price, in the option's own form.
+     OD-22, as the web draws it: three short fields — a label, a title and
+     a detail, 20 / 24 / 36 characters — that start from the company's
+     default line and are changed here when this option differs. */
   (function () {
     var root = byId('est-new-option'); if (!root || !adjustBox) return;
     var box = document.createElement('div');
     box.setAttribute('style', 'margin-top:16px');
-    box.innerHTML = '<div style="font:600 16px/1 Geist;margin-bottom:10px">Warranty <span style="font:400 13px/1 Geist;color:#8A97A8">optional · up to 3 lines</span></div>' +
-      '<textarea data-warranty-field class="inp" rows="3" maxlength="200" placeholder="e.g. 10-year parts · 2-year labour · 1 year on refrigerant" ' +
-      'style="width:100%;height:auto;min-height:84px;padding:12px 13px;background:#fff;border:1px solid #DDE3EE;border-radius:10px;font:400 14.5px/1.45 Geist;resize:none"></textarea>';
+    var FIN = 'width:100%;height:46px;padding:0 13px;background:#fff;border:1px solid #DDE3EE;border-radius:10px;font:400 14.5px/1 Geist';
+    var FLB = 'display:flex;justify-content:space-between;font:500 12.5px/1 Geist;color:#546478;margin:0 0 6px';
+    box.innerHTML = '<div style="font:600 16px/1 Geist;margin-bottom:4px">Warranty</div>' +
+      '<div style="font:400 12.5px/1.4 Geist;color:#8A97A8;margin-bottom:10px">Starts from your company’s default · change it for this option if it differs</div>' +
+      WARRANTY_FIELDS.map(function (f) {
+        return '<div style="margin-top:9px"><div style="' + FLB + '"><span>' + f.label + '</span><span data-wcount="' + f.key + '"></span></div>' +
+          '<input data-warranty-field="' + f.key + '" class="inp" maxlength="' + f.max + '" style="' + FIN + '"></div>';
+      }).join('');
     adjustBox.insertAdjacentElement('afterend', box);
-    warrantyField = $('[data-warranty-field]', box);
-    warrantyField.addEventListener('input', function () {
-      var lines = warrantyField.value.split('\n');
-      if (lines.length > 3) warrantyField.value = lines.slice(0, 3).join('\n');
+    warrantyField = {};
+    WARRANTY_FIELDS.forEach(function (f) {
+      var inp = $('[data-warranty-field="' + f.key + '"]', box);
+      warrantyField[f.key] = inp;
+      inp.addEventListener('input', paintWarrantyCounts);
     });
+    fillWarranty(WARRANTY_DEFAULT);
   })();
 
   // nothing to discount until something has a price
@@ -5223,6 +5385,8 @@
 
   function paintCardAvailability() {
     var blocked = !net.online;
+    // the card panel on Take payment says whether Stripe can be reached
+    if (payPanels && pay.method === 'card') { payPanels.forEach(function (P) { P.rendered = ''; }); paintPayPanels(); }
     if (cardNote) cardNote.hidden = !blocked;
     if (cardBtn) {
       cardBtn.style.opacity = blocked ? '.45' : '';
@@ -5283,10 +5447,11 @@
     return [h, m, s].map(function (n) { return String(n).padStart(2, '0'); }).join(':');
   }
 
-  var MODE_LABEL = { drive: ['Driving', '#F59E0B'], work: ['On site', '#16A34A'], off: ['Off the clock', '#7E93B2'] };
+  // the job statuses as the web app names them
+  var MODE_LABEL = { drive: ['En Route', '#F59E0B'], work: ['In Progress', '#16A34A'], off: ['Not on a job', '#7E93B2'] };
   function paintClock() {
     var running = clock.mode === 'off' ? 0 : (Date.now() - clock.since) / 1000;
-    var lbl = MODE_LABEL[clock.mode];
+    var lbl = clock.mode === 'off' && state.paused ? ['Paused', '#7E93B2'] : MODE_LABEL[clock.mode];
     var set = function (id, v) { var e = byId(id); if (e) e.textContent = v; };
 
     set('tsMode', lbl[0]);
@@ -5803,13 +5968,14 @@
   /* =========================================================
      A dashboard that moves. Sign an estimate and Conversions and Closing
      tick up; take a payment and Revenue does. The seeds are the design's
-     own figures (22.5% of 14, 27% of 14), kept as fractions so the first
-     paint shows exactly what the mockup shows.
+     own figures (22.5% of 14), kept as fractions so the first paint shows
+     what the mockup shows — except Closing, which is now said as a count:
+     6 of 14 estimates closed. There is no rank among colleagues.
      ========================================================= */
   var kpi = Object.assign({
     revenue: 65200, target: 300000,
     estValue: 420000, estimates: 14, conv: 0.225 * 14,
-    closed: 0.27 * 14, closeTarget: 45,
+    closed: 6, closeTarget: 45,          // 6 of the 14 estimates closed
     avgTicket: 1200, avgTarget: 2000
   }, recall('kpi', {}));
 
@@ -5838,7 +6004,7 @@
     rev: [38, 44, 41, 52, 58, 65.2],            // $k
     est: [18.5, 20.1, 19.4, 21.8, 22.0, 22.5],  // conversion %
     avg: [1.45, 1.38, 1.30, 1.26, 1.22, 1.20],  // $k per ticket
-    close: [31, 29, 33, 30, 28, 27]             // closing %
+    close: [31, 29, 33, 36, 40, 43]             // closing %
   };
   var sparks = {};
 
@@ -5925,10 +6091,11 @@
       }
     }
     if (r.close) {
+      // closing % is the estimates closed over the estimates written, said in words
       var cl = kpi.closed / kpi.estimates * 100;
       setLead(r.close.value, Math.round(cl) + '%');
       if (r.close.bar) r.close.bar.style.width = pct(cl, kpi.closeTarget) + '%';
-      if (r.estCount) r.estCount.textContent = 'Of ' + kpi.estimates + ' estimates';
+      if (r.estCount) r.estCount.textContent = Math.round(kpi.closed) + ' of ' + kpi.estimates + ' estimates closed';
     }
     paintSparks();
     remember('kpi', kpi);
@@ -6163,7 +6330,8 @@
 
   function saveJobs() {
     remember('jobs', JOBS.map(function (j) {
-      return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses };
+      return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
+        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null };
     }));
   }
 
@@ -6253,21 +6421,61 @@
      ========================================================= */
   /* Marek, Oct 12: as in the web app — the customer is shown either the
      full amount or the monthly payment under the plan; the full price is
-     a tap away from the monthly. */
-  var PREVIEW = ['total', 'monthly'];
-  var previewMode = 'monthly';
-  var PREVIEW_LABELS = ['Full amount', 'Monthly payment'];
+     a tap away from the monthly. R-007.1: which of the two, and under
+     which plan, is the option's own choice. */
   // the letter the option gets if the technician leaves the field alone
   var optionNameTyped = '';
   /* Marek, Oct 12: warranty is written on the option — up to three lines,
      optional — and read on its card. */
   var optionWarranties = recall('optionWarranties', {});
   var warrantyField;          // assigned where the form is built, earlier in the file; no initialiser
-  function typedWarranty() { return warrantyField ? norm(warrantyField.value) : ''; }
+  // the three fields as one line; nothing typed in any of them is no warranty
+  function typedWarranty() {
+    if (!warrantyField) return null;
+    var w = {}, any = false;
+    WARRANTY_FIELDS.forEach(function (f) {
+      w[f.key] = warrantyField[f.key] ? norm(warrantyField[f.key].value) : '';
+      if (w[f.key]) any = true;
+    });
+    return any ? w : null;
+  }
+  function fillWarranty(w) {
+    if (!warrantyField) return;
+    WARRANTY_FIELDS.forEach(function (f) {
+      var inp = warrantyField[f.key]; if (!inp) return;
+      inp.value = w && typeof w === 'object' ? (w[f.key] || '') : (f.key === 'title' && w ? String(w).slice(0, f.max) : '');
+    });
+    paintWarrantyCounts();
+  }
+  function paintWarrantyCounts() {
+    if (!warrantyField) return;
+    WARRANTY_FIELDS.forEach(function (f) {
+      var c = $('[data-wcount="' + f.key + '"]');
+      if (c && warrantyField[f.key]) c.textContent = warrantyField[f.key].value.length + ' / ' + f.max;
+    });
+  }
+  // a line saved before the three fields was one free text
+  function warrantyText(w) {
+    if (!w) return '';
+    if (typeof w === 'string') return w;
+    return [w.label, w.title, w.detail].filter(Boolean).join(' · ');
+  }
+  // what the option form holds besides its items: the warranty line and the plan
+  function keepOptionExtras(name, warranty) {
+    if (!name) return;
+    if (warranty) optionWarranties[name] = warranty; else delete optionWarranties[name];
+    remember('optionWarranties', optionWarranties);
+    optionPlans[name] = formPlanIdx;
+    remember('optionPlans', optionPlans);
+    var card = optList && $$(':scope > div', optList).filter(function (c) { return optionName(c) === name; })[0];
+    paintCardWarranty(card, name);
+    fillWarranty(WARRANTY_DEFAULT);
+    paintPlanEverywhere();
+  }
   function paintCardWarranty(card, name) {
     if (!card) return;
     var line = $('[data-warranty]', card);
-    var text = optionWarranties[name] || '';
+    var text = warrantyText(optionWarranties[name]);
     if (!text) { if (line) line.remove(); return; }
     if (!line) {
       line = document.createElement('div');
@@ -6315,6 +6523,13 @@
   var FIELD_LABEL = 'font:500 12.5px/1 Geist;color:#546478';
   var FIELD_VALUE = 'font:500 15.5px/1.2 Geist;color:#1A2332;margin-top:7px';
   var previewField = null;
+  var paintFormPlan = function () { };
+  function planName(p) { return p.rate ? p.name + ' ' + p.rate.toFixed(2) + '%' : p.name; }
+  function setFormPlan(i) {
+    formPlanIdx = PLANS[i] ? i : DEFAULT_PLAN;
+    paintFormPlan();
+    paintOptionSummary();
+  }
 
   (function () {
     var root = byId('est-new-option'); if (!root) return;
@@ -6333,13 +6548,12 @@
     field.dataset.tap = '1';
     field.setAttribute('style', FIELD + ';position:relative');
     field.innerHTML = '<div data-open style="display:flex;align-items:center;gap:10px">' +
-      '<div style="flex:1"><div style="' + FIELD_LABEL + '">Show the customer</div>' +
+      '<div style="flex:1"><div style="' + FIELD_LABEL + '">Price shown</div>' +
       '<div data-previewval style="' + FIELD_VALUE + '"></div></div>' +
       '<span class="mi" data-chev style="font-size:22px;color:#546478">expand_more</span></div>';
     holder.insertBefore(field, head);
     head.remove();
     previewField = $('[data-previewval]', field);
-    previewField.textContent = PREVIEW_LABELS[PREVIEW.indexOf(previewMode)];
 
     /* The board's three rows are cards, and three cards inside a dropdown
        are three cards inside a dropdown. The control keeps its choices and
@@ -6352,7 +6566,10 @@
     panel.setAttribute('style', 'position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:40;' +
       'background:#fff;border:1px solid #C8D5E8;border-radius:11px;overflow:hidden;' +
       'box-shadow:0 12px 28px rgba(26,35,50,.18)');
-    PREVIEW_LABELS.forEach(function (label, i) {
+    /* The choices are the plan for this option: the full amount, or one of
+       the company's finance plans by name and monthly percentage. */
+    PLANS.forEach(function (p, i) {
+      var label = planName(p);
       var r = document.createElement('div');
       r.dataset.preview = String(i);
       r.dataset.tap = '1';
@@ -6369,7 +6586,7 @@
     function close() { panel.hidden = true; chev.textContent = 'expand_more'; }
     function paintPanel() {
       $$('[data-preview]', panel).forEach(function (r) {
-        var on = PREVIEW[+r.dataset.preview] === previewMode;
+        var on = +r.dataset.preview === formPlanIdx;
         $('[data-tick]', r).textContent = on ? 'radio_button_checked' : 'radio_button_unchecked';
         $('[data-tick]', r).style.color = on ? '#4A6FA5' : '#C8D5E8';
         r.style.background = on ? '#F5F8FC' : '';
@@ -6379,14 +6596,15 @@
       var r = ev.target.closest('[data-preview]'); if (!r) return;
       ev.stopPropagation();
       var i = +r.dataset.preview;
-      previewMode = PREVIEW[i];
-      previewField.textContent = PREVIEW_LABELS[i];
-      paintPanel();
-      paintPlanEverywhere();
+      setFormPlan(i);
       close();
-      toast(i === 0 ? 'Customer sees the full amount' : 'Customer sees the monthly payment — the full amount is a tap away', 'visibility');
+      toast(i === 0 ? 'This option shows the full amount' : 'This option shows ' + planName(PLANS[i]) + ' — the monthly payment', 'visibility');
     }, true);
-    paintPanel();
+    paintFormPlan = function () {
+      previewField.textContent = planName(PLANS[formPlanIdx]);
+      paintPanel();
+    };
+    paintFormPlan();
     panel.addEventListener('click', function (ev) { ev.stopPropagation(); }, true);
     field.addEventListener('click', function (ev) {
       if (panel.contains(ev.target)) return;             // a choice, not the field
@@ -6503,10 +6721,13 @@
     var card = drop && drop.parentElement;
     if (!head || !label || !card) { MISS.push('est-draft :: plan card'); return; }
 
-    // the heading never said what any of this was for
+    /* R-007.1: the plan is chosen on each option now, so one plan for the
+       whole estimate — its dropdown and its rate, APR and terms tiles —
+       goes. What is left here applies to every option: the deposit. */
+    head.textContent = 'Deposit';
     var why = document.createElement('div');
     why.setAttribute('style', 'font:400 12.5px/1.45 Geist;color:#8A97A8;margin:-6px 0 10px');
-    why.textContent = 'What the customer is quoted per month, and what they put down.';
+    why.textContent = 'What the customer puts down, on every option. The price each option shows — full amount or a finance plan — is set on the option.';
     head.parentElement.insertBefore(why, head.nextElementSibling);
 
     drop.dataset.tap = '1';
@@ -6516,41 +6737,11 @@
     var tiles = $$('div', card).filter(function (e) {
       return /background:#F5F7FA;border-radius:8px/.test(e.getAttribute('style') || '');
     });
+    toggleDisplay(drop, false);
+    if (tiles[0]) toggleDisplay(tiles[0].parentElement, false);
     // the button carries an icon, so only its own text nodes identify it
     var down = sel(root, '~Add down payment')[0];
     planRefs = { label: label, tiles: tiles, down: down || null };
-  })();
-
-  var planDrop = null;
-  (function () {
-    // the row planRefs already holds; it was given a data-go to the sheet
-    // a moment ago, and the sheet is gone
-    var row = planRefs && planRefs.label && planRefs.label.parentElement;
-    if (!row) { MISS.push('est-draft :: plan row'); return; }
-    row.removeAttribute('data-go');
-    row.removeAttribute('data-mode');
-    planDrop = dropdown(row);
-    if (!planDrop) return;
-    PLANS.forEach(function (p, i) {
-      planDrop.panel.appendChild(pickRow(i, i === 0, p.months ? p.name + ' · ' + p.rate.toFixed(2) + '%' : p.name, p.months
-        ? 'Monthly worked out from the full price · set in Settings'
-        : 'The customer pays the full amount', 'plan'));
-    });
-    row.addEventListener('click', function (ev) {
-      if (ev.target.closest('[data-plan]')) return;
-      ev.stopPropagation();
-      planDrop.toggle();
-    }, true);
-    planDrop.panel.addEventListener('click', function (ev) {
-      var r = ev.target.closest('[data-plan]'); if (!r) return;
-      ev.stopPropagation();
-      planIdx = +r.dataset.plan;
-      paintPlanRows();
-      paintPlanEverywhere();
-      planDrop.close();
-      toast(plan().months ? 'Plan: ' + plan().name : 'No financing — total only', 'account_balance');
-    }, true);
-    paintPlanRows();
   })();
 
   /* A deposit is a sum of money, so it is typed as one. Four round numbers
@@ -6610,22 +6801,6 @@
 
   function paintPlanCard() {
     if (!planRefs) return;
-    var p = plan();
-    if (planRefs.label) {
-      planRefs.label.textContent = p.months
-        ? p.name + ' · ' + p.rate.toFixed(2) + '%'
-        : p.name;
-    }
-    var vals = [
-      p.months ? (planFactor() * 100).toFixed(2) + '%' : '—',
-      p.months ? p.rate.toFixed(2) + '%' : '—',
-      p.months ? p.apr.toFixed(2) + '%' : '—',
-      p.months ? p.months + ' months' : 'No financing'
-    ];
-    planRefs.tiles.forEach(function (t, i) {
-      var v = t.lastElementChild;
-      if (v && vals[i] !== undefined) v.textContent = vals[i];
-    });
     if (planRefs.down) {
       // the row carries its own dropdown now, so the last child is the panel;
       // the label is the row's own text
@@ -6666,24 +6841,34 @@
         disc.hidden = !off;
         disc.textContent = off ? 'List ' + fmt(optionList(optionName(c))) + ' · Discount −' + fmt(off) : '';
       }
-      var canFinance = !!plan().months;
-      // nothing to show a monthly from, or the technician chose not to
-      if (hint && (!canFinance || previewMode === 'total')) {
-        hint.hidden = true; priceEl.textContent = fmt(total); return;
+      // the option's own plan: the full amount, or a plan by name and %
+      var op = planOf(optionName(c));
+      var pl = $('[data-planln]', c);
+      if (!pl) {
+        pl = document.createElement('div');
+        pl.dataset.planln = '1';
+        pl.setAttribute('style', 'font:500 12.5px/1.35 Geist;color:#546478;padding:0 14px 11px;margin-top:-3px;background:' +
+          (/background:#EBF0F8/.test(priceEl.parentElement.getAttribute('style') || '') ? '#EBF0F8' : '#F8FAFD'));
+        (disc || priceEl.parentElement).insertAdjacentElement('afterend', pl);
       }
-      if (hint && previewMode === 'monthly') {
-        hint.hidden = true; priceEl.innerHTML = fmt(monthlyFor(total)) + PER_MONTH; return;
+      pl.hidden = !op.rate;
+      pl.textContent = op.rate ? planName(op) + ' · ' + fmt(total) + ' full amount' : '';
+      if (!op.rate) {
+        if (hint) hint.hidden = true;
+        priceEl.textContent = fmt(total); return;
       }
       if (hint) hint.hidden = false;
-      var showingMonthly = hint && /Tap for total/.test(norm(hint.textContent));
-      if (showingMonthly) priceEl.innerHTML = fmt(monthlyFor(total)) + PER_MONTH;
+      // a financed option opens on its monthly; the full amount is a tap away
+      var showingMonthly = !hint || hint.dataset.shown !== 'total';
+      if (showingMonthly) priceEl.innerHTML = fmt(monthlyFor(total, op)) + PER_MONTH;
       else priceEl.textContent = fmt(total);
+      if (hint) hint.textContent = showingMonthly ? 'Tap for total' : 'Tap for monthly';
 
       if (hint && !hint.dataset.tap) {
         hint.dataset.tap = '1';
         hint.addEventListener('click', function (ev) {
           ev.stopPropagation();
-          hint.textContent = /Tap for total/.test(norm(hint.textContent)) ? 'Tap for monthly' : 'Tap for total';
+          hint.dataset.shown = hint.dataset.shown === 'total' ? 'monthly' : 'total';
           paintOptionPrices(screenId);
         }, true);
       }
@@ -7086,7 +7271,7 @@
     if (!txt) { MISS.push('phone :: on-site bar'); return; }
     paintOnsiteBar = function () {
       var j = JOBS[jobIdx];
-      txt.nodeValue = (state.paused ? 'Paused · ' : 'On site · ') + (j ? j.name : '');
+      txt.nodeValue = (state.paused ? 'Paused · ' : 'In Progress · ') + (j ? j.name : '');
       onsiteBar.style.background = state.paused ? '#546478' : '#16A34A';
     };
     var prev = paintJob;
@@ -7094,9 +7279,9 @@
   }
 
   /* The order button read "Confirm & order" before anything had been
-     signed, and said so only after it was pressed. The board has the
-     other label for that state: until the pad is signed this completes
-     the presentation, and once it is signed it places the order. */
+     signed, and said so only after it was pressed. R-007.5: it is the
+     customer's own words, "I confirm and order" — greyed out until the
+     pad is signed, because the signature is the order. */
   var orderBtn = null;
   function paintOrderBtn() {
     if (!orderBtn) return;
@@ -7107,7 +7292,7 @@
     if (icon) icon.textContent = on ? 'check_circle' : 'task_alt';
     [].slice.call(orderBtn.childNodes).forEach(function (n) {
       if (n.nodeType === 3 && norm(n.nodeValue)) {
-        n.nodeValue = on ? 'Confirm & order' : 'Complete estimate';
+        n.nodeValue = 'I confirm and order';
       }
     });
   }
@@ -7138,6 +7323,9 @@
     if (s.items) JOBS[i].items = s.items;
     if (s.sold !== undefined) JOBS[i].sold = s.sold;
     if (s.expenses) JOBS[i].expenses = s.expenses;
+    if (s.sentAt) JOBS[i].sentAt = s.sentAt;
+    if (s.estType) JOBS[i].estType = s.estType;
+    if (s.signoff) JOBS[i].signoff = s.signoff;
   });
   /* A day is empty when there are no jobs left in it — nothing else.
      Before the queue could be browsed, progress was a cursor and
@@ -7456,7 +7644,7 @@
   (function () {
     var root = byId('est-customer'); if (!root) return;
     var pending = sel(root, 'Pending')[0];
-    var when = sel(root, 'Oct 7, 2025, 9:09 AM')[0];
+    var when = sel(root, 'Oct 7, 2026, 9:09 AM')[0];
     var pendingStyle = pending && pending.getAttribute('style');
     var pad = signaturePad('est-customer', 'Sign here', function () {
       estSigned = true;
@@ -7483,7 +7671,7 @@
      order — without it there is nothing to hold the customer to. */
   (function () {
     var root = byId('rc-customer'); if (!root) return;
-    var dateEl = sel(root, 'Date: Oct 7, 2025')[0];
+    var dateEl = sel(root, 'Date: Oct 7, 2026')[0];
     var saveBtn = sel(root, 'Save waiver')[0];
     var pad = signaturePad('rc-customer', 'Customer signs here', function () {
       if (dateEl) dateEl.textContent = 'Date: ' + stamp().split(',').slice(0, 2).join(',');
@@ -7500,7 +7688,7 @@
   })();
   (function () {
     var root = byId('rc-tech'); if (!root) return;
-    var by = sel(root, 'Marek Stroz · Oct 7, 2025, 4:32 PM')[0];
+    var by = sel(root, 'Marek Stroz · Oct 7, 2026, 4:32 PM')[0];
     signaturePad('rc-tech', 'Signed', function () {
       if (by) by.textContent = 'Marek Stroz · ' + stamp();
       showSaveBar('rc-tech');
@@ -7513,7 +7701,7 @@
      the width of the screen. The line is the control. */
   (function () {
     var root = byId('rc-overview'); if (!root) return;
-    var stamp = sel(root, 'Latest change: Oct 7, 2025, 9:09 AM (Marek Stroz)')[0];
+    var stamp = sel(root, 'Latest change: Oct 7, 2026, 9:09 AM (Marek Stroz)')[0];
     var strip = stamp && stamp.parentElement;
     if (!strip) { MISS.push('rc-overview :: latest change'); return; }
     strip.dataset.tap = '1';
@@ -7833,22 +8021,18 @@
   var custPlanRefs = null;
   var approvedRefs = null;
 
-  function planLine() {
-    var p = plan();
-    return p.months ? p.name + ' · ' + p.rate.toFixed(2) + '%' : p.name;
-  }
-  function planTerms(withInterest) {
-    var p = plan();
-    if (!p.months) return 'Paid in full — no financing';
-    return 'Monthly factor ' + (planFactor() * 100).toFixed(2) + '%' +
-      (withInterest ? ' · Interest ' + p.rate.toFixed(2) + '%' : '') +
-      ' · APR ' + p.apr.toFixed(2) + '% · ' + p.months + ' months';
+  // the plan of the option in hand — the one the customer picked or signed
+  function planLine() { return planName(planOf(pickedOption)); }
+  function planTerms() {
+    var p = planOf(pickedOption);
+    if (!p.rate) return 'Paid in full — no financing';
+    return fmt(monthlyFor(OPTION_TOTALS[pickedOption] || 0, p)) + ' a month · chosen for ' + pickedOption;
   }
 
   function paintCustomerPlan() {
     if (!custPlanRefs) return;
     custPlanRefs.name.textContent = planLine();
-    custPlanRefs.terms.textContent = planTerms(false);
+    custPlanRefs.terms.textContent = planTerms();
   }
 
   function paintApproved() {
@@ -7887,7 +8071,7 @@
     R.sig.textContent = (j ? j.name : 'Customer') + ' · ' + when;
     R.rej.textContent = String(Math.max(0, optCount - 1));
     R.planName.textContent = planLine();
-    R.planTerms.textContent = planTerms(true);
+    R.planTerms.textContent = planTerms();
 
     // the customer's own words, where they were written, on the record
     R.note.hidden = !specialNote;
@@ -7943,7 +8127,7 @@
     var kids = [].slice.call(sc.children);
     var find = function (re) { return kids.filter(function (k) { return re.test(norm(k.textContent)); })[0]; };
     var card = sc.children[1], sig = find(/^Customer signature/), rej = find(/^(Rejected|Declined) options/), pl = find(/^Plan selected/);
-    var stampEl = sel(root, 'Oct 7, 2025, 9:09 AM')[0];
+    var stampEl = sel(root, 'Oct 7, 2026, 9:09 AM')[0];
     var head = card && card.children[0];
     var items = card && card.children[1];
     var totalRow = card && card.children[2];
@@ -8138,6 +8322,8 @@
     optRevised = list && OPTION_TOTALS[n] < list - 0.005 ? OPTION_TOTALS[n] : null;
     editingOption = n;
     renderOptionItems();
+    fillWarranty(optionWarranties[n] || null);
+    setFormPlan(planIdxOf(n));
     optionNameTyped = n;
     var nf = $('[data-optname]'); if (nf) nf.value = n;
     paintFormTitle();
@@ -8521,13 +8707,17 @@
       seg: 'Detailed', title: 'Detailed description',
       shared: true, readOnly: true, add: ''
     },
+    /* Marek, Oct 21 + OD: field notes are for the office — they are not
+       printed on anything the customer gets. */
     tech: {
       seg: "Technician's", title: "Technician's Notes",
-      shared: true, readOnly: false, add: "Add technician's note"
+      shared: false, readOnly: false, add: 'Add field note',
+      banner: 'For the office — not printed on customer documents'
     },
     private: {
       seg: 'Private', title: 'Private Notes',
-      shared: false, readOnly: false, add: 'Add private note'
+      shared: false, readOnly: false, add: 'Add private note',
+      banner: 'Internal only — the customer never sees these'
     }
   };
   var NOTE_ORDER = ['detailed', 'tech', 'private'];
@@ -8580,16 +8770,13 @@
     var k = NOTE_KINDS[kind];
     var el = document.createElement('div');
     el.setAttribute('data-notebanner', '1');
-    var on = k.shared;
-    el.setAttribute('style', 'display:flex;align-items:center;gap:8px;margin:0 16px 12px;' +
+    // the office's job notes need no banner; the two kinds kept from the
+    // customer say so
+    el.setAttribute('style', 'display:' + (k.banner ? 'flex' : 'none') + ';align-items:center;gap:8px;margin:0 16px 12px;' +
       'padding:10px 12px;border-radius:10px;font:500 12.5px/1.35 Geist;' +
-      (on ? 'background:#E8F6ED;border:1px solid #B6E3C6;color:#15803D'
-          : 'background:#FEF3E2;border:1px solid #F3D9AE;color:#8A6114'));
-    el.innerHTML = '<span class="mi" style="font-size:18px;flex:none"></span><span></span>';
-    el.children[0].textContent = on ? 'visibility' : 'lock';
-    el.children[1].textContent = on
-      ? 'The customer sees these notes'
-      : 'Internal only — the customer never sees these';
+      'background:#FEF3E2;border:1px solid #F3D9AE;color:#8A6114');
+    el.innerHTML = '<span class="mi" style="font-size:18px;flex:none">lock</span><span></span>';
+    el.children[1].textContent = k.banner || '';
     return el;
   }
 
@@ -9368,16 +9555,9 @@
     var msg = $('#more-help [data-go="chat-thread"]'); if (msg) msg.style.display = 'none';
     /* Marek, Oct 12: weekly timesheet submission is out of the MVP */
     $$('button').forEach(function (b) { if (/Submit week/.test(b.textContent)) b.style.display = 'none'; });
-    /* and the estimate's note to the customer is its terms and warranty, optional */
-    ['est-draft', 'est-customer', 'est-preview', 'est-new-option'].forEach(function (id) {
-      var root = byId(id); if (!root) return;
-      var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); var n;
-      while ((n = walker.nextNode())) {
-        if (/Write additional special notes/.test(n.nodeValue)) n.nodeValue = 'Warranty and customer-facing terms, if any';
-        else if (/Special notes/.test(n.nodeValue)) n.nodeValue = n.nodeValue.replace('Special notes', 'Terms & warranty');
-      }
-      $$('textarea', root).forEach(function (t) { if (/special notes/i.test(t.placeholder)) t.placeholder = 'Warranty and customer-facing terms, if any'; });
-    });
+    /* R-007.5: the box on the customer's screen is the customer's own
+       special notes. The warranty is the technician's, written on the
+       option — so the box keeps the name the board gave it. */
     var chatTab = $('#tabbar [data-tab="chat"]');
     if (chatTab) chatTab.style.display = 'none';
     var ROOTS = ['home', 'home-active', 'job-general', 'job-notes', 'ov-note-detailed', 'ov-note-tech', 'ov-note-private', 'cust-jobs'];
@@ -9392,6 +9572,39 @@
         MAP.forEach(function (p) { v = v.replace(p[0], p[1]); });
         n.nodeValue = v;
       }
+    });
+    /* R-007.2 / W-13: SMS is Pro — "not in the web, not in the mobile".
+       Documents go by email or print. */
+    ['ov-option-menu', 'inv-paid', 'ov-inv-share'].forEach(function (id) {
+      var root = byId(id); if (!root) return;
+      byIcon(root, 'sms').forEach(function (ic) { if (ic.parentElement) ic.parentElement.style.display = 'none'; });
+    });
+    /* OD-15: who the invoice is made out to is the office's to change, and a
+       paid invoice changes for nobody */
+    $$('#inv-paid [data-go="inv-details"]').forEach(function (e) { e.style.display = 'none'; });
+    // the old card form's camera read the card; no card is read by this app
+    byIcon(byId('pay-card') || document.createElement('div'), 'photo_camera').forEach(function (e) { e.style.display = 'none'; });
+    /* R-006.1: the catalog's tabs are the company's categories, synced from
+       the web app's settings — the strip says where they come from */
+    (function () {
+      var root = byId('est-catalog'); if (!root) return;
+      var first = sel(root, CATALOG_CATEGORIES[0])[0];
+      var strip = first && first.parentElement; if (!strip) return;
+      var note = document.createElement('div');
+      note.setAttribute('style', 'padding:0 16px 10px;margin-top:-4px;background:#fff;font:400 12px/1.35 Geist;color:#8A97A8;flex:none');
+      note.textContent = 'Categories from your company’s price book settings';
+      strip.insertAdjacentElement('afterend', note);
+    })();
+    // OD-4: the custom item row is there for the roles that may create items
+    ['est-catalog', 'add-catalog'].forEach(function (id) {
+      var root = byId(id); if (!root) return;
+      $$('span', root).forEach(function (e) {
+        if (e.children.length || norm(e.textContent) !== 'Add custom item') return;
+        var hint = document.createElement('span');
+        hint.setAttribute('style', 'display:block;font:400 12px/1.35 Geist;color:#8A97A8;margin-top:4px');
+        hint.textContent = 'Only roles allowed to create items see this';
+        e.appendChild(hint);
+      });
     });
   }
   ACT.toggleLocation = function () {
@@ -9474,6 +9687,258 @@
     });
     R.sum.textContent = ex.length ? fmt(ex.reduce(function (a, e) { return a + e.amount; }, 0)) : '';
   }
+
+  /* =========================================================
+     The estimate's type (R-007.1, FR-5.19). The web app will not create
+     an estimate without one, so the first option asks. The types are the
+     company's, from Settings; the one named like the job's type is
+     ticked to start with, and a job type that names none ticks nothing.
+     ========================================================= */
+  var EST_TYPES = ['Repair', 'Installation', 'Replacement'];
+  var EST_TYPE_FOR_JOB = { Install: 'Installation' };
+  (function () {
+    var list = byId('estTypeList'); if (!list) return;
+    EST_TYPES.forEach(function (t, i) { list.appendChild(pickRow(i, i === 0, t, '', 'esttype')); });
+    list.addEventListener('click', function (ev) {
+      var r = ev.target.closest('[data-esttype]'); if (!r) return;
+      ev.stopPropagation();
+      var j = JOBS[jobIdx]; if (!j) return;
+      j.estType = EST_TYPES[+r.dataset.esttype];
+      saveJobs();
+      closeOverlays(true);
+      ACT.newOption();
+      toast(j.estType + ' estimate — add its first option', 'request_quote');
+    }, true);
+  })();
+  function askEstType() {
+    var list = byId('estTypeList'); if (!list) return;
+    var pre = EST_TYPE_FOR_JOB[(JOBS[jobIdx] || {}).type];
+    paintTicks(list, 'esttype', pre ? EST_TYPES.indexOf(pre) : -1);
+    go('ov-esttype', 'overlay');
+  }
+
+  /* =========================================================
+     A custom item, as the web app makes one (OD-4, R-006.2): it goes into
+     the price book with its name, description, price and quantity, and
+     onto whatever it was added from. No warranty on it — warranty is the
+     option's line. The row only shows for roles allowed to create items;
+     the demo's user is the owner, so it shows here.
+     ========================================================= */
+  (function () {
+    var root = byId('est-custom-item'); if (!root) return;
+    fieldify('est-custom-item');
+    var dl = sel(root, 'Item description')[0];
+    var dbox = dl && dl.nextElementSibling;
+    if (dbox) {
+      var ta = document.createElement('textarea');
+      ta.className = 'inp';
+      ta.placeholder = 'Item description';
+      ta.setAttribute('style', 'width:100%;height:96px;resize:none;padding:12px 14px;background:#fff;' +
+        'border:1px solid #DDE3EE;border-radius:10px;font:400 14.5px/1.45 Geist');
+      dbox.parentElement.replaceChild(ta, dbox);
+    }
+    var ins = $$('input', root);
+    if (ins.length < 3) { MISS.push('est-custom-item :: fields'); return; }
+    ins[1].inputMode = 'decimal';
+    ins[2].inputMode = 'numeric';
+    var subLabel = sel(root, 'Line subtotal')[0];
+    var subVal = subLabel && subLabel.nextElementSibling;
+    function paintSub() {
+      var p = parseFloat(String(ins[1].value).replace(/[^0-9.]/g, '')) || 0;
+      var q = parseInt(ins[2].value, 10) || 0;
+      if (subVal) subVal.textContent = fmt(p * q);
+    }
+    ins.forEach(function (i) { i.addEventListener('input', paintSub); });
+    var seq = 0;
+    ACT.customItemSave = function () {
+      var name = norm(ins[0].value);
+      var price = parseFloat(String(ins[1].value).replace(/[^0-9.]/g, ''));
+      var qty = Math.max(1, parseInt(ins[2].value, 10) || 1);
+      var desc = norm(($('textarea', root) || {}).value || '');
+      if (!name) { toast('Give the item a name', 'info'); ins[0].focus(); return; }
+      if (!isFinite(price) || price <= 0) { toast('Enter the item’s price', 'info'); ins[1].focus(); return; }
+      seq++;
+      var it = { sku: 'PB-' + (9000 + seq), name: name, desc: desc, price: Math.round(price * 100) / 100,
+        cat: 'Others', type: 'Service', labor: 0, qty: qty };
+      CATALOG_ROWS.push([name, desc, it.price, 'Others']);
+      var where = 'the option';
+      if (catalogTarget === 'job' && JOBS[jobIdx]) {
+        var c = {}; for (var k in it) c[k] = it[k];
+        c.from = 'manual';
+        JOBS[jobIdx].items = mergeItems(JOBS[jobIdx].items || [], [c]);
+        saveJobs();
+        renderJobItems();
+        where = 'the job';
+      } else {
+        optionItems.push(it);
+        renderOptionItems();
+      }
+      ins[0].value = ''; ins[1].value = ''; ins[2].value = '1';
+      if ($('textarea', root)) $('textarea', root).value = '';
+      paintSub();
+      queued('Price book');
+      back();
+      toast(name + ' saved to the price book · added to ' + where, 'library_add');
+    };
+  })();
+
+  /* =========================================================
+     Completion sign-off (OD-12): the customer signs on this device; the
+     button stays grey until they have.
+     ========================================================= */
+  var signoffPad = null;
+  (function () {
+    var btn = byId('soDone');
+    signoffPad = signaturePad('signoff', 'Customer signs off here', function () {
+      var w = byId('soWhen'); if (w) w.textContent = stamp();
+      if (btn) { btn.style.background = '#16A34A'; btn.style.color = '#fff'; }
+    });
+  })();
+  function openSignoff() {
+    var j = JOBS[jobIdx] || {};
+    if (signoffPad) signoffPad.clear();
+    var btn = byId('soDone'); if (btn) { btn.style.background = '#EDF0F5'; btn.style.color = '#A9B4C2'; }
+    var w = byId('soWhen'); if (w) w.textContent = 'Not signed';
+    var nm = byId('soJob'); if (nm) nm.textContent = j.name || 'Job';
+    var wt = byId('soWhat'); if (wt) wt.textContent = [j.brief, j.addr].filter(Boolean).join(' · ');
+    go('signoff', 'push');
+  }
+
+  /* =========================================================
+     Language, app lock and devices (PRD 776). English and Spanish ship in
+     the first release and the technician picks on the phone; the app asks
+     for the PIN, or a fingerprint, after five minutes idle.
+     ========================================================= */
+  var LANGS = ['English', 'Español'];
+  var lang = recall('lang', 0);
+  (function () {
+    var list = byId('langList'); if (!list) return;
+    LANGS.forEach(function (l, i) { list.appendChild(pickRow(i, i === 0, l, i ? 'Spanish' : '', 'lang')); });
+    function paint() {
+      paintTicks(list, 'lang', lang);
+      var n = byId('langNote'); if (n) n.textContent = LANGS[lang] || LANGS[0];
+    }
+    list.addEventListener('click', function (ev) {
+      var r = ev.target.closest('[data-lang]'); if (!r) return;
+      ev.stopPropagation();
+      lang = +r.dataset.lang; remember('lang', lang);
+      paint();
+      toast(lang ? 'Idioma: Español — this prototype’s text stays in English' : 'Language: English', 'language');
+    }, true);
+    paint();
+  })();
+
+  var LOCK_AFTER_MS = 5 * 60 * 1000;
+  var lastTouch = Date.now();
+  var pinTyped = '';
+  ['pointerdown', 'keydown'].forEach(function (e) { document.addEventListener(e, function () { lastTouch = Date.now(); }, true); });
+  function lockApp() {
+    if (curPage() === 'applock') return;
+    pinTyped = ''; paintPin();
+    go('applock', 'modal');
+  }
+  function unlockApp(how) {
+    if (curPage() !== 'applock') return;
+    pinTyped = '';
+    lastTouch = Date.now();
+    back();
+    toast(how === 'bio' ? 'Unlocked with fingerprint' : 'Unlocked', 'lock_open');
+  }
+  function paintPin() {
+    var dots = byId('pinDots'); if (!dots) return;
+    dots.innerHTML = '';
+    for (var i = 0; i < 4; i++) {
+      var d = document.createElement('span');
+      d.setAttribute('style', 'width:14px;height:14px;border-radius:7px;border:2px solid #9DB4D6;background:' + (i < pinTyped.length ? '#9DB4D6' : 'transparent'));
+      dots.appendChild(d);
+    }
+  }
+  (function () {
+    var pad = byId('pinPad'); if (!pad) return;
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'].forEach(function (k) {
+      var b = document.createElement('div');
+      if (k) { b.dataset.tap = '1'; b.dataset.pin = k; }
+      b.setAttribute('style', 'height:72px;display:flex;align-items:center;justify-content:center;border-radius:36px;' +
+        'font:500 24px/1 Geist;color:#fff;' + (k && k !== '⌫' ? 'background:rgba(255,255,255,.10)' : ''));
+      b.textContent = k;
+      pad.appendChild(b);
+    });
+    pad.addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-pin]'); if (!b) return;
+      ev.stopPropagation();
+      var k = b.dataset.pin;
+      pinTyped = k === '⌫' ? pinTyped.slice(0, -1) : (pinTyped + k).slice(0, 4);
+      paintPin();
+      if (pinTyped.length === 4) setTimeout(function () { unlockApp('pin'); }, 150);
+    }, true);
+    paintPin();
+  })();
+  ACT.lockNow = function () { lockApp(); };
+  ACT.unlockBio = function () { unlockApp('bio'); };
+  setInterval(function () {
+    var pid = curPage();
+    if (!recall('signedIn', false) || /^(splash|login|forgot|otp|newpass|applock)$/.test(pid || '')) return;
+    if (Date.now() - lastTouch > LOCK_AFTER_MS) lockApp();
+  }, 15000);
+
+  /* =========================================================
+     A salaried technician's day (OD-16). Pay is not by the job, but
+     payroll still wants the day's start and end — Marek, Oct 21: "salary
+     still clock in, clock out". Home carries the two buttons for them;
+     an hourly technician's clock is the job's own.
+     ========================================================= */
+  var salaried = recall('salaried', false);
+  var day = recall('day', { start: '', end: '', startMs: 0 });
+  var dayCards = [];
+  (function () {
+    ['home', 'home-active'].forEach(function (id) {
+      var root = byId(id); if (!root) return;
+      var sc = $('.sc', root); if (!sc) return;
+      var card = document.createElement('div');
+      card.setAttribute('style', 'display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #DDE3EE;' +
+        'border-radius:12px;padding:13px 14px;margin-bottom:14px');
+      card.innerHTML = '<span class="mi" style="font-size:22px;color:#4A6FA5">schedule</span>' +
+        '<div style="flex:1;min-width:0"><div style="font:600 15px/1.2 Geist">Your day</div>' +
+        '<div data-daysub style="font:400 12.5px/1.35 Geist;color:#8A97A8;margin-top:4px"></div></div>' +
+        '<div data-act="dayToggle" data-tap="1" data-daybtn style="height:40px;padding:0 14px;display:flex;align-items:center;gap:6px;border-radius:9px;font:600 14px/1 Geist"></div>';
+      sc.insertBefore(card, sc.firstElementChild);
+      dayCards.push(card);
+    });
+    paintDay();
+  })();
+  function paintDay() {
+    var running = !!day.start && !day.end;
+    dayCards.forEach(function (c) {
+      toggleDisplay(c, salaried);
+      $('[data-daysub]', c).textContent = running ? 'Day started ' + day.start + ' · salaried'
+        : day.end ? 'Day ended ' + day.end + ' · started ' + day.start : 'Salaried · start your day when you begin work';
+      var b = $('[data-daybtn]', c);
+      b.innerHTML = '<span class="mi" style="font-size:18px">' + (running ? 'stop_circle' : 'play_circle') + '</span>' + (running ? 'End day' : 'Start day');
+      b.style.background = running ? '#fff' : '#4A6FA5';
+      b.style.color = running ? '#DC2626' : '#fff';
+      b.style.border = running ? '1px solid #F3C4C4' : '0';
+    });
+    var n = byId('salariedNote');
+    if (n) n.textContent = salaried ? 'Demo: showing a salaried technician · tap for hourly' : 'Demo: show as a salaried technician';
+  }
+  ACT.dayToggle = function () {
+    var t = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    if (day.start && !day.end) {
+      day.end = t;
+      toast('Day ended at ' + t + ' · ' + hm((Date.now() - day.startMs) / 1000) + ' recorded for payroll', 'stop_circle');
+    } else {
+      day = { start: t, end: '', startMs: Date.now() };
+      toast('Day started at ' + t, 'play_circle');
+    }
+    remember('day', day);
+    queued('Timesheet');
+    paintDay();
+  };
+  ACT.toggleSalaried = function () {
+    salaried = !salaried; remember('salaried', salaried);
+    paintDay();
+    toast(salaried ? 'Home now shows Start day / End day, as for a salaried technician' : 'Back to an hourly technician', 'badge');
+  };
 
   function boot() {
     mvpTrim();

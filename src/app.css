@@ -223,7 +223,9 @@ body.dev #indexBtn{display:flex}
 .rng::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:26px;height:26px;border-radius:13px;background:#4A6FA5;border:3px solid #fff;box-shadow:0 2px 6px rgba(26,35,50,.25);cursor:pointer}
 .rng::-moz-range-thumb{width:26px;height:26px;border-radius:13px;background:#4A6FA5;border:3px solid #fff;box-shadow:0 2px 6px rgba(26,35,50,.25);cursor:pointer}
 
-/* a finished job being read: what would change it is dimmed and inert */
+/* a finished job being read. Fix list, Oct 21: what would change it is
+   not there at all — no +/−, no delete, nothing to add, no expense (the
+   office adds one after completion). What it shows stays, inert. */
 #phone[data-readonly] .screen [data-minus], #phone[data-readonly] .screen [data-plus], #phone[data-readonly] .screen [data-drop],
 #phone[data-readonly] .screen [data-explus], #phone[data-readonly] .screen [data-exminus], #phone[data-readonly] .screen [data-notedel],
 #phone[data-readonly] .screen [data-go="ov-media-source"], #phone[data-readonly] .screen [data-go="files"],
@@ -233,7 +235,11 @@ body.dev #indexBtn{display:flex}
 #phone[data-readonly] .screen [data-act="estSendReview"], #phone[data-readonly] .screen [data-act="estChanges"],
 #phone[data-readonly] .screen [data-act="attachEst"], #phone[data-readonly] .screen [data-takebtn],
 #phone[data-readonly] .screen [data-sendbtn], #phone[data-readonly] .screen [data-act="saveBillTo"],
-#phone[data-readonly] .screen [data-act="rcSave"], #phone[data-readonly] .screen [data-rated] > div,
+#phone[data-readonly] .screen [data-act="rcSave"], #phone[data-readonly] .screen [data-expadd],
+#phone[data-readonly] .screen [data-expform] {
+  display: none !important;
+}
+#phone[data-readonly] .screen [data-rated] > div,
 #phone[data-readonly] .screen [data-rcpick], #phone[data-readonly] .screen input, #phone[data-readonly] .screen textarea {
   opacity: .45;
   pointer-events: none;
