@@ -103,6 +103,7 @@
   var invSentAt = recall('invSentAt', '');
   var invPaidAt = recall('invPaidAt', '');
   var invNum = recall('invNum', '');          // the current invoice's number
+  if (/^INV-/.test(invNum)) invNum = '';       // the old INV-26-10-123 numbers give way to the web's
   var invSeq = recall('invSeq', 122);         // the board's INV-26-03-123 was the 123rd
   var invPaidSoFar = recall('invPaidSoFar', 0);   // partial payments taken against the invoice
   var invBase = recall('invBase', null);          // an invoice kept as it was when the estimate changed
@@ -1114,9 +1115,12 @@
       invPaidAt = ''; remember('invPaidAt', '');
       // a number of its own: year, month, running count
       var d = new Date();
-      invSeq += 1; remember('invSeq', invSeq);
-      invNum = 'INV-' + String(d.getFullYear()).slice(-2) + '-' +
-        String(d.getMonth() + 1).padStart(2, '0') + '-' + String(invSeq).padStart(3, '0');
+      /* The web's format (FR-2.8 / FR-7.23): the customer's number, I, and
+         that customer's invoice count — 10512-I01, then 10512-I02. */
+      var cj = JOBS[jobIdx] || {};
+      var seqs = recall('invSeqs', {});
+      seqs[cj.cust] = (seqs[cj.cust] || 0) + 1; remember('invSeqs', seqs);
+      invNum = (cj.cust || '10512') + '-I' + String(seqs[cj.cust]).padStart(2, '0');
       remember('invNum', invNum);
       state.inv = 'created';
       paintPayScreens();
@@ -2731,7 +2735,9 @@
     var pv = byIcon(menu, 'preview')[0];
     if (pv && pv.parentElement) toggleDisplay(pv.parentElement, false);
   })();
-  function invNo() { return invNum || 'INV-26-03-123'; }
+  function invNo() { return invNum || ((JOBS && JOBS[jobIdx] && JOBS[jobIdx].cust) || '10512') + '-I01'; }
+  // the web's job number: 10512-J13
+  function jobNo(j) { return j && j.cust ? j.cust + '-J' + String(j.no).padStart(2, '0') : ''; }
 
   /* A sent invoice could only be paid. A wrong one — sent before the extra
      work was added, or to the wrong address — could not be taken back, and
@@ -4638,7 +4644,7 @@
       if (invNum && (id === 'inv-sent' || id === 'inv-paid')) {
         $$('div,span', root).forEach(function (e) {
           [].slice.call(e.childNodes).forEach(function (n) {
-            if (n.nodeType === 3 && /^INV-\d\d-\d\d-\d+$/.test(norm(n.nodeValue))) n.nodeValue = invNum;
+            if (n.nodeType === 3 && /^(INV-\d\d-\d\d-\d+|\d{4,6}-I\d{2,})$/.test(norm(n.nodeValue))) n.nodeValue = invNum;
           });
         });
       }
@@ -6139,6 +6145,7 @@
      and the invoice, not building a quote. Each job carries its own state. */
   var JOBS = [
     {
+      cust: '10512', no: 13,             // the web's numbers: 10512-J13 (FR-2.8)
       name: 'Randy Johnson', when: 'Today, 8:00 AM', brief: 'AC not cooling', type: 'Estimate',
       addr: '5010 N Cortez Ave, Tampa, FL 33614', away: '3.92 miles away', phone: '(813) 456-7890',
       est: 'none', inv: 'none',
@@ -6146,6 +6153,7 @@
       items: [jobLine('SV-2007', 1), jobLine('MT-2002', 2)], sold: null
     },
     {
+      cust: '10377', no: 8,
       name: 'Brent Kenzie', when: 'Today, 11:30 AM', brief: 'System replacement', type: 'Install',
       addr: '4407 Main St, Brandon, FL 33594', away: '11.4 miles away', phone: '(727) 415-3481',
       est: 'approved', inv: 'none',         // sold last week — go straight to the work
@@ -6159,6 +6167,7 @@
       sold: { option: 'Option A', total: 5665 }
     },
     {
+      cust: '10458', no: 3,
       name: 'Joseph Lane', when: 'Today, 2:15 PM', brief: 'AC not cooling', type: 'Demand Service',
       addr: '255 Standish Drive, Tampa, FL 33615', away: '6.8 miles away', phone: '(352) 258-9710',
       est: 'none', inv: 'none',             // nothing quoted yet — the estimate is built on site
@@ -6168,6 +6177,7 @@
        visit; the visits after it are scheduled at zero dollars and carry
        the plan as a reference. */
     {
+      cust: '10233', no: 21,
       name: 'Maria Gomez', when: 'Today, 4:00 PM', brief: 'Maintenance plan · visit 3 of 10 · prepaid', type: 'Maintenance',
       addr: '1180 W Linebaugh Ave, Tampa, FL 33612', away: '5.1 miles away', phone: '(813) 240-7718',
       est: 'none', inv: 'none',
@@ -10000,6 +10010,9 @@
       var time = String(j.when).split(', ').pop();
       nameEl.textContent = lastFirst(j.name);
       refs.contact.textContent = lastFirst(j.name);
+      // More → Current job names the job in hand by its number
+      var cur = byId('moreCurJob'), live = viewPast ? JOBS[viewPast.idx] : j;
+      if (cur && live) cur.textContent = live.name + ' · ' + jobNo(live);
       if (refs.when) refs.when.textContent = c ? c.when + ', ' + time : j.when;
       if (refs.brief) refs.brief.textContent = c ? c.brief : j.brief;
       if (refs.type) refs.type.textContent = c ? c.type : j.type;
