@@ -315,7 +315,9 @@
               <div style="width:52px;height:52px;border-radius:26px;background:#1C2B3A;color:#fff;font:600 18px/52px Geist;text-align:center;flex:none">MS</div>
               <div style="flex:1">
                 <div style="font:600 17px/1.2 Geist">Marek Stroz</div>
-                <div style="font:400 13px/1.4 Geist;color:#546478;margin-top:3px">Senior Technician &middot; Tampa</div>
+                <!-- M1-1: name, email, role and company -->
+                <div style="font:400 13px/1.4 Geist;color:#546478;margin-top:3px">m.stroz@andservices.com</div>
+                <div style="font:400 13px/1.4 Geist;color:#546478">Senior Technician &middot; AND Services &middot; Tampa</div>
               </div>
               <span class="mi" style="font-size:20px;color:#A9B4C2">chevron_right</span>
             </div>
@@ -353,6 +355,13 @@
               <div class="rowi" data-go="more-notifications" data-mode="push"><span class="mi">notifications_none</span><span class="t">Notifications</span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-go="more-offline" data-mode="push"><span class="mi">wifi_off</span><span class="t">Offline mode<small>Cache last 7 days of jobs</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-go="more-help" data-mode="push"><span class="mi">help_outline</span><span class="t">Help &amp; support</span><span class="mi ch">chevron_right</span></div>
+            </div>
+
+            <!-- M1-1: links to the Terms and the Privacy Policy; Delete account (M11-2) -->
+            <div class="card" style="overflow:hidden;margin-bottom:14px">
+              <div class="rowi" data-go="more-terms" data-mode="push"><span class="mi">description</span><span class="t">Terms of Service</span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-privacy" data-mode="push"><span class="mi">privacy_tip</span><span class="t">Privacy Policy</span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-delete" data-mode="push"><span class="mi" style="color:#DC2626">person_remove</span><span class="t" style="color:#DC2626">Delete my account</span><span class="mi ch">chevron_right</span></div>
             </div>
 
             <div class="card" style="overflow:hidden">
@@ -393,6 +402,55 @@
               <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px"><span style="font:500 14px/1 Geist;color:#546478">Closing percentage</span><span style="font:600 14.5px/1 Geist">45%</span></div>
             </div>
             <div style="font:400 12px/1.5 Geist;color:#8A97A8;margin-top:12px">Targets are set by your manager and drive the figures on Home.</div>
+          </div>
+        </div>
+
+        <!-- ============ TERMS (M1-1) ============ -->
+        <div class="screen" id="more-terms" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Terms of Service</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div style="font:400 12.5px/1.5 Geist;color:#8A97A8;margin-bottom:12px">The same document the web app shows. Draft &middot; the final text comes from legal.</div>
+            <div class="card" style="padding:16px;font:400 14px/1.6 Geist;color:#1A2332">
+              <div style="font:600 15px/1.3 Geist;margin-bottom:6px">1. Who the service is for</div>
+              <div style="color:#546478;margin-bottom:14px">Vision 360 is used by home-service companies and the people they employ. Your account is created by your company and belongs to it.</div>
+              <div style="font:600 15px/1.3 Geist;margin-bottom:6px">2. Using the app</div>
+              <div style="color:#546478;margin-bottom:14px">You use the app for your company&rsquo;s work: jobs, estimates, invoices, payments and time. Keep your sign-in to yourself.</div>
+              <div style="font:600 15px/1.3 Geist;margin-bottom:6px">3. Payments</div>
+              <div style="color:#546478">Card payments are taken for your company&rsquo;s services through its payment processor. The app never stores a card number or CVV.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ PRIVACY (M1-1, M11-2) ============ -->
+        <div class="screen" id="more-privacy" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Privacy Policy</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div style="font:400 12.5px/1.5 Geist;color:#8A97A8;margin-bottom:12px">The current version from the web app&rsquo;s <b style="font-weight:600;color:#546478">/privacy</b> page. Draft &middot; retention periods still to be filled in.</div>
+            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:4px 0 9px">What the app collects</div>
+            <div class="card" style="overflow:hidden">
+              <div class="rowi"><span class="mi">person</span><span class="t">Your account<small>Name, email, role and company</small></span></div>
+              <div class="rowi"><span class="mi">my_location</span><span class="t">Location while the app is in use<small>Only at Start and on customer signatures; seen by the office only</small></span></div>
+              <div class="rowi"><span class="mi">photo_camera</span><span class="t">Photos and videos of the property<small>Taken on jobs; no location on photos</small></span></div>
+              <div class="rowi"><span class="mi">draw</span><span class="t">Customer signatures</span></div>
+              <div class="rowi"><span class="mi">badge</span><span class="t">Driver&rsquo;s licence photos<small>Seen by payment roles only; not kept on the phone after upload</small></span></div>
+              <div class="rowi"><span class="mi">credit_card</span><span class="t">Payment data<small>Card brand and last 4 digits only</small></span></div>
+              <div class="rowi"><span class="mi">smartphone</span><span class="t">Device identifiers and push tokens</span></div>
+              <div class="rowi"><span class="mi">bug_report</span><span class="t">Crash and diagnostic data<small>Without customer data</small></span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ DELETE ACCOUNT (M11-2) ============ -->
+        <div class="screen" id="more-delete" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Delete my account</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div class="card" style="padding:18px 16px;text-align:center">
+              <span class="mi" style="font-size:40px;color:#DC2626">person_remove</span>
+              <div style="font:600 17px/1.35 Geist;margin-top:10px">Your account belongs to AND Services</div>
+              <div style="font:400 14px/1.55 Geist;color:#546478;margin-top:8px">Your company admin removes it. You can also request deletion on the web, at the Vision 360 web app&rsquo;s <b style="font-weight:600;color:#1A2332">/account-deletion</b> page &mdash; the request goes to your company&rsquo;s owner and to Vision 360 support.</div>
+            </div>
+            <button class="btn-o" data-toast="Opens /account-deletion in the browser" style="margin-top:14px"><span class="mi" style="font-size:19px">open_in_new</span>Request deletion on the web</button>
+            <div style="font:400 12px/1.5 Geist;color:#8A97A8;margin-top:12px">Jobs, invoices and payments you recorded stay with your company.</div>
           </div>
         </div>
 

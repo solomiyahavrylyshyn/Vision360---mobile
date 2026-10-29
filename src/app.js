@@ -326,10 +326,13 @@
     chrome();
   }
 
+  /* The tab a screen belongs to. A job and everything under it (photos,
+     files, the customer's history) has no tab of its own: it stays in the
+     tab it was opened from — a job opened from History keeps History lit,
+     not Home (M1-1). */
   var TABOF = {
-    home: 'home', 'home-active': 'home', photos: 'home', 'photo-detail': 'home', 'cust-jobs': 'home',
-    files: 'home', 'image-desc': 'home', closeout: 'home',
-    'more-profile': 'more', 'more-equipment': 'more', 'more-assets': 'more',
+    home: 'home', 'home-active': 'home',
+    'more-profile': 'more', 'more-terms': 'more', 'more-privacy': 'more', 'more-delete': 'more', 'more-equipment': 'more', 'more-assets': 'more',
     'more-notifications': 'more', 'more-offline': 'more', 'more-help': 'more',
     'more-language': 'more', 'more-lock': 'more', 'more-devices': 'more',
     history: 'history', 'hist-filters': 'history', 'hist-search': 'history',
@@ -337,6 +340,7 @@
     chat: 'chat', 'chat-thread': 'chat', timesheet: 'timesheet', more: 'more'
   };
 
+  var tabOrigin = 'home';
   function chrome() {
     var pid = curPage(); if (!pid) return;
     if (pid === 'est-draft' && typeof paintDraftAction === 'function') paintDraftAction();
@@ -361,7 +365,8 @@
     var m = INFO[pid] || {};
     phone.setAttribute('data-tabs', m.tabs ? 'on' : 'off');
     phone.setAttribute('data-sb', m.sb ? 'dark' : 'light');
-    var t = TABOF[pid] || (/^(est-|rc-|job-|fin-|inv-|pay-|add-)/.test(pid) ? 'home' : 'home');
+    var t = TABOF[pid];
+    if (t) tabOrigin = t; else t = tabOrigin;
     $$('.tab', byId('tabbar')).forEach(function (el) {
       var on = el.dataset.tab === t;
       el.classList.toggle('on', on);
@@ -9939,6 +9944,37 @@
     paintDay();
     toast(salaried ? 'Home now shows Start day / End day, as for a salaried technician' : 'Back to an hourly technician', 'badge');
   };
+
+  /* The job's General tab kept the board's customer — "Johnson, Randy",
+     his contact, his start time and his address — whichever job was open,
+     so Job Details on Brent Kenzie in History read as Randy's job. It is
+     painted from the job that is open (M4: the job tapped is the one shown). */
+  (function () {
+    var root = byId('job-general'); if (!root) return;
+    var nameEl = sel(root, 'Johnson, Randy')[0];
+    var refs = {
+      contact: valueFor(root, 'Contact'), when: valueFor(root, 'Start date & time'),
+      brief: valueFor(root, 'Brief description'), type: valueFor(root, 'Type'),
+      addr: valueFor(root, 'Work address') || valueFor(root, 'Service address')
+    };
+    if (!nameEl || !refs.contact || !refs.addr) { MISS.push('job-general :: customer'); return; }
+    var lastFirst = function (n) { var p = String(n || '').split(' '); return p.length > 1 ? p.slice(1).join(' ') + ', ' + p[0] : n; };
+    var paintGeneral = function () {
+      var j = JOBS[jobIdx]; if (!j) return;
+      nameEl.textContent = lastFirst(j.name);
+      refs.contact.textContent = lastFirst(j.name);
+      if (refs.when) refs.when.textContent = j.when;
+      if (refs.brief) refs.brief.textContent = j.brief;
+      if (refs.type) refs.type.textContent = j.type;
+      var cut = j.addr.indexOf(', ');
+      refs.addr.textContent = '';
+      refs.addr.appendChild(document.createTextNode(cut > 0 ? j.addr.slice(0, cut + 1) : j.addr));
+      if (cut > 0) { refs.addr.appendChild(document.createElement('br')); refs.addr.appendChild(document.createTextNode(j.addr.slice(cut + 2))); }
+    };
+    var prev = paintJob;
+    paintJob = function () { prev(); paintGeneral(); };
+    paintGeneral();
+  })();
 
   function boot() {
     mvpTrim();
