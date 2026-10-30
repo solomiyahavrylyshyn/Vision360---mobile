@@ -8571,8 +8571,9 @@ body.dev #indexBtn{display:flex}
     var cls = '', icon = '', text = '', show = true;
     if (!net.online) {
       var pend = [];
-      if (upPending) pend.push(upPending + ' ' + plural(upPending));
+      // M2-2: "3 changes and 2 photos will send when you're back"
       if (net.queue) pend.push(net.queue + (net.queue === 1 ? ' change' : ' changes'));
+      if (upPending) pend.push(upPending + ' ' + plural(upPending));
       icon = 'cloud_off';
       // the strip says how old the saved data is: the last time it synced
       text = 'Offline · last sync ' + (lastSyncAt || '9:42 AM') + (pend.length ? ' · ' + pend.join(' and ') + ' will send when you’re back'
