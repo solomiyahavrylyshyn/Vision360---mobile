@@ -860,7 +860,9 @@
       setClock(state.enroute ? 'drive' : (state.onsite ? 'work' : 'off'));
       closeOverlays(false);
       queued('Job status');
-      toast(state.enroute ? 'Marked en route · customer notified' : 'No longer en route',
+      queuedFix(state.enroute ? 'Status: En route' : 'Status: Not en route');
+      toast(state.enroute ? (net.online ? 'Marked en route · customer notified'
+        : 'Marked en route · customer will be notified when you’re back online') : 'No longer en route',
         state.enroute ? 'navigation' : 'undo');
     },
     dismissBanner: function (el) {
@@ -3210,7 +3212,7 @@
       paintPayScreens();
       closeOverlays(true);
       go(finScreen(), 'root');
-      queued('Payment');
+      queued('Payment', 'Payment ' + fmt(taking) + ' ' + m.name.toLowerCase());
       toast('Partial payment · ' + fmt(taking) + ' received · ' + fmt(payAmount) + ' still due', 'payments');
       return;
     }
@@ -3220,13 +3222,14 @@
     payMethod = m.name;
     paintReceipt('inline');
     kpiPaid(payAmount);
+    var paidNow = payAmount;                       // the sum is recomputed to $0 below
     pay.values = {}; pay.dates = {}; pay.dl = {}; savePay();
     payPanels.forEach(function (P) { P.rendered = ''; });
     paintPayScreens();
     closeOverlays(true);
     go('inv-paid', 'root');
-    queued('Payment');
-    toast(net.online ? 'Payment received · ' + fmt(payAmount)
+    queued('Payment', 'Payment ' + fmt(paidNow) + ' ' + m.name.toLowerCase());
+    toast(net.online ? 'Payment received · ' + fmt(paidNow)
       : 'Payment recorded offline · will post when you have signal');
   };
 
@@ -5355,7 +5358,7 @@
       // the strip says how old the saved data is: the last time it synced
       text = 'Offline · last sync ' + (lastSyncAt || '9:42 AM') + (pend.length ? ' · ' + pend.join(' and ') + ' will send when you’re back'
         : ' · working from saved data');
-    } else if (net.syncing) { cls = 'sync'; icon = 'cloud_sync'; text = 'Back online — sending…'; }
+    } else if (net.syncing) { cls = 'sync'; icon = 'cloud_sync'; text = 'Sending ' + net.sent + ' of ' + net.total; }
     else if (up.phase === 'uploading') { cls = 'up'; icon = 'cloud_upload'; text = up.text; }
     else if (up.phase === 'done') { cls = 'ok'; icon = 'cloud_done'; text = up.text; }
     else if (net.sentFlash) { cls = 'ok'; icon = 'cloud_done'; text = 'All sent'; }
@@ -5366,19 +5369,32 @@
     netFill.style.width = up.phase === 'uploading' ? up.pct + '%' : '0';
     paintCloseoutBlocker();
     paintLastSync();
+    if (typeof paintWaiting === 'function') paintWaiting();
+    if (typeof paintSync === 'function') paintSync();
   }
   function flashThenHide(ms) {
     clearTimeout(netHide);
     netHide = setTimeout(function () { up.phase = 'idle'; net.sentFlash = false; paintNet(); }, ms);
   }
 
-  /* Anything the tech saves while offline joins the queue instead of failing. */
-  function queued(what) {
+  /* Anything the tech saves while offline joins the queue instead of failing.
+     M2-8: the queue remembers which job each item belongs to and what it
+     is, so the Sync screen can list it by job and the job can say it has
+     something waiting. */
+  var syncQ = [];
+  var QLABEL = { 'Job status': 'Status', Note: 'Note' };
+  function queued(what, detail) {
     if (net.online) return;
-    net.queue++;
+    syncQ.push({ job: jobIdx, what: detail || QLABEL[what] || what, at: Date.now() });
+    net.queue = syncQ.length;
     paintNet();
     return what;
   }
+  var upJob = -1;                              // the job the waiting photos belong to
+  function waitingFor(idx) {
+    return syncQ.filter(function (q) { return q.job === idx; }).length + (upJob === idx ? upPending : 0);
+  }
+  function waitingTotal() { return syncQ.length + upPending; }
   /* When the phone last synced: the offline strip and More both say it.
      It moves when a sync finishes after the phone is back online. */
   var lastSyncAt = recall('lastSyncAt', '9:42 AM');
@@ -5388,18 +5404,34 @@
     remember('lastSyncAt', lastSyncAt);
     paintLastSync();
   }
+  /* M2-8: one indicator wording everywhere — the More card says what the
+     strip says. */
+  function syncState() {
+    var n = waitingTotal();
+    if (!net.online) return n ? { icon: 'cloud_off', text: 'Offline · ' + n + ' waiting', tone: 'warn' }
+      : { icon: 'cloud_off', text: 'Offline · last sync Today ' + lastSyncAt, tone: 'warn' };
+    if (net.syncing) return { icon: 'cloud_sync', text: 'Sending ' + net.sent + ' of ' + net.total, tone: 'brand' };
+    if (n) return { icon: 'cloud_upload', text: n + ' waiting', tone: 'brand' };
+    return { icon: 'cloud_done', text: 'All sent · ' + lastSyncAt, tone: 'ok' };
+  }
   function paintLastSync() {
-    var e = byId('moreLastSync'); if (e && lastSyncAt) e.textContent = 'Last sync ' + lastSyncAt + ' · ' + net.queue + ' pending';
+    var st = syncState();
+    var t = byId('moreSyncTitle'); if (t) t.textContent = st.text;
+    var ic = byId('moreSyncIcon'); if (ic) { ic.textContent = st.icon; ic.style.color = st.tone === 'warn' ? '#D97706' : '#4A6FA5'; }
+    var e = byId('moreLastSync'); if (e && lastSyncAt) e.textContent = 'Last sync Today ' + lastSyncAt;
     var w = byId('offWaiting'); if (w) w.textContent = net.queue ? net.queue + (net.queue === 1 ? ' change' : ' changes') : 'Nothing';
   }
   function goOffline() { net.online = false; net.syncing = false; paintNet(); }
   function goOnline() {
     net.online = true;
     if (!net.queue && !upPending) { markSynced(); paintNet(); return; }
-    // US-M14-2: queued work goes up by itself — no manual "Generate Report"
-    net.syncing = true; paintNet();
+    // US-M14-2: queued work goes up by itself — no manual "Generate Report".
+    // M2-8: the indicator counts it out — "Sending 2 of 5"
+    net.syncing = true; net.total = syncQ.length || 1; net.sent = 1; paintNet();
+    var step = setInterval(function () { if (net.sent < net.total) { net.sent++; paintNet(); } }, Math.max(150, 1100 / net.total));
     setTimeout(function () {
-      net.queue = 0; net.syncing = false;
+      clearInterval(step);
+      net.queue = 0; net.syncing = false; syncQ = [];
       markSynced();
       if (upPending) startUpload(upPending, upLastBound);
       else { net.sentFlash = true; paintNet(); flashThenHide(2200); }
@@ -5615,7 +5647,7 @@
     var what = bound ? 'slot ' + bound.slot : n + ' ' + plural(n);
     upLastBound = bound || null;
     clearInterval(upTimer); clearTimeout(netHide);
-    upPending = n;
+    upPending = n; upJob = jobIdx;
     // no signal: the offline line already counts it, and it resumes on reconnect
     if (!net.online) { up.phase = 'idle'; paintNet(); return; }
 
@@ -8950,7 +8982,7 @@
       rec.waiting = !net.online ? 'edit' : '';
       saveNotes();
       paintNotes(kind);
-      queued('Note');
+      queued('Note', (kind === 'private' ? 'Internal' : 'Field') + ' note change');
       toast(net.online ? 'Note updated' : 'Note updated — will sync', 'edit_note');
     }, true);
   }
@@ -9000,7 +9032,7 @@
       saveNotes();
       setDraft(kind, '');
       paintNotes(kind);
-      queued('Note');
+      queued('Note', (kind === 'private' ? 'Internal' : 'Field') + ' note');
       toast(net.online ? 'Note added' : 'Note saved — will sync', 'edit_note');
     }, true);
     return editor;
@@ -10064,6 +10096,91 @@
     paintJob = function () { prev(); paintGeneral(); };
     paintGeneral();
   })();
+
+  /* =========================================================
+     M2-8 — the Sync screen, and what a job says while something of it
+     is waiting. The strip and More's card open the same screen.
+     ========================================================= */
+  // the last queued item gets the words the screen shows for it
+  function queuedFix(label) { var q = syncQ[syncQ.length - 1]; if (q && !net.online) q.what = label; paintSync(); }
+  if (netbar) {
+    netbar.style.cursor = 'pointer';
+    netbar.addEventListener('click', function () {
+      if (/^(splash|login|forgot|otp|newpass)$/.test(curPage() || '')) return;
+      if (curPage() !== 'sync') go('sync', 'push');
+    });
+  }
+  ACT.sendNow = function () {
+    if (!net.online) { toast('No connection — everything sends by itself when you’re back', 'cloud_off'); return; }
+    if (waitingTotal()) { goOnline(); return; }
+    // nothing to push: a pull, and the time moves
+    markSynced(); paintNet();
+    toast('Up to date', 'cloud_done');
+  };
+  function paintSync() {
+    var body = byId('syncBody'); if (!body) return;
+    var st = syncState(), n = waitingTotal();
+    var html = '<div class="card" style="display:flex;align-items:center;gap:12px;padding:15px;margin-bottom:16px">' +
+      '<span class="mi" style="font-size:26px;color:' + (st.tone === 'warn' ? '#D97706' : st.tone === 'ok' ? '#16A34A' : '#4A6FA5') + '">' + st.icon + '</span>' +
+      '<div style="flex:1"><div style="font:600 16px/1.3 Geist">' + (n ? esc(st.text) : 'Everything is sent') + '</div>' +
+      '<div style="font:400 13px/1.4 Geist;color:#546478;margin-top:3px">Last sync Today ' + esc(lastSyncAt) + '</div></div></div>';
+    if (n) {
+      html += '<div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">Waiting</div>';
+      var byJob = {};
+      syncQ.forEach(function (q) { (byJob[q.job] = byJob[q.job] || []).push(q.what); });
+      if (upPending && upJob > -1) (byJob[upJob] = byJob[upJob] || []).push(upPending + ' ' + plural(upPending));
+      Object.keys(byJob).forEach(function (k) {
+        var j = JOBS[+k] || {}, seen = {}, parts = [];
+        byJob[k].forEach(function (w) { seen[w] = (seen[w] || 0) + 1; });
+        Object.keys(seen).forEach(function (w) { parts.push(w + (seen[w] > 1 ? ' ×' + seen[w] : '')); });
+        html += '<div class="card" style="padding:13px 14px;margin-bottom:10px">' +
+          '<div style="font:600 14.5px/1.3 Geist">' + esc((jobNo(j) ? jobNo(j) + ' · ' : '') + (j.name || 'Job')) + '</div>' +
+          '<div style="font:400 13px/1.5 Geist;color:#546478;margin-top:4px">' + esc(parts.join(' · ')) + '</div></div>';
+      });
+      // M11-7's queue health is a section of this screen, not a second one
+      var oldest = syncQ.length ? Math.max(0, Math.round((Date.now() - syncQ[0].at) / 60000)) : 0;
+      html += '<div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:16px 0 9px">Queue health</div>' +
+        '<div class="card" style="overflow:hidden">' +
+        row('Changes waiting', String(syncQ.length)) + row('Photos waiting', String(upPending)) +
+        row('Oldest waiting', syncQ.length ? (oldest ? oldest + ' min ago' : 'Just now') : '—') +
+        row('Last successful sync', 'Today ' + lastSyncAt, true) + '</div>';
+    }
+    body.innerHTML = html;
+    function row(l, v, last) {
+      return '<div style="display:flex;justify-content:space-between;padding:13px 15px;' + (last ? '' : 'border-bottom:1px solid #EDF0F5;') +
+        'font:500 14px/1 Geist;color:#546478"><span>' + l + '</span><span style="font-weight:600;color:#1A2332">' + esc(v) + '</span></div>';
+    }
+    function esc(t) { return String(t).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
+  }
+  /* "2 waiting" on the job's card, and a line in its details */
+  function paintWaiting() {
+    if (typeof JOBS === 'undefined') return;
+    var j = JOBS[jobIdx]; if (!j) return;
+    var n = waitingFor(jobIdx);
+    var home = byId('home');
+    var nameEl = home && $$('span,div', home).filter(function (e) { return !e.children.length && norm(e.textContent) === j.name; })[0];
+    var chip = $('[data-waitchip]', home || document);
+    if (nameEl && (!chip || chip.previousSibling !== nameEl)) {
+      if (chip) chip.remove();
+      chip = document.createElement('span');
+      chip.dataset.waitchip = '1';
+      chip.setAttribute('style', 'margin-left:8px;font:600 11.5px/1 Geist;color:#B45309;background:#FEF3E2;border-radius:5px;padding:4px 7px;white-space:nowrap;vertical-align:middle');
+      nameEl.parentNode.insertBefore(chip, nameEl.nextSibling);
+    }
+    if (chip) { chip.textContent = n + ' waiting'; chip.style.display = n ? '' : 'none'; }
+    var gen = byId('job-general'), sc = gen && $('.sc', gen);
+    var line = sc && $('[data-waitline]', sc);
+    if (sc && !line) {
+      line = document.createElement('div');
+      line.dataset.waitline = '1';
+      line.dataset.tap = '1'; line.dataset.go = 'sync'; line.dataset.mode = 'push';
+      line.setAttribute('style', 'display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;' +
+        'background:#FEF3E2;border:1px solid #F3D9AE;color:#8A6114;font:500 13px/1.35 Geist');
+      line.innerHTML = '<span class="mi" style="font-size:18px">schedule</span><span>Changes on this job are waiting to be sent</span>';
+      sc.insertBefore(line, sc.firstChild);
+    }
+    if (line) line.style.display = n && !viewPast ? 'flex' : 'none';
+  }
 
   function boot() {
     mvpTrim();
