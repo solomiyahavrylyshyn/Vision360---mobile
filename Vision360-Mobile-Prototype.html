@@ -3597,6 +3597,10 @@ body.dev #indexBtn{display:flex}
     if (pid === 'est-draft' && typeof paintDraftAction === 'function') paintDraftAction();
     if (pid === 'est-customer' && typeof paintCustomerOptions === 'function') paintCustomerOptions();
     if (pid === 'est-customer' && typeof paintCustomerEstNo === 'function') paintCustomerEstNo();
+    // while a job is In Progress, Home shows it, whichever job was opened from the list
+    if ((pid === 'home' || pid === 'home-active') && state.onsite && typeof runIdx !== 'undefined' && runIdx > -1 && jobIdx !== runIdx) {
+      jobIdx = runIdx; loadJob(); paintJob(); paintEnroute(); paintStartButtons();
+    }
     if (typeof paintCustomerRotation === 'function') paintCustomerRotation();
     if (viewPast && (!isJobScreen(pid) || (viewPast.visit && pid === 'cust-jobs'))) leaveView();
     // the stage the tech moved this job to belongs to the job, not the session
@@ -3608,7 +3612,7 @@ body.dev #indexBtn{display:flex}
       remember('jobIdx', viewPast ? viewPast.idx : jobIdx);   // a job being looked at is not the job
       remember('jobs', JOBS.map(function (j) {
         return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused };
+          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, pausedAt: j.pausedAt || 0 };
       }));
     }
     paintDash();
@@ -4053,18 +4057,24 @@ body.dev #indexBtn{display:flex}
        straight to the close-out, which is a twelve-field form and the end of
        the visit. Pause holds the job open with the clock stopped; the way
        out is Complete, next to it. */
+    /* M3-3: the timer is the Stop button — Stop makes the job Paused. It
+       leaves "Current job" for Next jobs with "Paused · 1:12:05", and
+       Start (or En route) carries on from there. */
     pauseJob: function () {
-      if (!state.onsite) return;
-      state.paused = !state.paused;
-      setClock(state.paused ? 'off' : 'work');
-      paintEnroute();
-      paintOnsiteBar();
-      queued('Job status');
-      toast(state.paused ? 'Paused — the clock has stopped' : 'Back on the clock',
-        state.paused ? 'pause_circle' : 'play_circle');
+      if (!state.onsite || !mineRunning()) return;
+      markPaused(JOBS[jobIdx]);
+      state.onsite = false; state.paused = false;
+      setRun(-1);
+      setClock('off');
+      queued('Job status', 'Status: Paused');
+      paintEnroute(); paintStartButtons(); paintJob(); paintCard();
+      if (curPage() === 'home-active') go('home', 'root');
+      toast('Paused — the clock has stopped', 'pause_circle');
     },
     start: function () {
       if (pausePrompt('start')) return;
+      // A9: Start again after a pause is not checked against the address
+      if ((JOBS[jobIdx] || {}).paused) { beginJob(); return; }
       /* Marek, Oct 12: the phone's distance from the job address can gate
          Start — payroll checks timesheets against GPS by hand today. */
       /* Marek, Oct 21: no location, no start — "You need to trigger turning
@@ -4110,6 +4120,18 @@ body.dev #indexBtn{display:flex}
     },
     enroute: function () {
       if (pausePrompt('enroute')) return;
+      /* M3-3, A20: Stop while en route closes the drive and opens a pause,
+         so a lunch on the way is not paid as drive time. */
+      if (state.enroute && mineRunning()) {
+        state.enroute = false;
+        markPaused(JOBS[jobIdx]);
+        setRun(-1);
+        setClock('off');
+        queued('Job status', 'Status: Paused');
+        paintEnroute(); paintJob();
+        toast('Paused — the drive is closed, so a break is not paid as drive time', 'pause_circle');
+        return;
+      }
       state.enroute = !state.enroute;
       setRun(state.enroute ? jobIdx : (state.onsite ? runIdx : -1));
       if (state.enroute && JOBS[jobIdx]) JOBS[jobIdx].paused = false;
@@ -9687,7 +9709,7 @@ body.dev #indexBtn{display:flex}
   function saveJobs() {
     remember('jobs', JOBS.map(function (j) {
       return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused };
+        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, pausedAt: j.pausedAt || 0 };
     }));
   }
 
@@ -10418,14 +10440,15 @@ body.dev #indexBtn{display:flex}
       if (b.dataset.cardbtn) return;        // the card paints its own row
       // Start before the job, Complete during it — one rule, read off
       // whichever the button happens to be
-      toggleDisplay(b, b.dataset.act === 'complete' ? !!state.onsite : !state.onsite);
+      var run = !!state.onsite && mineRunning();
+      toggleDisplay(b, b.dataset.act === 'complete' ? run : !run);
     });
     jobHeaderBtns.forEach(function (b) {
       if (!START_STYLE) START_STYLE = b.getAttribute('style') || '';
       if (!COMPLETE_STYLE) {
         COMPLETE_STYLE = START_STYLE.replace('background:#4A6FA5', 'background:#16A34A');
       }
-      if (state.onsite) {
+      if (state.onsite && mineRunning()) {
         b.dataset.act = 'complete';
         b.setAttribute('style', COMPLETE_STYLE);
         b.innerHTML = '<span class="mif" style="font-size:18px">task_alt</span>Complete';
@@ -10511,13 +10534,12 @@ body.dev #indexBtn{display:flex}
     var o = [];
     for (var i = 0; i < JOBS.length; i++) if (!JOBS[i].done) o.push(i);
     // the job you are driving to comes first under Next jobs (M3-1)
-    var at = state.enroute ? o.indexOf(runIdx) : -1;
+    var at = (state.enroute || state.onsite) ? o.indexOf(runIdx) : -1;
     if (at > 0) { o.splice(at, 1); o.unshift(runIdx); }
     return o;
   }
   function jobStep(by) {
-    // a job In Progress is the Current job; en route, the others still browse
-    if (state.onsite) return;
+    // the Current job and the Next jobs browse alike (M3-1)
     var o = openJobs(), at = o.indexOf(jobIdx), to = at + by;
     if (at < 0 || to < 0 || to >= o.length) return;
     jobIdx = o[to];
@@ -10606,9 +10628,9 @@ body.dev #indexBtn{display:flex}
       card.hidden = false;
       empty.hidden = true;
       // M3-1: "Current job" is In Progress only; on the way it is still Next jobs
-      var open = openJobs(), at = open.indexOf(jobIdx), live = !!state.onsite;
+      var open = openJobs(), at = open.indexOf(jobIdx), live = !!state.onsite && jobIdx === runIdx;
       heading.textContent = live ? 'Current job' : 'Next jobs';
-      pager.style.display = (!live && open.length > 1) ? 'flex' : 'none';
+      pager.style.display = open.length > 1 ? 'flex' : 'none';
       counter.textContent = (at + 1) + ' of ' + open.length;
       prev.style.color = at > 0 ? '#4A6FA5' : '#A9B4C2';
       next.style.color = at < open.length - 1 ? '#4A6FA5' : '#A9B4C2';
@@ -10640,7 +10662,8 @@ body.dev #indexBtn{display:flex}
     if (!txt) { MISS.push('phone :: on-site bar'); return; }
     paintOnsiteBar = function () {
       var j = JOBS[jobIdx];
-      txt.nodeValue = (state.paused ? 'Paused · ' : 'In Progress · ') + (j ? j.name : '');
+      var rj = runIdx > -1 ? JOBS[runIdx] : j;
+      txt.nodeValue = (state.paused ? 'Paused · ' : 'In Progress · ') + (rj ? rj.name : '');
       onsiteBar.style.background = state.paused ? '#546478' : '#16A34A';
     };
     var prev = paintJob;
@@ -10693,7 +10716,7 @@ body.dev #indexBtn{display:flex}
     if (s.sold !== undefined) JOBS[i].sold = s.sold;
     if (s.expenses) JOBS[i].expenses = s.expenses;
     if (s.estNo) { JOBS[i].estNo = s.estNo; JOBS[i].estTmp = !!s.estTmp; }
-    JOBS[i].reopened = !!s.reopened; JOBS[i].paused = !!s.paused;
+    JOBS[i].reopened = !!s.reopened; JOBS[i].paused = !!s.paused; JOBS[i].pausedAt = s.pausedAt || 0;
     if (s.sentAt) JOBS[i].sentAt = s.sentAt;
     if (s.estType) JOBS[i].estType = s.estType;
     if (s.signoff) JOBS[i].signoff = s.signoff;
@@ -13533,6 +13556,18 @@ body.dev #indexBtn{display:flex}
   function pausePrompt(kind) {
     if (!(state.enroute || state.onsite) || runIdx < 0 || runIdx === jobIdx) return false;
     var r = JOBS[runIdx] || {}, c = JOBS[jobIdx] || {};
+    /* A34 (default): en route on one job and going on to another, the
+       first one's drive closes and it goes back to Dispatched — no pause,
+       no question. */
+    if (state.enroute && !state.onsite) {
+      state.enroute = false;
+      setRun(-1);
+      setClock('off');
+      queued('Job status', 'Status: Dispatched');
+      paintEnroute();
+      setTimeout(function () { toast(jobNo(r) + ' · ' + r.name + ' — drive closed, back to Dispatched', 'undo'); }, 2600);
+      return false;
+    }
     confirmSheet({
       title: jobNo(r) + ' · ' + r.name + ' will be paused. ' + (kind === 'start' ? 'Start ' : 'Go en route to ') + jobNo(c) + '?',
       text: 'Its clock stops now, and it waits on your Home as Paused.',
@@ -13541,9 +13576,13 @@ body.dev #indexBtn{display:flex}
     });
     return true;
   }
+  function markPaused(j) {
+    if (!j) return;
+    j.paused = true; j.pausedAt = Date.now();
+    saveJobs();
+  }
   function pauseRunning() {
-    var r = JOBS[runIdx];
-    if (r) r.paused = true;
+    markPaused(JOBS[runIdx]);
     state.enroute = false; state.onsite = false; state.paused = false;
     setClock('off');
     setRun(-1);
@@ -13571,7 +13610,7 @@ body.dev #indexBtn{display:flex}
       if (j && state.enroute && runIdx === jobIdx) {
         var secs = clock.drive + (clock.mode === 'drive' && clock.since ? (Date.now() - clock.since) / 1000 : 0);
         txt = 'On the way · ' + Math.max(1, Math.round(secs / 60)) + ' min'; tone = 'brand';
-      } else if (j && j.paused) { txt = 'Paused'; tone = 'grey'; }
+      } else if (j && j.paused) { txt = 'Paused · ' + hhmmss(Math.max(0, (Date.now() - (j.pausedAt || Date.now())) / 1000)).replace(/^0(\d)/, '$1'); tone = 'grey'; }
       else if (j && j.reopened) { txt = 'Reopened · Start'; tone = 'warn'; }
       if (whenEl && txt) {
         if (chip.previousSibling !== whenEl) whenEl.parentNode.insertBefore(chip, whenEl.nextSibling);
@@ -13598,15 +13637,54 @@ body.dev #indexBtn{display:flex}
           '<div style="font:600 16px/1.3 Geist">Connect to the internet to download your day</div>' +
           '<div style="font:400 13px/1.5 Geist;color:#546478">Your jobs come down the first time you are online; after that the app works without signal.</div>';
       }
+      paintNextList();
       if (!stateBox.hidden) {
         jobCard.hidden = true;
         var em = $('[data-homeempty]', home); if (em) em.hidden = true;
       } else if (j) jobCard.hidden = false;
     }
+    /* M3-1: with a job In Progress, Home is its Current job card, and the
+       other jobs are listed under it as Next jobs. One opens to its details,
+       where Start asks whether to pause the running one. */
+    var nextList = document.createElement('div');
+    nextList.dataset.nextlist = '1';
+    nextList.setAttribute('style', 'margin-top:16px');
+    function paintNextList() {
+      var show = !!state.onsite && runIdx > -1;
+      if (!show) { nextList.hidden = true; return; }
+      if (nextList.previousSibling !== jobCard && jobCard.parentElement) jobCard.parentElement.insertBefore(nextList, jobCard.nextSibling);
+      var rows = openJobs().filter(function (i) { return i !== runIdx; });
+      nextList.hidden = !rows.length;
+      nextList.innerHTML = '<div style="font:600 18px/1 Geist;margin:0 0 10px">Next jobs</div>';
+      rows.forEach(function (i) {
+        var j = JOBS[i];
+        var r = document.createElement('div');
+        r.dataset.tap = '1'; r.dataset.act = 'openNextJob'; r.dataset.idx = String(i);
+        r.setAttribute('style', 'display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #DDE3EE;border-radius:12px;padding:12px 14px;margin-bottom:8px');
+        var tag = j.paused ? 'Paused' : j.reopened ? 'Reopened · Start' : '';
+        r.innerHTML = '<div style="flex:1;min-width:0"><div style="font:600 15px/1.25 Geist"></div>' +
+          '<div style="font:400 12.5px/1.35 Geist;color:#546478;margin-top:3px"></div></div>' +
+          (tag ? '<span style="font:600 11.5px/1 Geist;color:#546478;background:#EDF0F5;border-radius:5px;padding:4px 7px;white-space:nowrap"></span>' : '') +
+          '<span class="mi" style="font-size:20px;color:#A9B4C2">chevron_right</span>';
+        r.children[0].children[0].textContent = j.name;
+        r.children[0].children[1].textContent = j.when + ' · ' + j.type + ' · ' + jobNo(j);
+        if (tag) r.children[1].textContent = tag;
+        nextList.appendChild(r);
+      });
+    }
+    // the card moves to the in-progress screen after this paints; the list follows it
+    var moveCard = paintCard;
+    paintCard = function () { moveCard(); paintNextList(); };
+    ACT.openNextJob = function (el) {
+      jobIdx = +el.dataset.idx;
+      loadJob(); paintJob(); paintEnroute(); paintStartButtons();
+      go('job-general', 'push');
+    };
     var prev = paintJob;
     // the card's buttons follow the job on it, not the one being driven to
     paintJob = function () { prev(); paintEnroute(); paintHomeState(); };
     setInterval(function () { if (state.enroute) paintHomeState(); }, 30000);
+    setInterval(function () { var j = JOBS[jobIdx]; if (j && j.paused && curPage() === 'home') paintHomeState(); }, 1000);
     // a first start offline downloads the day as soon as there is signal
     window.addEventListener('online', function () { setTimeout(paintJob, 50); });
     paintHomeState();
