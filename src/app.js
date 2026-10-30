@@ -104,6 +104,23 @@
   var invPaidAt = recall('invPaidAt', '');
   var invNum = recall('invNum', '');          // the current invoice's number
   if (/^INV-/.test(invNum)) invNum = '';       // the old INV-26-10-123 numbers give way to the web's
+  var invTemp = recall('invTemp', false);      // M2-9: made offline, numbered at sync
+  /* M2-9: TMP- + the first 6 hex characters of the device id + a counter
+     kept on the device, never reused (4 digits, 5 after 9999). */
+  var DEVICE_HEX = '7F3A2C';
+  function nextTempNo() {
+    var n = recall('tmpSeq', 2) + 1; remember('tmpSeq', n);
+    return 'TMP-' + DEVICE_HEX + '-' + String(n).padStart(4, '0');
+  }
+  // the next number of the customer's own sequence: 10512-I01, 10512-E03
+  function nextDocNo(j, letter) {
+    var key = letter === 'E' ? 'estSeqs' : 'invSeqs';
+    var seqs = recall(key, {}), c = (j && j.cust) || '10512';
+    seqs[c] = (seqs[c] || (letter === 'E' ? 2 : 0)) + 1; remember(key, seqs);
+    return c + '-' + letter + String(seqs[c]).padStart(2, '0');
+  }
+  // the technician's own screens say a temporary number is one
+  function invDisplay() { var n = invNo(); return invTemp ? n + ' · final number after sync' : n; }
   var invSeq = recall('invSeq', 122);         // the board's INV-26-03-123 was the 123rd
   var invPaidSoFar = recall('invPaidSoFar', 0);   // partial payments taken against the invoice
   var invBase = recall('invBase', null);          // an invoice kept as it was when the estimate changed
@@ -346,6 +363,7 @@
     var pid = curPage(); if (!pid) return;
     if (pid === 'est-draft' && typeof paintDraftAction === 'function') paintDraftAction();
     if (pid === 'est-customer' && typeof paintCustomerOptions === 'function') paintCustomerOptions();
+    if (pid === 'est-customer' && typeof paintCustomerEstNo === 'function') paintCustomerEstNo();
     if (typeof paintCustomerRotation === 'function') paintCustomerRotation();
     if (viewPast && (!isJobScreen(pid) || (viewPast.visit && pid === 'cust-jobs'))) leaveView();
     // the stage the tech moved this job to belongs to the job, not the session
@@ -357,7 +375,7 @@
       remember('jobIdx', viewPast ? viewPast.idx : jobIdx);   // a job being looked at is not the job
       remember('jobs', JOBS.map(function (j) {
         return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null };
+          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp };
       }));
     }
     paintDash();
@@ -924,6 +942,10 @@
          technician built was thrown away and B and C came along with it.
          The demo options go; the estimate holds what was built. */
       if (first) { clearSeedOptions(); remember('seedCleared', true); }
+      // M2-9: the estimate gets its number when it is first saved — a
+      // temporary one when there is no signal
+      var ej = JOBS[jobIdx];
+      if (ej && !ej.estNo) { ej.estTmp = !net.online; ej.estNo = ej.estTmp ? nextTempNo() : nextDocNo(ej, 'E'); saveJobs(); }
       var warranty = typedWarranty();
       var added = addOption(total, optionItems, false, wanted);
       if (added && first) pickedOption = Object.keys(OPTION_TOTALS)[0] || pickedOption;
@@ -1115,19 +1137,18 @@
       invCreatedAt = stamp(); remember('invCreatedAt', invCreatedAt);
       invSentAt = ''; remember('invSentAt', '');
       invPaidAt = ''; remember('invPaidAt', '');
-      // a number of its own: year, month, running count
-      var d = new Date();
       /* The web's format (FR-2.8 / FR-7.23): the customer's number, I, and
-         that customer's invoice count — 10512-I01, then 10512-I02. */
+         that customer's invoice count — 10512-I01, then 10512-I02. M2-9:
+         made offline, it carries a temporary number until the server gives
+         the real one at sync. */
       var cj = JOBS[jobIdx] || {};
-      var seqs = recall('invSeqs', {});
-      seqs[cj.cust] = (seqs[cj.cust] || 0) + 1; remember('invSeqs', seqs);
-      invNum = (cj.cust || '10512') + '-I' + String(seqs[cj.cust]).padStart(2, '0');
-      remember('invNum', invNum);
+      invTemp = !net.online;
+      invNum = invTemp ? nextTempNo() : nextDocNo(cj, 'I');
+      remember('invNum', invNum); remember('invTemp', invTemp);
       state.inv = 'created';
       paintPayScreens();
       go('inv-sent', 'replace');
-      toast('Invoice ' + invNum + ' created — send it when it is ready', 'receipt_long');
+      toast('Invoice ' + invDisplay() + ' created — send it when it is ready', 'receipt_long');
     },
     payDone: function () {
       invPaidAt = stamp(); remember('invPaidAt', invPaidAt);
@@ -2797,7 +2818,11 @@
   }
   ACT.invMail = function () { sendReceipt('emailed', 'mail', 'emailed to the customer'); };
   ACT.invSms = function () { sendReceipt('sent by SMS', 'sms', 'sent by SMS'); };
-  ACT.invPrint = function () { sendReceipt('printed', 'print', 'sent to the printer'); };
+  ACT.invPrint = function () {
+    // M2-9 / M7-6b: the PDF is the server's; the app draws no preview of its own
+    if (!net.online) { closeOverlays(true); toast('Preview and print need a connection — the PDF is made by the server', 'cloud_off'); return; }
+    sendReceipt('printed', 'print', 'sent to the printer');
+  };
 
   /* The approved estimate on the Finance screens opens, when there is one. */
   (function () {
@@ -3067,7 +3092,7 @@
     var down = Math.max(0, total - due);
     payPanels.forEach(function (P) {
       $('[data-paymname]', P.panel).textContent = m.name;
-      var inv = $('[data-payinv]', P.root); if (inv) inv.textContent = invNo();
+      var inv = $('[data-payinv]', P.root); if (inv) inv.textContent = invDisplay();
       var invDue = $('[data-payinvdue]', P.root); if (invDue) invDue.textContent = fmt(due);
       var amt = $('[data-payamt]', P.root);
       if (amt && document.activeElement !== amt) amt.value = due ? due.toFixed(2) : '';
@@ -3812,8 +3837,10 @@
     estBadge.textContent = changes ? 'CHANGES REQUESTED' : sent ? 'SENT' : 'DRAFT';
     estBadge.setAttribute('style', estBadgeStyle + (changes ? ';color:#8A6114;background:#FEF3E2;border-color:#F5D7A8'
       : sent ? ';color:#4A6FA5;background:#EBF0F8;border-color:#C8D5E8' : ''));
-    estBadgeLine.textContent = sent ? 'Presented on the device · ' + j.sentAt.split(', ').slice(-1)[0]
-      : changes ? 'Revise and resend for approval' : 'Autosaved 2 min ago';
+    var no = estNoOf(j);
+    estBadgeLine.textContent = (no ? (j.estTmp ? no + ' · final number after sync' : no) + ' · ' : '') +
+      (sent ? 'Presented on the device · ' + j.sentAt.split(', ').slice(-1)[0]
+      : changes ? 'Revise and resend for approval' : 'Autosaved 2 min ago');
   }
 
   function paintDraftAction() {
@@ -4647,7 +4674,7 @@
       if (invNum && (id === 'inv-sent' || id === 'inv-paid')) {
         $$('div,span', root).forEach(function (e) {
           [].slice.call(e.childNodes).forEach(function (n) {
-            if (n.nodeType === 3 && /^(INV-\d\d-\d\d-\d+|\d{4,6}-I\d{2,})$/.test(norm(n.nodeValue))) n.nodeValue = invNum;
+            if (n.nodeType === 3 && /^(INV-\d\d-\d\d-\d+|\d{4,6}-I\d{2,}|TMP-[0-9A-F]{6}-\d{4,}( · final number after sync)?)$/.test(norm(n.nodeValue))) n.nodeValue = invDisplay();
           });
         });
       }
@@ -5400,6 +5427,7 @@
   var lastSyncAt = recall('lastSyncAt', '9:42 AM');
   function markSynced() {
     if (typeof clearNotesWaiting === 'function') clearNotesWaiting();
+    if (typeof finalizeNumbers === 'function') finalizeNumbers();
     lastSyncAt = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
     remember('lastSyncAt', lastSyncAt);
     paintLastSync();
@@ -6408,7 +6436,7 @@
   function saveJobs() {
     remember('jobs', JOBS.map(function (j) {
       return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null };
+        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp };
     }));
   }
 
@@ -7400,6 +7428,7 @@
     if (s.items) JOBS[i].items = s.items;
     if (s.sold !== undefined) JOBS[i].sold = s.sold;
     if (s.expenses) JOBS[i].expenses = s.expenses;
+    if (s.estNo) { JOBS[i].estNo = s.estNo; JOBS[i].estTmp = !!s.estTmp; }
     if (s.sentAt) JOBS[i].sentAt = s.sentAt;
     if (s.estType) JOBS[i].estType = s.estType;
     if (s.signoff) JOBS[i].signoff = s.signoff;
@@ -10152,6 +10181,50 @@
     }
     function esc(t) { return String(t).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
   }
+  /* M2-9: at sync the server numbers what was made offline from the
+     customer's sequence, and the app swaps the temporary number everywhere. */
+  function estNoOf(j) {
+    if (!j) return '';
+    return j.estNo || (j.est && j.est !== 'none' ? (j.cust || '10512') + '-E02' : '');
+  }
+  function finalizeNumbers() {
+    var done = [];
+    if (invTemp && invNum) {
+      var was = invNum, cj = JOBS[jobIdx] || {};
+      invNum = nextDocNo(cj, 'I'); invTemp = false;
+      remember('invNum', invNum); remember('invTemp', false);
+      done.push(was + ' is now ' + invNum);
+      if (typeof paintPayScreens === 'function') paintPayScreens();
+    }
+    JOBS.forEach(function (j) {
+      if (!j.estTmp) return;
+      var was = j.estNo;
+      j.estNo = nextDocNo(j, 'E'); j.estTmp = false;
+      done.push(was + ' is now ' + j.estNo);
+    });
+    if (!done.length) return;
+    saveJobs();
+    paintEstStatus();
+    paintCustomerEstNo();
+    setTimeout(function () { toast(done.join(' · '), 'tag'); }, 2400);
+  }
+  // the customer's view names the estimate only by its real number
+  function paintCustomerEstNo() {
+    var root = byId('est-customer'); if (!root) return;
+    var row = $('[data-estnorow]', root);
+    if (!row) {
+      var lbl = sel(root, 'Customer')[0], base = lbl && lbl.parentElement;
+      if (!base) return;
+      row = base.cloneNode(true);
+      row.dataset.estnorow = '1';
+      row.children[0].textContent = 'Estimate';
+      base.parentElement.insertBefore(row, base);
+    }
+    var j = JOBS[jobIdx] || {}, no = estNoOf(j);
+    row.children[1].textContent = no;
+    row.style.display = no && !j.estTmp ? '' : 'none';
+  }
+
   /* "2 waiting" on the job's card, and a line in its details */
   function paintWaiting() {
     if (typeof JOBS === 'undefined') return;
