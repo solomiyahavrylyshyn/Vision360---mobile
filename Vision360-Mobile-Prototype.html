@@ -3608,7 +3608,7 @@ body.dev #indexBtn{display:flex}
       remember('jobIdx', viewPast ? viewPast.idx : jobIdx);   // a job being looked at is not the job
       remember('jobs', JOBS.map(function (j) {
         return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp };
+          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused };
       }));
     }
     paintDash();
@@ -4026,6 +4026,9 @@ body.dev #indexBtn{display:flex}
 
   // the job goes live: on the tech's own Start, or when the office starts it
   function beginJob() {
+    var bj = JOBS[jobIdx];
+    if (bj) { bj.reopened = false; bj.paused = false; }
+    setRun(jobIdx);
     state.onsite = true;
     state.paused = false;
     state.enroute = false;          // you've arrived — the en route state is spent
@@ -4061,6 +4064,7 @@ body.dev #indexBtn{display:flex}
         state.paused ? 'pause_circle' : 'play_circle');
     },
     start: function () {
+      if (pausePrompt('start')) return;
       /* Marek, Oct 12: the phone's distance from the job address can gate
          Start — payroll checks timesheets against GPS by hand today. */
       /* Marek, Oct 21: no location, no start — "You need to trigger turning
@@ -4105,7 +4109,10 @@ body.dev #indexBtn{display:flex}
       }, 4000);
     },
     enroute: function () {
+      if (pausePrompt('enroute')) return;
       state.enroute = !state.enroute;
+      setRun(state.enroute ? jobIdx : (state.onsite ? runIdx : -1));
+      if (state.enroute && JOBS[jobIdx]) JOBS[jobIdx].paused = false;
       paintEnroute();
       paintJob();
       setClock(state.enroute ? 'drive' : (state.onsite ? 'work' : 'off'));
@@ -4653,6 +4660,7 @@ body.dev #indexBtn{display:flex}
       state.paused = false;
       state.enroute = false;
       state.extra = false;
+      setRun(-1);
       paintEnroute();
       // the queue can be browsed now, so a finished job is struck off it
       // rather than left behind a cursor
@@ -6941,6 +6949,19 @@ body.dev #indexBtn{display:flex}
     closeOverlays(true);
     queued('Reopen request');
     toast(net.online ? 'Reopen request for ' + who + ' sent to your manager' : 'Reopen request will go to your manager with signal', 'outgoing_mail');
+    if (!net.online) return;
+    /* The demo plays the manager: the job comes back to Home as
+       "Reopened · Start", In Progress with no clock running (M3-1, M8-8). */
+    setTimeout(function () {
+      var at = -1;
+      for (var i = 0; i < JOBS.length; i++) if (JOBS[i].name === who) at = i;
+      var j = JOBS[at];
+      if (!j || !j.done) return;
+      j.done = false; j.reopened = true;
+      saveJobs();
+      paintJob();
+      toast(jobNo(j) + ' was reopened by Helen Smith', 'lock_open');
+    }, 4000);
   };
 
   var VIEW_ACTS = { jobGeneral: 1, jobNotes: 1, jobRC: 1, jobEst: 1, jobFin: 1, histReopen: 1, reopenRequest: 1, histDetails: 1, openApproved: 1 };
@@ -9666,7 +9687,7 @@ body.dev #indexBtn{display:flex}
   function saveJobs() {
     remember('jobs', JOBS.map(function (j) {
       return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp };
+        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused };
     }));
   }
 
@@ -10473,6 +10494,12 @@ body.dev #indexBtn{display:flex}
   })();
 
   var jobIdx = 0;
+  /* M3-1 / M3-3: the job the drive or work clock is running on. The tech
+     can browse the other jobs while one is en route; Start or En route on
+     another one pauses it first. */
+  var runIdx = recall('runIdx', -1);
+  function setRun(i) { runIdx = i; remember('runIdx', i); }
+  function mineRunning() { return runIdx < 0 || runIdx === jobIdx; }
   var paintJob = function () { };
 
   /* A job is live from the moment the tech sets off, not from the moment
@@ -10483,10 +10510,14 @@ body.dev #indexBtn{display:flex}
   function openJobs() {
     var o = [];
     for (var i = 0; i < JOBS.length; i++) if (!JOBS[i].done) o.push(i);
+    // the job you are driving to comes first under Next jobs (M3-1)
+    var at = state.enroute ? o.indexOf(runIdx) : -1;
+    if (at > 0) { o.splice(at, 1); o.unshift(runIdx); }
     return o;
   }
   function jobStep(by) {
-    if (jobActive()) return;
+    // a job In Progress is the Current job; en route, the others still browse
+    if (state.onsite) return;
     var o = openJobs(), at = o.indexOf(jobIdx), to = at + by;
     if (at < 0 || to < 0 || to >= o.length) return;
     jobIdx = o[to];
@@ -10541,13 +10572,15 @@ body.dev #indexBtn{display:flex}
     var card = refs.name.closest('div[style*="border-radius:14px"]');
     var empty = document.createElement('div');
     empty.hidden = true;
+    empty.dataset.homeempty = '1';
     empty.setAttribute('style', 'display:flex;flex-direction:column;align-items:center;gap:9px;' +
       'background:#fff;border:1px solid #DDE3EE;border-radius:14px;padding:30px 22px;text-align:center');
     empty.innerHTML =
       '<span class="mif" style="font-size:32px;color:#16A34A">task_alt</span>' +
-      '<div style="font:600 16.5px/1.3 Geist">Every job closed</div>' +
-      '<div style="font:400 13.5px/1.5 Geist;color:#546478">' +
-      'Nothing else is scheduled for you today. Anything dispatch adds shows up here.</div>' +
+      // M3-1: the words of the story, with the last sync time
+      '<div style="font:600 16.5px/1.3 Geist">No jobs dispatched to you right now</div>' +
+      '<div data-emptysync style="font:400 13.5px/1.5 Geist;color:#546478">' +
+      'Last sync Today 9:42 AM · anything dispatch adds shows up here.</div>' +
       '<div data-tap="1" data-go="timesheet" data-mode="tab" style="margin-top:5px;height:46px;' +
       'display:flex;align-items:center;justify-content:center;gap:7px;padding:0 20px;background:#fff;' +
       'border:1px solid #C8D5E8;color:#4A6FA5;border-radius:10px;font:600 14.5px/1 Geist">' +
@@ -10572,7 +10605,8 @@ body.dev #indexBtn{display:flex}
       }
       card.hidden = false;
       empty.hidden = true;
-      var open = openJobs(), at = open.indexOf(jobIdx), live = jobActive();
+      // M3-1: "Current job" is In Progress only; on the way it is still Next jobs
+      var open = openJobs(), at = open.indexOf(jobIdx), live = !!state.onsite;
       heading.textContent = live ? 'Current job' : 'Next jobs';
       pager.style.display = (!live && open.length > 1) ? 'flex' : 'none';
       counter.textContent = (at + 1) + ' of ' + open.length;
@@ -10659,6 +10693,7 @@ body.dev #indexBtn{display:flex}
     if (s.sold !== undefined) JOBS[i].sold = s.sold;
     if (s.expenses) JOBS[i].expenses = s.expenses;
     if (s.estNo) { JOBS[i].estNo = s.estNo; JOBS[i].estTmp = !!s.estTmp; }
+    JOBS[i].reopened = !!s.reopened; JOBS[i].paused = !!s.paused;
     if (s.sentAt) JOBS[i].sentAt = s.sentAt;
     if (s.estType) JOBS[i].estType = s.estType;
     if (s.signoff) JOBS[i].signoff = s.signoff;
@@ -10846,12 +10881,13 @@ body.dev #indexBtn{display:flex}
        This also replaces the earlier painter, which captured the outlined
        style the first button no longer wears. */
     paintEnroute = function () {
-      if (state.onsite) {
+      var mine = mineRunning();
+      if (state.onsite && mine) {
         enroute.dataset.act = 'pauseJob';
         enroute.setAttribute('style', state.paused ? PAUSED : ONSITE);
         enroute.innerHTML = '<span class="mif" style="font-size:18px">' +
           (state.paused ? 'play_arrow' : 'pause') + '</span><span data-jobtime>0:00</span>';
-      } else if (state.enroute) {
+      } else if (state.enroute && mine) {
         enroute.dataset.act = 'enroute';
         enroute.setAttribute('style', DRIVING);
         enroute.innerHTML = '<span class="mif" style="font-size:17px">stop_circle</span>' +
@@ -10863,13 +10899,14 @@ body.dev #indexBtn{display:flex}
       }
 
       start.dataset.cardbtn = '1';
-      start.dataset.act = state.onsite ? 'complete' : 'start';
+      var done = state.onsite && mine;
+      start.dataset.act = done ? 'complete' : 'start';
       start.setAttribute('style', OUTLINE);
       // 'Complete' plus an icon is the widest this row ever gets: at 375px
       // the three buttons are 96px each, so the glyph gives back the slack
       start.innerHTML = '<span class="mi" style="font-size:18px">' +
-        (state.onsite ? 'task_alt' : 'play_arrow') + '</span>' +
-        (state.onsite ? 'Complete' : 'Start');
+        (done ? 'task_alt' : 'play_arrow') + '</span>' +
+        (done ? 'Complete' : 'Start');
       toggleDisplay(start, true);
 
       paintDriveTime();
@@ -12656,6 +12693,9 @@ body.dev #indexBtn{display:flex}
     setTimeout(function () {
       b.disabled = false; b.innerHTML = '<span class="mif" style="font-size:19px">login</span>Sign in';
       remember('signedIn', true);        // US-M02-2: stays signed in across days
+      homeLoadingUntil = Date.now() + 900;          // M3-1: "Loading your day…"
+      paintJob();
+      setTimeout(function () { paintJob(); }, 950);
       go(homeScreen(), 'root');
       toast('Welcome back, Marek', 'waving_hand');
     }, 620);
@@ -13484,6 +13524,93 @@ body.dev #indexBtn{display:flex}
     }
     if (line) line.style.display = n && !viewPast ? 'flex' : 'none';
   }
+
+  /* =========================================================
+     M3-1 / M3-3 on Home: the job's state under its time — "On the way ·
+     12 min", "Paused", "Reopened · Start" — the "will be paused" question,
+     and the day's empty, loading and first-start-offline states.
+     ========================================================= */
+  function pausePrompt(kind) {
+    if (!(state.enroute || state.onsite) || runIdx < 0 || runIdx === jobIdx) return false;
+    var r = JOBS[runIdx] || {}, c = JOBS[jobIdx] || {};
+    confirmSheet({
+      title: jobNo(r) + ' · ' + r.name + ' will be paused. ' + (kind === 'start' ? 'Start ' : 'Go en route to ') + jobNo(c) + '?',
+      text: 'Its clock stops now, and it waits on your Home as Paused.',
+      ok: kind === 'start' ? 'Yes, start' : 'Yes, go en route', alt: null,
+      onOk: function () { pauseRunning(); ACT[kind](); }
+    });
+    return true;
+  }
+  function pauseRunning() {
+    var r = JOBS[runIdx];
+    if (r) r.paused = true;
+    state.enroute = false; state.onsite = false; state.paused = false;
+    setClock('off');
+    setRun(-1);
+    queued('Job status', 'Status: Paused');
+    saveJobs();
+    paintEnroute(); paintJob();
+  }
+  var homeLoadingUntil = 0;
+  (function () {
+    var home = byId('home'); if (!home || !jobCard) return;
+    var stateBox = document.createElement('div');
+    stateBox.dataset.homestate = '1';
+    stateBox.hidden = true;
+    stateBox.setAttribute('style', 'display:flex;flex-direction:column;align-items:center;gap:9px;background:#fff;' +
+      'border:1px solid #DDE3EE;border-radius:14px;padding:30px 22px;text-align:center');
+    jobCard.parentElement.insertBefore(stateBox, jobCard);
+    var chip = document.createElement('span');
+    chip.dataset.statuschip = '1';
+    chip.setAttribute('style', 'display:inline-block;margin-left:8px;font:600 11.5px/1 Geist;border-radius:5px;padding:4px 7px;white-space:nowrap;vertical-align:middle');
+    function paintHomeState() {
+      var j = JOBS[jobIdx];
+      // the job's state, next to its time
+      var whenEl = j && $$('span,div', jobCard).filter(function (e) { return !e.children.length && norm(e.textContent) === j.when; })[0];
+      var txt = '', tone = '';
+      if (j && state.enroute && runIdx === jobIdx) {
+        var secs = clock.drive + (clock.mode === 'drive' && clock.since ? (Date.now() - clock.since) / 1000 : 0);
+        txt = 'On the way · ' + Math.max(1, Math.round(secs / 60)) + ' min'; tone = 'brand';
+      } else if (j && j.paused) { txt = 'Paused'; tone = 'grey'; }
+      else if (j && j.reopened) { txt = 'Reopened · Start'; tone = 'warn'; }
+      if (whenEl && txt) {
+        if (chip.previousSibling !== whenEl) whenEl.parentNode.insertBefore(chip, whenEl.nextSibling);
+        chip.textContent = txt;
+        chip.style.color = tone === 'brand' ? '#4A6FA5' : tone === 'warn' ? '#B45309' : '#546478';
+        chip.style.background = tone === 'brand' ? '#EBF0F8' : tone === 'warn' ? '#FEF3E2' : '#EDF0F5';
+        chip.style.display = '';
+      } else chip.style.display = 'none';
+      // the empty day names the last sync
+      var es = $('[data-emptysync]', home);
+      if (es) es.textContent = 'Last sync Today ' + lastSyncAt + ' · anything dispatch adds shows up here.';
+      // loading, and a first start with no data and no connection
+      var loading = Date.now() < homeLoadingUntil;
+      if (net.online && recall('signedIn', false)) remember('dayLoaded', true);
+      var noData = !net.online && !recall('dayLoaded', false);
+      stateBox.hidden = !(loading || noData);
+      if (loading) {
+        stateBox.innerHTML = '<span class="mi" style="font-size:30px;color:#A9B4C2">hourglass_top</span>' +
+          '<div style="font:600 16px/1.3 Geist;color:#546478">Loading your day…</div>' +
+          '<div style="width:100%;height:12px;border-radius:6px;background:#EDF0F5;margin-top:6px"></div>' +
+          '<div style="width:70%;height:12px;border-radius:6px;background:#EDF0F5"></div>';
+      } else if (noData) {
+        stateBox.innerHTML = '<span class="mi" style="font-size:30px;color:#D97706">cloud_off</span>' +
+          '<div style="font:600 16px/1.3 Geist">Connect to the internet to download your day</div>' +
+          '<div style="font:400 13px/1.5 Geist;color:#546478">Your jobs come down the first time you are online; after that the app works without signal.</div>';
+      }
+      if (!stateBox.hidden) {
+        jobCard.hidden = true;
+        var em = $('[data-homeempty]', home); if (em) em.hidden = true;
+      } else if (j) jobCard.hidden = false;
+    }
+    var prev = paintJob;
+    // the card's buttons follow the job on it, not the one being driven to
+    paintJob = function () { prev(); paintEnroute(); paintHomeState(); };
+    setInterval(function () { if (state.enroute) paintHomeState(); }, 30000);
+    // a first start offline downloads the day as soon as there is signal
+    window.addEventListener('online', function () { setTimeout(paintJob, 50); });
+    paintHomeState();
+  })();
 
   function boot() {
     mvpTrim();
