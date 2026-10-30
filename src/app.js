@@ -1337,7 +1337,7 @@
       else if (state.inv === 'none' && invoiceTotal() > 0) lines.push('No invoice yet — ' + fmt(invoiceTotal()) + ' of work on this job.');
       else if (state.inv === 'paid') lines.push('Invoice ' + invNo() + ' paid.');
       else if (state.inv !== 'none') lines.push('Invoice ' + invNo() + (due > 0 ? ' — ' + fmt(due) + ' still due.' : ' — nothing due.'));
-      if (upPending > 0) lines.push(upPending + ' ' + plural(upPending) + ' still uploading.');
+      if (upPending > 0) lines.push(upPending + ' ' + plural(upPending) + ' still uploading — Completed sends after them.');
       /* OD-17 / R-009.6: the install template is the seller's, and Core. An
          empty one is said here, once — it does not stop the job closing. */
       var gaps = installMissing();
@@ -1376,14 +1376,9 @@
       toast(net.online ? 'Closeout saved' : 'Closeout saved — will sync', 'save');
     },
     closeoutComplete: function () {
-      // The office is blind until the photos land, and once the next call is
-      // unlocked nobody comes back to this one. With signal, a stuck upload
-      // stops the close; with no signal it's queued and that's fine.
-      if (upPending > 0 && net.online) {
-        paintCloseoutBlocker();
-        toast(upPending + ' ' + plural(upPending) + ' still uploading — wait for it', 'sync');
-        return;
-      }
+      /* M2-10 / M8-1: completing never waits for uploads. Completed goes
+         in the queue behind the job's photos, so the server gets it after
+         them — with signal or without. */
       if (!quickClose && ntgbOn() && !ntgbWho) {
         toast('Say which department goes back', 'groups');
         return;
@@ -1439,7 +1434,8 @@
       toast(sentBack
         ? 'Job closed — go-back for ' + sentBack + ' sent to dispatch'
         : upPending
-          ? 'Job closed — ' + upPending + ' ' + plural(upPending) + ' will upload on signal'
+          ? (net.online ? 'Completed — sends after ' + upPending + ' ' + plural(upPending)
+            : 'Job closed — ' + upPending + ' ' + plural(upPending) + ' will upload on signal')
           : (JOBS[jobIdx] ? 'Job closed — next one unlocked' : 'Job closed — nothing left today'),
         sentBack ? 'assignment_return' : 'task_alt');
     },
@@ -5722,15 +5718,16 @@
     if (upPending === 0) return;
 
     var offline = !net.online;
-    closeoutBlocker.style.background = offline ? '#FEF3E2' : '#FDECEC';
-    closeoutBlocker.style.borderColor = offline ? '#F3D9AE' : '#F5C2C2';
+    // nothing blocks the close any more, so neither state is red
+    closeoutBlocker.style.background = offline ? '#FEF3E2' : '#EBF0F8';
+    closeoutBlocker.style.borderColor = offline ? '#F3D9AE' : '#C8D5E8';
     closeoutBlocker.innerHTML =
-      '<span class="mi" style="font-size:18px;color:' + (offline ? '#D97706' : '#DC2626') + ';margin-top:1px">' +
+      '<span class="mi" style="font-size:18px;color:' + (offline ? '#D97706' : '#4A6FA5') + ';margin-top:1px">' +
       (offline ? 'cloud_off' : 'sync') + '</span>' +
-      '<div style="font:400 12.5px/1.45 Geist;color:' + (offline ? '#7A5B12' : '#8C2020') + '">' +
+      '<div style="font:400 12.5px/1.45 Geist;color:' + (offline ? '#7A5B12' : '#1A2332') + '">' +
       (offline
         ? upPending + ' ' + plural(upPending) + ' still on the phone — they send when you have signal. You can close.'
-        : upPending + ' ' + plural(upPending) + ' still uploading — give it a moment before closing.') +
+        : upPending + ' ' + plural(upPending) + ' still uploading — you can close; Completed sends after them.') +
       '</div>';
   }
 
