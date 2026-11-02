@@ -1305,7 +1305,11 @@
     },
     mediaDescribe: function () { mediaEditing = true; go('image-desc', 'modal'); },
     mediaMarkup: function () { toast('Markup opens in the phone\'s photo editor', 'gesture'); },
-    mediaDownload: function () { toast('Saved to your photos', 'download'); },
+    // M4-8b (#60): Download hands the photo to the system share sheet as a
+    // JPEG (the drawn copy if any), with no location inside the file
+    mediaDownload: function () {
+      toast('Share sheet · JPEG without location — save it or send it with the phone’s apps', 'ios_share');
+    },
     galDone: function () {
       if (!galPicked.length) return;
       mediaBatch = galPicked.length;
@@ -3806,6 +3810,8 @@
     if (!scr || !isJobScreen(scr.id)) return;
     // calling the contact and opening the address change nothing on the job (#31, #38)
     if (ev.target.closest('a[data-tel],[data-maps]')) return;
+    // opening a file is reading it (M4-14); deleting is not
+    if (ev.target.closest('[data-fileopen]') && !ev.target.closest('[data-fdel]')) return;
     var hit = ev.target.closest('[data-act],[data-go],[data-back],[data-tap],input,textarea');
     if (!hit) return;
     if (hit.dataset.back !== undefined) return;
@@ -5528,12 +5534,28 @@
     netFill.style.width = up.phase === 'uploading' ? up.pct + '%' : '0';
     paintCloseoutBlocker();
     paintLastSync();
+    paintPhotoStates();
     if (typeof paintWaiting === 'function') paintWaiting();
     if (typeof paintSync === 'function') paintSync();
   }
   function flashThenHide(ms) {
     clearTimeout(netHide);
     netHide = setTimeout(function () { up.phase = 'idle'; net.sentFlash = false; paintNet(); }, ms);
+  }
+
+  function paintPhotoStates() {
+    $$('#photos [data-upstate]').forEach(function (t) {
+      var chip = $('[data-upchip]', t); if (!chip) return;
+      var stt = t.dataset.upstate;
+      if (stt !== 'uploaded') {
+        if (!net.online) stt = 'waiting';
+        else if (up.phase === 'uploading') stt = 'uploading';
+        else if (up.phase === 'done' || !upPending) stt = 'uploaded';
+        t.dataset.upstate = stt;
+      }
+      chip.textContent = stt === 'waiting' ? 'Waiting' : stt === 'uploading' ? 'Uploading ' + Math.round(up.pct || 0) + '%' : 'Uploaded';
+      chip.style.background = stt === 'uploaded' ? 'rgba(22,163,74,.9)' : 'rgba(28,43,58,.78)';
+    });
   }
 
   /* Anything the tech saves while offline joins the queue instead of failing.
@@ -6063,6 +6085,13 @@
         if (type) badge.textContent = type.toUpperCase(); else badge.remove();
       }
       t.dataset.photomine = '1';                  // taken on this phone — his own
+      // M4-7 (#20): each photo says where it is — Waiting, Uploading 40%, Uploaded
+      t.dataset.upstate = net.online ? 'uploading' : 'waiting';
+      t.style.position = t.style.position || 'relative';
+      var st = document.createElement('span');
+      st.dataset.upchip = '1';
+      st.setAttribute('style', 'position:absolute;left:5px;bottom:5px;font:600 10.5px/1 Geist;color:#fff;background:rgba(28,43,58,.78);border-radius:5px;padding:4px 6px;white-space:nowrap');
+      t.appendChild(st);
       grid.insertBefore(t, grid.firstElementChild);
     }
   }
@@ -10162,6 +10191,70 @@
     go('ov-batchtype', 'overlay');
   }
 
+  /* =========================================================
+     M4-11 / M4-11b (#48, #61): Files. A file opens in the phone's viewer;
+     "Choose file to upload" adds the technician's own file, which he may
+     delete (asked first) while the job is open; an office file offers no
+     delete.
+     ========================================================= */
+  (function () {
+    var root = byId('files'); if (!root) return;
+    var sc = $('.sc', root); if (!sc) return;
+    var upRow = $$(':scope > div', sc).filter(function (e) { return /Choose file to upload/.test(e.textContent); })[0];
+    var count = $$('span span', root).filter(function (e) { return /^\d+$/.test(norm(e.textContent)); })[0];
+    var office = $$(':scope > div', sc).filter(function (e) { return e !== upRow; });
+    var mine = recall('myFiles', []);
+    function open(name) {
+      if (!net.online) { toast('Needs a connection — ' + name + ' is not on this phone yet', 'cloud_off'); return; }
+      toast('Opens ' + name + ' in the phone’s viewer', 'open_in_new');
+    }
+    office.forEach(function (r) {
+      r.dataset.tap = '1'; r.dataset.fileopen = '1';
+      r.addEventListener('click', function () { open(norm((r.children[1] && r.children[1].children[0] || r).textContent)); });
+    });
+    function paint() {
+      $$('[data-myfile]', sc).forEach(function (e) { e.remove(); });
+      mine.forEach(function (f, i) {
+        var r = office[0] ? office[0].cloneNode(true) : document.createElement('div');
+        r.dataset.myfile = String(i); r.dataset.tap = '1'; r.dataset.fileopen = '1';
+        var txt = r.children[1];
+        if (txt) { txt.children[0].textContent = f.name; txt.children[1].textContent = f.size + ' · ' + f.date + ' · by Marek Stroz'; }
+        var ic = r.lastElementChild;
+        if (ic && ic.classList.contains('mi')) { ic.textContent = 'delete_outline'; ic.dataset.fdel = '1'; ic.style.color = '#DC2626'; toggleDisplay(ic, !viewPast); }
+        sc.insertBefore(r, office[0] || upRow);
+      });
+      if (count) count.textContent = String(office.length + mine.length);
+      // a completed job's files are read: no upload
+      if (upRow) toggleDisplay(upRow, !viewPast);
+    }
+    sc.addEventListener('click', function (ev) {
+      var r = ev.target.closest('[data-myfile]'); if (!r) return;
+      ev.stopPropagation();
+      var f = mine[+r.dataset.myfile];
+      if (ev.target.closest('[data-fdel]')) {
+        confirmSheet({ title: 'Delete this file?', text: f.name + ' is removed from the job in the app and on the web.',
+          ok: 'Delete', danger: true, alt: null,
+          onOk: function () { mine.splice(+r.dataset.myfile, 1); remember('myFiles', mine); paint(); queued('File', 'File deleted'); toast(f.name + ' deleted', 'delete_outline'); } });
+        return;
+      }
+      open(f.name);
+    }, true);
+    if (upRow) {
+      upRow.dataset.tap = '1';
+      upRow.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        mine.unshift({ name: 'Permit_5010_Cortez.pdf', size: '3.2 MB', date: stamp().split(',').slice(0, 2).join(',') });
+        remember('myFiles', mine);
+        paint();
+        queued('File', 'File Permit_5010_Cortez.pdf');
+        toast(net.online ? 'Permit_5010_Cortez.pdf uploaded' : 'Permit_5010_Cortez.pdf waiting — uploads when you’re back', 'upload_file');
+      }, true);
+    }
+    paint();
+    // the screen's rows follow whether the job is open or read-only
+    new MutationObserver(function () { if (root.classList.contains('on')) paint(); }).observe(root, { attributes: true, attributeFilter: ['class'] });
+  })();
+
   ACT.toggleLocation = function () {
     setLocation(!locationOn);
     toast(locationOn ? 'Location on' : 'Location off — jobs can’t be started until it is back on',
@@ -10201,7 +10294,7 @@
       '<label style="' + LBL + '">Vendor invoice no.</label><input data-expf="vinv" placeholder="e.g. INV-55821" style="' + FLD + '">' +
       '<label style="' + LBL + '">Description</label><input data-expf="desc" placeholder="e.g. 2 × 45/5 µF capacitor" style="' + FLD + '">' +
       '<div data-expphoto data-tap="1" style="display:flex;align-items:center;gap:7px;height:44px;padding:0 13px;margin-top:12px;border:1px dashed #C8D5E8;border-radius:10px;font:500 13.5px/1 Geist;color:#4A6FA5">' +
-      '<span class="mi" style="font-size:19px">receipt_long</span><span data-expphototx>Add a receipt photo</span></div>' +
+      '<span class="mi" style="font-size:19px">receipt_long</span><span data-expphototx>Add receipt</span></div>' +
       '<div data-expmiss style="font:500 12.5px/1.4 Geist;color:#B45309;margin-top:10px"></div>' +
       '<div style="display:flex;gap:9px;margin-top:10px">' +
       '<div data-expcancel data-tap="1" style="flex:1;height:44px;display:flex;align-items:center;justify-content:center;border:1px solid #DDE3EE;border-radius:10px;font:600 14px/1 Geist;color:#546478">Cancel</div>' +
@@ -10241,7 +10334,7 @@
         ['vendor', 'cat', 'amt', 'vinv', 'desc'].forEach(function (k) { F(k).value = ''; });
         var d = new Date();
         F('date').value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-        R.photo = false; R.photoTx.textContent = 'Add a receipt photo';
+        R.photo = 0; R.photoTx.textContent = 'Add receipt';
         paintSave();
       }
     }
@@ -10250,7 +10343,14 @@
     card.addEventListener('click', function (ev) {
       if (ev.target.closest('[data-expadd]')) { openForm(true); return; }
       if (ev.target.closest('[data-expcancel]')) { openForm(false); return; }
-      if (ev.target.closest('[data-expphoto]')) { R.photo = true; R.photoTx.textContent = 'Receipt photo attached ✓'; return; }
+      // M4-12b (#62): up to four receipt photos on one expense
+      if (ev.target.closest('[data-expphoto]')) {
+        if (R.photo >= 4) return;
+        R.photo = (R.photo || 0) + 1;
+        R.photoTx.textContent = R.photo >= 4 ? '4 receipts attached · Up to 4 receipts'
+          : R.photo + (R.photo === 1 ? ' receipt' : ' receipts') + ' attached · Add receipt';
+        return;
+      }
       if (ev.target.closest('[data-expsave]')) {
         if (missing().length) { paintSave(); return; }
         var j = JOBS[jobIdx]; if (!j) return;
@@ -10290,7 +10390,7 @@
       // M4-12: "Pending number · Ferguson · Materials · $86.40", numbered at sync
       d.children[1].children[0].textContent = (e.no || 'Pending number') + ' · ' + (e.vendor || e.desc) + (e.cat ? ' · ' + e.cat : '');
       d.children[1].children[1].textContent = [e.desc && e.vendor ? e.desc : '', e.vinv ? 'Vendor inv. ' + e.vinv : '', e.date || e.at,
-        e.receipt ? 'Receipt attached' : 'No receipt'].filter(Boolean).join(' · ');
+        e.receipt ? (e.receipt > 1 ? e.receipt + ' receipts' : 'Receipt attached') : 'No receipt'].filter(Boolean).join(' · ');
       d.children[2].textContent = fmt(e.amount);
       R.list.appendChild(d);
     });
