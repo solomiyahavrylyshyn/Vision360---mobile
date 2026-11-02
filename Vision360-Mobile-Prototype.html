@@ -3364,6 +3364,7 @@ body.dev #indexBtn{display:flex}
   var invPaidSoFar = recall('invPaidSoFar', 0);   // partial payments taken against the invoice
   var invBase = recall('invBase', null);          // an invoice kept as it was when the estimate changed
   var quickClose = false;                         // completing the job without the closeout form
+  var COMPANY_NAME = 'AND Services';             // the company's name from its settings (M5-7)
   var SIGNOFF_REQUIRED = true;                    // company setting: AND Services asks for a completion sign-off
   var START_RADIUS_FT = 100;                      // Marek, Oct 21: "50 to 100 feet"
   var GPS_SLACK_FT = 50;                          // the phone's own accuracy, allowed on top of the radius
@@ -3407,7 +3408,8 @@ body.dev #indexBtn{display:flex}
 
   var RATING = ['Good', 'Attention', 'Immediate'];   // the Report Card's three-state control
   var RC_GROUPS = {                                   // overview badges: design baseline + what the tech changes
-    'Household Analysis': { base: 4, screens: ['rc-section'] },
+    // M5-12 (#68): household fields are dropdowns, not ratings — nothing to flag
+    'Household Analysis': { base: 0, screens: ['rc-section'] },
     'Comfort Analysis': { base: 2, screens: ['rc-comfort'] },
     'System Analysis': { base: 4, screens: ['rc-furnace', 'rc-condenser', 'rc-refrigerant'] }
   };
@@ -4055,7 +4057,7 @@ body.dev #indexBtn{display:flex}
   var ACT = {
     jobGeneral: function () { go('job-general', 'replace'); },
     jobNotes: function () { go('job-notes', 'replace'); },
-    jobRC: function () { go('rc-overview', 'replace'); },
+    jobRC: function () { formsList(true); go('rc-overview', 'replace'); },
     jobEst: function () { go(estScreen(), 'replace'); },
     jobFin: function () { go(finScreen(), 'replace'); },
 
@@ -4610,7 +4612,7 @@ body.dev #indexBtn{display:flex}
       var hj = JOBS[jobIdx] || {}, hints = [];
       var jp0 = hj.plan;
       if (!(jp0 && jp0.prepaid) && state.inv === 'none' && invoiceTotal() > 0) hints.push(['This job needs an invoice', function () { go(finScreen(), 'push'); }]);
-      if (!hj.rcFilled) hints.push(['AC Report Card not filled in', function () { go('rc-overview', 'push'); }]);
+      if (!hj.rcFilled) hints.push(['AC Report Card not filled in', function () { formsList(false); go('rc-overview', 'push'); }]);
       if (installMissing().length) hints.push(['Install template not filled in', function () { go('closeout', 'push'); }]);
       function completeNow() {
         if (SIGNOFF_REQUIRED) { openSignoff(); return; }
@@ -6955,7 +6957,10 @@ body.dev #indexBtn{display:flex}
     sc.appendChild(card(rcTitle(14, 'Filter Condition') + rcRating(false)));
     sc.appendChild(card(rcTitle(15, 'Ductwork Condition', ['P3']) + rcRating(true)));
     sc.appendChild(card(rcTitle(16, 'Ductwork Cleanliness') + rcRating(false)));
-    sc.appendChild(card(rcTitle(17, 'Attic Insulation', ['R38?', 'P4']) + rcRating(true)));
+    // M5-12 (#70): "Attic Insulation [P4]" with an R-value input; "[R38?]" leaves the label
+    sc.appendChild(card(rcTitle(17, 'Attic Insulation', ['P4']) +
+      '<div style="display:flex;align-items:center;gap:8px;margin-top:10px"><input class="inp" inputmode="decimal" placeholder="R-value" style="width:120px;height:44px;padding:0 12px;border:1px solid #DDE3EE;border-radius:9px;font:400 15px/1 Geist">' +
+      '<span style="font:400 12.5px/1.3 Geist;color:#8A97A8">R-38 recommended</span></div>' + rcRating(true)));
     sc.appendChild(card(rcTitle(18, 'UV Location') + rcPickBox('uvLoc', 'Pick location') + rcRating(false)));
     sc.appendChild(card(rcTitle(19, 'UV Bulb') + rcRating(false)));
 
@@ -12855,6 +12860,8 @@ body.dev #indexBtn{display:flex}
       var badge = g.badge;
       if (!badge) return;
       badge.textContent = String(g.base + extra);
+      // a section with nothing flagged shows no badge
+      badge.style.display = g.base + extra ? '' : 'none';
       badge.style.background = red ? '#FDECEC' : '#FEF3E2';
       badge.style.color = red ? '#DC2626' : '#D97706';
     });
@@ -13197,6 +13204,63 @@ body.dev #indexBtn{display:flex}
     });
   }
   function mvpTrim() {
+    /* M5-3 (#50): the job's form tab is "Forms" — the web's name, since
+       a job holds more than one form */
+    $$('[data-act="jobRC"]').forEach(function (t) { if (norm(t.textContent) === 'Report Card') t.textContent = 'Forms'; });
+    // M5-12 (#68): the household section flags nothing — no "4 need attention" under its title
+    $$('#rc-section div').forEach(function (d) { if (!d.children.length && /^Items 1–7 · \d+ need attention$/.test(norm(d.textContent))) d.textContent = 'Items 1–7'; });
+    /* M5-12 (#72): field 54 has no photo slot; P15 Air Handler, P16
+       Electrical Panel, P17 Front of House are a "Photos" block after 48 */
+    // the sections now open inside the card page, so the fields are found by what they say
+    var RCQ = '#rc-overview, #rc-tech, #rc-customer, #rc-refrigerant';
+    $$('span', document).filter(function (e) { return e.closest(RCQ) && !e.children.length && norm(e.textContent) === 'P15' && /Tech signature/.test(e.parentElement.textContent); })
+      .forEach(function (e) { e.remove(); });
+    (function () {
+      if ($('[data-rcphotos]')) return;
+      var f48 = $$('div', document).filter(function (d) { return d.closest(RCQ) && /^48\s*Sequence of operation tested/.test(norm(d.textContent)); })[0]; if (!f48) return;
+      var blk = document.createElement('div'); blk.dataset.rcphotos = '1';
+      blk.setAttribute('style', f48.getAttribute('style') || 'background:#fff;border:1px solid #DDE3EE;border-radius:12px;padding:14px');
+      blk.style.display = 'block';
+      blk.innerHTML = '<div style="font:600 15px/1.3 Geist;margin-bottom:8px">Photos</div>' + [['P15', 'Air Handler'], ['P16', 'Electrical Panel'], ['P17', 'Front of House']].map(function (p) {
+        return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid #EDF0F5"><span style="font:600 11px/1 Geist;color:#4A6FA5;background:#EBF0F8;border-radius:4px;padding:4px 6px">' + p[0] + '</span>' +
+          '<span style="flex:1;font:500 14.5px/1.3 Geist">' + p[1] + '</span><span class="mi" data-tap="1" data-go="ov-media-source" style="font-size:20px;color:#4A6FA5">photo_camera</span></div>';
+      }).join('');
+      f48.parentElement.insertBefore(blk, f48.nextSibling);
+    })();
+    /* M5-7 (#71): the waiver names the company from its settings; the
+       customer signs with "Signer name"; no "I have read and agree" box
+       and no separate "Save waiver" */
+    (function () {
+      var h49 = $$('span', document).filter(function (e) { return e.closest(RCQ) && norm(e.textContent) === 'Safety concerns acknowledgement'; })[0];
+      var rc = h49 ? h49.closest('.screen') : byId('rc-customer'); if (!rc) return;
+      $$('div', rc).forEach(function (d) {
+        if (!d.children.length && /AND Services is not responsible/.test(d.textContent)) d.textContent = d.textContent.replace(/AND Services/g, COMPANY_NAME);
+      });
+      var agree = $$('span', rc).filter(function (e) { return norm(e.textContent) === 'I have read and agree to the above'; })[0];
+      if (agree && agree.parentElement) agree.parentElement.remove();
+      $$('div', document).filter(function (e) { return e.closest(RCQ) && !e.children.length && norm(e.textContent) === 'Save waiver'; })
+        .forEach(function (sv) { var f = sv.parentElement; (f && norm(f.textContent) === 'Save waiver' ? f : sv).style.display = 'none'; });
+      var head = $$('span', rc).filter(function (e) { return norm(e.textContent) === 'Customer Waiver'; })[0];
+      var blk = head && head.parentElement && head.parentElement.parentElement;
+      if (blk && !$('[data-wsigner]', blk)) {
+        var lab = document.createElement('label');
+        lab.setAttribute('style', 'display:block;margin:10px 0');
+        lab.innerHTML = '<span style="display:block;font:500 12.5px/1 Geist;color:#546478;margin-bottom:6px">Signer name</span><input data-wsigner class="inp" style="width:100%;height:44px;padding:0 12px;border:1px solid #DDE3EE;border-radius:9px;font:400 15px/1 Geist">';
+        blk.insertBefore(lab, head.parentElement.nextSibling);
+      }
+      var inp = $('[data-wsigner]', rc); if (inp && !inp.value) inp.value = (JOBS[jobIdx] || {}).name || '';
+    })();
+    /* M5-7 (#73): the technician's signature is his own — the signed-in
+       user, not to be changed */
+    (function () {
+      var rt = byId('rc-overview'); if (!rt || $('[data-techsigner]')) return;
+      var by = $$('div', rt).filter(function (d) { return !d.children.length && /^Marek Stroz · /.test(norm(d.textContent)); })[0];
+      if (!by) return;
+      var n = document.createElement('div'); n.dataset.techsigner = '1';
+      n.setAttribute('style', 'font:400 12px/1.4 Geist;color:#8A97A8;margin-top:4px');
+      n.textContent = 'Signed as the signed-in technician — it cannot be signed for someone else.';
+      by.parentElement.insertBefore(n, by.nextSibling);
+    })();
     /* M7-6b (#86): SMS is Pro — the invoice is emailed or printed */
     $$('#ov-inv-share .mi, #inv-paid .mi').forEach(function (ic) {
       if (norm(ic.textContent) !== 'sms') return;
@@ -13606,6 +13670,52 @@ body.dev #indexBtn{display:flex}
     });
   }
   setTimeout(paintHistTags, 0);
+
+  /* =========================================================
+     M5-3 / M5-4 (#50, #74): the job's tab is "Forms" — a list of its forms
+     (the AC Report Card; on an install, the AC install template); a tap
+     opens the form, "Forms" goes back to the list.
+     ========================================================= */
+  var formsBox = null, rcParts = [];
+  (function () {
+    var root = byId('rc-overview'); if (!root) return;
+    var kids = [].slice.call(root.children);
+    var strip = kids.filter(function (k) { return /General/.test(k.textContent) && /Finance/.test(k.textContent) && k.children.length >= 5; })[0];
+    if (!strip) { MISS.push('rc-overview :: forms'); return; }
+    rcParts = kids.slice(kids.indexOf(strip) + 1);
+    formsBox = document.createElement('div');
+    formsBox.className = 'sc';
+    formsBox.setAttribute('style', 'flex:1;overflow-y:auto;padding:16px 16px 20px');
+    root.insertBefore(formsBox, strip.nextSibling);
+    var backRow = document.createElement('div');
+    backRow.dataset.tap = '1';
+    backRow.setAttribute('style', 'display:flex;align-items:center;gap:6px;padding:10px 16px 0;font:600 14px/1 Geist;color:#4A6FA5;flex:none');
+    backRow.innerHTML = '<span class="mi" style="font-size:20px">chevron_left</span>Forms';
+    root.insertBefore(backRow, formsBox.nextSibling);
+    rcParts.unshift(backRow);
+    backRow.addEventListener('click', function (ev) { ev.stopPropagation(); formsList(true); });
+    formsBox.addEventListener('click', function (ev) {
+      var r = ev.target.closest('[data-form]'); if (!r) return;
+      ev.stopPropagation();
+      if (r.dataset.form === 'rc') formsList(false);
+      else go('closeout', 'push');
+    }, true);
+  })();
+  function formsList(on) {
+    if (!formsBox) return;
+    var j = JOBS[jobIdx] || {};
+    var row = function (key, name, sub, icon) {
+      return '<div data-tap="1" data-form="' + key + '" style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #DDE3EE;border-radius:12px;padding:14px;margin-bottom:10px">' +
+        '<span class="mi" style="font-size:22px;color:#4A6FA5">' + icon + '</span><div style="flex:1;min-width:0"><div style="font:600 15.5px/1.25 Geist">' + name + '</div>' +
+        '<div style="font:400 12.5px/1.35 Geist;color:#8A97A8;margin-top:3px">' + sub + '</div></div><span class="mi" style="font-size:20px;color:#A9B4C2">chevron_right</span></div>';
+    };
+    var gaps = typeof installMissing === 'function' ? installMissing() : [];
+    formsBox.innerHTML = row('rc', 'AC Report Card', j.rcFilled ? 'Latest change: today (Marek Stroz)' : 'Not started', 'assignment') +
+      (j.type === 'Install' ? row('install', 'AC install template', gaps.length ? 'Not filled in' : 'Filled in', 'handyman') : '');
+    var ws = $('[data-wsigner]'); if (ws) ws.value = j.name || '';   // the waiver's signer is this job's customer
+    formsBox.style.display = on ? '' : 'none';
+    rcParts.forEach(function (e) { e.style.display = on ? 'none' : ''; });
+  }
 
   ACT.toggleLocation = function () {
     setLocation(!locationOn);
