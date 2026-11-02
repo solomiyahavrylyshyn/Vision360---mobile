@@ -365,6 +365,7 @@
     var pid = curPage(); if (!pid) return;
     if (pid === 'est-draft' && typeof paintDraftAction === 'function') paintDraftAction();
     if (pid === 'est-customer' && typeof paintCustomerOptions === 'function') paintCustomerOptions();
+    if (pid === 'home' && typeof paintUpcoming === 'function') paintUpcoming();
     if (pid === 'est-customer' && typeof paintCustomerEstNo === 'function') paintCustomerEstNo();
     if (pid === 'history' && typeof paintHistTags === 'function') paintHistTags();
     // while a job is In Progress, Home shows it, whichever job was opened from the list
@@ -897,6 +898,17 @@
         queued('Job status', 'Status: Paused');
         paintEnroute(); paintJob();
         toast('Paused — the drive is closed, so a break is not paid as drive time', 'pause_circle');
+        return;
+      }
+      /* M9-4 (#93): the drive out starts the day for a technician who
+         clocks the day */
+      if (!state.enroute && salaried && !(day.start && !day.end)) {
+        confirmSheet({
+          title: 'Start your day now?',
+          text: 'Your day has not started. Going en route starts it at ' + clockNow() + '.',
+          ok: 'Start day and go',
+          onOk: function () { ACT.dayToggle(); ACT.enroute(); }
+        });
         return;
       }
       state.enroute = !state.enroute;
@@ -5882,7 +5894,28 @@
   var WEEK = { regular: 32.5, overtime: 4.0, drive: 6.2 };   // Mon–Thu, already banked
   // set in the web app: the rate on the employee's invite form, drive time
   // compensable as a company setting (on out of the box)
-  var PAY = { type: 'hourly', rate: 20, drivePaid: true };
+  var PAY = { type: 'hourly', rate: 20, drivePaid: true, salary: 1200, daily: 240 };
+  // M9-8 (#92): the pay type is the office's — the demo row in More cycles it
+  var tsPayType = recall('payType', recall('salaried', false) ? 'salary' : 'hourly');
+  /* M9-8 (#90): Day · Week · Date range. What is already banked in each,
+     before the clock running today is added. */
+  var TS_PERIODS = {
+    'Day': { regular: 6.5, overtime: 0, drive: 0, first: 30 * 60, sold: 1450, days: 1, weeks: 0.2,
+      label: 'Today', head: 'today', daysHead: 'Today · Fri, Dec 12' },
+    'Week': { regular: 32.5, overtime: 4.0, drive: 6.2, first: 125 * 60, sold: 6240, days: 4, weeks: 1,
+      label: 'This week', head: 'this week', daysHead: 'Week of Dec 8' },
+    'Date range': { regular: 70.5, overtime: 6.0, drive: 13.1, first: 250 * 60, sold: 12880, days: 9, weeks: 2,
+      label: 'Dec 1 – Dec 12', head: 'Dec 1 – Dec 12', daysHead: 'Dec 1 – Dec 12' }
+  };
+  var tsPeriod = recall('tsPeriod', 'Week');
+  // M9-8 (#91): the jobs under each day
+  var TS_DAY_JOBS = [
+    ['10512-J88 · Carla Diaz · Drive 25m · Work 2h 10m · Sold $0', '10512-J90 · Tom Reyes · Drive 40m · Work 2h 30m · Sold $640', '10512-J91 · Ana Brooks · Drive 20m · Work 1h 55m · Sold $0'],
+    ['10512-J93 · Mike Olsen · Drive 30m · Work 2h 05m · Sold $1,150', '10512-J94 · Lisa Park · Drive 15m · Work 1h 40m · Sold $0', '10512-J95 · Dan Ruiz · Drive 35m · Work 2h 20m · Sold $2,400', '10512-J96 · Joy Kim · Drive 20m · Work 1h 15m · Sold $0'],
+    ['10512-J97 · Sam Hill · Drive 45m · Work 3h 30m · Sold $600', '10512-J98 · Eva Long · Drive 30m · Work 2h 35m · Sold $0'],
+    ['10512-J99 · Raj Patel · Drive 25m · Work 2h 40m · Sold $0', '10512-J100 · Kim Wu · Drive 30m · Work 2h 10m · Sold $0', '10512-J102 · Bo Grant · Drive 20m · Work 2h 15m · Sold $0'],
+    ['10512-J101 · Randy Johnson · Drive 30m · Work 6h 30m · Sold $1,450']
+  ];
   var clock = { drive: 0, work: 0, mode: 'off', since: 0, visits: 0, sold: 0, labor: 0, commission: 0 };
   // a running clock keeps running through a reload — `since` is a timestamp
   Object.assign(clock, recall('clock', {}));
@@ -5936,23 +5969,48 @@
 
     var drive = clock.drive + (clock.mode === 'drive' ? running : 0);
     var work = clock.work + (clock.mode === 'work' ? running : 0);
-    set('tsDrive', (WEEK.drive + drive / 3600).toFixed(1) + 'h');
-    set('tsRegular', (WEEK.regular + work / 3600).toFixed(1) + 'h');
+    var TP = TS_PERIODS[tsPeriod] || TS_PERIODS.Week;
+    set('tsDrive', (TP.drive + drive / 3600).toFixed(1) + 'h');
+    set('tsRegular', (TP.regular + work / 3600).toFixed(1) + 'h');
+    set('tsOvertime', TP.overtime.toFixed(1) + 'h');
     set('tsToday', hm(drive + work));
     paintDriveTime(drive);
     set('tsVisits', String(clock.visits));
-    set('tsSold', fmt(clock.sold));
+    set('tsSold', fmt(TP.sold + clock.sold));
+    set('tsFirstDrive', hm(TP.first));
+    set('tsPeriodLbl', TP.label);
+    set('tsRecHead', 'Recorded ' + TP.head);
+    set('tsPayHead', 'Pay ' + TP.head);
+    set('tsDaysHead', TP.daysHead);
+    var tr = byId('tsTodayRow'); if (tr) toggleDisplay(tr, tsPeriod === 'Day');
+    paintTsDays();
     /* Marek, Oct 21: "My hourly rate is 20 bucks an hour" — regular hours,
        plus drive hours when the company pays for driving, times the rate;
        overtime on top. Commission and pay plans are Pro. */
-    var reg = WEEK.regular + work / 3600, drv = WEEK.drive + drive / 3600;
+    var reg = TP.regular + work / 3600, drv = TP.drive + drive / 3600;
     var paidHrs = reg + (PAY.drivePaid ? drv : 0);
-    var otPay = WEEK.overtime * PAY.rate * 1.5;
-    set('tsRate', 'Hourly · ' + fmt(PAY.rate) + '/h');
-    set('tsPaidHours', paidHrs.toFixed(1) + 'h');
-    set('tsPaidNote', PAY.drivePaid ? 'Regular + drive' : 'Regular only — drive time isn’t paid');
-    set('tsOtPay', fmt(otPay));
-    set('tsPay', fmt(paidHrs * PAY.rate + otPay));
+    var otPay = TP.overtime * PAY.rate * 1.5;
+    var otRow = byId('tsOtRow'); if (otRow) toggleDisplay(otRow, tsPayType === 'hourly');
+    if (tsPayType === 'salary') {
+      set('tsRate', 'Salary · ' + fmt(PAY.salary) + ' a week');
+      set('tsPaidLbl', 'Hours recorded');
+      set('tsPaidHours', (reg + drv).toFixed(1) + 'h');
+      set('tsPaidNote', 'Kept for payroll — salary is not by the hour');
+      set('tsPay', fmt(PAY.salary * TP.weeks));
+    } else if (tsPayType === 'daily') {
+      set('tsRate', 'Daily · ' + fmt(PAY.daily) + ' a day');
+      set('tsPaidLbl', 'Days worked');
+      set('tsPaidHours', TP.days + (TP.days === 1 ? ' day' : ' days') + ' × ' + fmt(PAY.daily) + ' = ' + fmt(TP.days * PAY.daily));
+      set('tsPaidNote', 'A day counts once it is started');
+      set('tsPay', fmt(TP.days * PAY.daily));
+    } else {
+      set('tsRate', 'Hourly · ' + fmt(PAY.rate) + '/h');
+      set('tsPaidLbl', 'Paid hours');
+      set('tsPaidHours', paidHrs.toFixed(1) + 'h');
+      set('tsPaidNote', PAY.drivePaid ? 'Regular + drive (not the drive to the first job)' : 'Regular only — drive time isn’t paid');
+      set('tsOtPay', fmt(otPay));
+      set('tsPay', fmt(paidHrs * PAY.rate + otPay));
+    }
     set('tsPayInfo', 'Your office sets your rate on your employee profile. Drive time is ' +
       (PAY.drivePaid ? 'paid' : 'not paid') + ' at your company — a company setting.');
 
@@ -5975,6 +6033,42 @@
      was nothing a second set of buttons could say that the job card was not
      already saying, so they are gone and this reads the clock the job keeps. */
   setInterval(function () { if (clock.mode !== 'off') paintClock(); }, 1000);
+  function paintTsDays() {
+    var box = byId('tsDays'); if (!box) return;
+    var rows = $$(':scope > .rowi', box);
+    rows.forEach(function (r, i) {
+      var sub = r.nextElementSibling;
+      if (!sub || !sub.dataset.tsjobs) {
+        sub = document.createElement('div'); sub.dataset.tsjobs = '1';
+        sub.setAttribute('style', 'padding:0 15px 11px 69px;border-bottom:1px solid #EDF0F5;margin-top:-4px');
+        sub.innerHTML = (TS_DAY_JOBS[i] || []).map(function (t) {
+          return '<div style="font:400 12px/1.45 Geist;color:#546478;padding:2px 0">' + t + '</div>';
+        }).join('');
+        r.parentElement.insertBefore(sub, r.nextSibling);
+      }
+      // Day shows today only; Week and a range show the week's days
+      var show = tsPeriod !== 'Day' || i === rows.length - 1;
+      toggleDisplay(r, show); toggleDisplay(sub, show);
+    });
+  }
+  ACT.tsPeriod = function () {
+    var el = sheetEl('ov-tsperiod'), b = $('[data-sheetbody]', el);
+    b.innerHTML = '<div style="display:flex;justify-content:center;padding:0 0 10px"><div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div></div>' +
+      '<div style="font:600 18px/1.25 Geist;margin-bottom:6px">Period</div>' +
+      ['Day', 'Week', 'Date range'].map(function (k) {
+        var on = k === tsPeriod;
+        return '<div data-tap="1" data-tsp="' + k + '" style="display:flex;align-items:center;gap:10px;padding:14px 0;border-top:1px solid #EDF0F5">' +
+          '<span style="flex:1;font:' + (on ? 600 : 500) + ' 15.5px/1.2 Geist">' + k + (k === 'Date range' ? ' <span style="font-weight:400;color:#8A97A8">· Dec 1 – Dec 12</span>' : '') + '</span>' +
+          '<span class="' + (on ? 'mif' : 'mi') + '" style="font-size:20px;color:' + (on ? '#4A6FA5' : '#C8D5E8') + '">' + (on ? 'radio_button_checked' : 'radio_button_unchecked') + '</span></div>';
+      }).join('');
+    b.onclick = function (ev) {
+      var r = ev.target.closest('[data-tsp]'); if (!r) return;
+      tsPeriod = r.dataset.tsp; remember('tsPeriod', tsPeriod);
+      paintClock();
+      back();
+    };
+    go('ov-tsperiod', 'overlay');
+  };
   paintClock();
 
   /* =========================================================
@@ -11083,7 +11177,7 @@
      still clock in, clock out". Home carries the two buttons for them;
      an hourly technician's clock is the job's own.
      ========================================================= */
-  var salaried = recall('salaried', false);
+  var salaried = tsPayType !== 'hourly';
   var day = recall('day', { start: '', end: '', startMs: 0 });
   var dayCards = [];
   (function () {
@@ -11115,10 +11209,24 @@
       b.style.border = running ? '1px solid #F3C4C4' : '0';
     });
     var n = byId('salariedNote');
-    if (n) n.textContent = salaried ? 'Demo: showing a salaried technician · tap for hourly' : 'Demo: show as a salaried technician';
+    if (n) n.textContent = 'Demo: pay type — ' + { hourly: 'Hourly', salary: 'Salary', daily: 'Daily rate' }[tsPayType] + ' · tap to change';
   }
-  ACT.dayToggle = function () {
-    var t = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  ACT.dayToggle = function (force) {
+    var t = clockNow();
+    /* M9-4 (#93): ending the day with a job on the clock pauses that job */
+    if (day.start && !day.end && force !== true && (state.onsite || state.enroute) && mineRunning()) {
+      var j = JOBS[runIdx >= 0 ? runIdx : jobIdx] || {};
+      confirmSheet({
+        title: 'End day?',
+        text: jobNo(j) + ' will be paused at ' + t + '.',
+        ok: 'End day', danger: true,
+        onOk: function () {
+          if (state.onsite) ACT.pauseJob(); else ACT.enroute();
+          ACT.dayToggle(true);
+        }
+      });
+      return;
+    }
     if (day.start && !day.end) {
       day.end = t;
       toast('Day ended at ' + t + ' · ' + hm((Date.now() - day.startMs) / 1000) + ' recorded for payroll', 'stop_circle');
@@ -11130,10 +11238,58 @@
     queued('Timesheet');
     paintDay();
   };
+  /* M3-12 (#35): a warranty technician also sees the jobs booked for them
+     that the office has not dispatched yet — listed, but not to be driven
+     to or started until they are. */
+  var warrantyTech = recall('warrantyTech', false);
+  var upcomingBox = null;
+  function paintUpcoming() {
+    var root = byId('home'), sc = root && $('.sc', root); if (!sc) return;
+    if (!upcomingBox) {
+      var head = sel(root, 'Next jobs')[0] || sel(root, 'Current job')[0];
+      var block = head; while (block && block.parentElement !== sc) block = block.parentElement;
+      upcomingBox = document.createElement('div');
+      upcomingBox.setAttribute('style', 'margin:4px 0 14px');
+      var BTN = 'flex:1;height:42px;display:flex;align-items:center;justify-content:center;gap:6px;border-radius:9px;font:600 14px/1 Geist;background:#F4F6F9;color:#A9B4C2;border:1px solid #E3E8EF';
+      upcomingBox.innerHTML = '<div style="font:600 17px/1.2 Geist;margin:0 0 10px">Upcoming</div>' +
+        '<div style="background:#fff;border:1px solid #DDE3EE;border-radius:12px;padding:14px">' +
+        '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div style="font:600 16px/1.25 Geist">Maria Lopez</div>' +
+        '<span style="font:600 11.5px/1 Geist;color:#8A6114;background:#FEF3E2;border-radius:5px;padding:5px 7px;white-space:nowrap">Not dispatched yet</span></div>' +
+        '<div style="font:400 13.5px/1.4 Geist;color:#546478;margin-top:5px">Warranty · compressor replacement · Mon, Dec 15, 9:00 AM</div>' +
+        '<div style="font:400 13px/1.4 Geist;color:#8A97A8;margin-top:3px">10512-J105 · 2207 W Platt St, Tampa, FL 33606</div>' +
+        '<div style="display:flex;gap:9px;margin-top:12px">' +
+        '<div data-tap="1" data-undisp aria-disabled="true" style="' + BTN + '"><span class="mi" style="font-size:18px">directions_car</span>En route</div>' +
+        '<div data-tap="1" data-undisp aria-disabled="true" style="' + BTN + '"><span class="mi" style="font-size:18px">play_arrow</span>Start</div></div></div>';
+      upcomingBox.addEventListener('click', function (ev) {
+        if (!ev.target.closest('[data-undisp]')) return;
+        ev.stopPropagation();
+        toast('Not dispatched yet — the office dispatches it before you can go', 'schedule');
+      }, true);
+    }
+    // under the Next jobs card, not between the heading and its card
+    // the job card is moved around under its heading; the empty state stays after it
+    var anchor = $$('*', sc).filter(function (e) { return !e.children.length && /^No jobs dispatched/.test(norm(e.textContent)); })[0];
+    while (anchor && anchor.parentElement !== sc) anchor = anchor.parentElement;
+    if (anchor) { if (anchor.previousSibling !== upcomingBox) sc.insertBefore(upcomingBox, anchor); }
+    else if (!upcomingBox.parentElement) sc.appendChild(upcomingBox);
+    toggleDisplay(upcomingBox, warrantyTech);
+    var n = byId('warrantyNote');
+    if (n) n.textContent = warrantyTech ? 'Demo: showing a warranty technician · tap to undo' : 'Demo: show as a warranty technician';
+  }
+  ACT.demoWarranty = function () {
+    warrantyTech = !warrantyTech; remember('warrantyTech', warrantyTech);
+    paintUpcoming();
+    toast(warrantyTech ? 'Home lists Upcoming warranty jobs that are not dispatched yet' : 'Back to a regular technician', 'verified_user');
+  };
+  paintUpcoming();
   ACT.toggleSalaried = function () {
-    salaried = !salaried; remember('salaried', salaried);
-    paintDay();
-    toast(salaried ? 'Home now shows Start day / End day, as for a salaried technician' : 'Back to an hourly technician', 'badge');
+    tsPayType = { hourly: 'salary', salary: 'daily', daily: 'hourly' }[tsPayType] || 'hourly';
+    remember('payType', tsPayType);
+    salaried = tsPayType !== 'hourly'; remember('salaried', salaried);
+    paintDay(); paintClock();
+    toast(tsPayType === 'salary' ? 'Salary · ' + fmt(PAY.salary) + ' a week — Home shows Start day / End day'
+      : tsPayType === 'daily' ? 'Daily rate · ' + fmt(PAY.daily) + ' a day — Home shows Start day / End day'
+        : 'Back to an hourly technician', 'badge');
   };
 
   /* The job's General tab kept the board's customer — "Johnson, Randy",

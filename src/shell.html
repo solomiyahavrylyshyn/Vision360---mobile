@@ -229,7 +229,7 @@
         <div class="screen" id="timesheet" data-tabs="on">
           <div class="hdr" style="padding:12px 16px">
             <span class="ttl" style="font-size:21px">Timesheet</span>
-            <span style="display:flex;align-items:center;gap:5px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:9px;padding:8px 11px;font:500 13px/1 Geist" data-tap data-go="ov-period" data-mode="overlay">This week<span class="mi" style="font-size:17px;color:#546478">expand_more</span></span>
+            <span style="display:flex;align-items:center;gap:5px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:9px;padding:8px 11px;font:500 13px/1 Geist" data-tap data-act="tsPeriod"><span id="tsPeriodLbl">This week</span><span class="mi" style="font-size:17px;color:#546478">expand_more</span></span>
           </div>
           <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
             <div style="background:#1C2B3A;border-radius:14px;padding:16px;margin-bottom:14px;color:#fff">
@@ -259,17 +259,22 @@
             </div>
 
             <!-- what the app has recorded is what payroll pays on -->
-            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">Recorded today</div>
+            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px" id="tsRecHead">Recorded this week</div>
             <div class="card" style="overflow:hidden;margin-bottom:14px">
               <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5">
                 <span style="font:500 14px/1 Geist;color:#546478">Visits completed</span>
                 <span style="font:600 14.5px/1 Geist" id="tsVisits">0</span>
               </div>
               <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5">
-                <span style="font:500 14px/1 Geist;color:#546478">Sold today</span>
+                <span style="font:500 14px/1 Geist;color:#546478">Sold on my calls</span>
                 <span style="font:600 14.5px/1 Geist" id="tsSold">$0.00</span>
               </div>
-              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px">
+              <!-- M9-8 (#89): the drive to the first job is shown apart — it is not paid -->
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5">
+                <span style="font:500 14px/1 Geist;color:#546478">Drive to first job (unpaid)</span>
+                <span style="font:600 14.5px/1 Geist" id="tsFirstDrive">0h 00m</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px" id="tsTodayRow">
                 <span style="font:500 14px/1 Geist;color:#546478">On the clock today</span>
                 <span style="font:600 14.5px/1 Geist" id="tsToday">0h 00m</span>
               </div>
@@ -278,22 +283,22 @@
                  the pay is hours × the rate the office set on the employee.
                  Commission and other pay plans come with Pro. Whether drive
                  time is paid is a company setting, paid out of the box. -->
-            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">Pay this week</div>
+            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px" id="tsPayHead">Pay this week</div>
             <div class="card" style="overflow:hidden;margin-bottom:10px">
               <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5">
                 <span style="font:500 14px/1 Geist;color:#546478">Pay rate</span>
                 <span style="font:600 14.5px/1 Geist" id="tsRate">Hourly &middot; $20.00/h</span>
               </div>
               <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5">
-                <span style="font:500 14px/1 Geist;color:#546478">Paid hours<small style="display:block;font:400 11.5px/1.4 Geist;color:#8A97A8;margin-top:3px" id="tsPaidNote">Regular + drive</small></span>
+                <span style="font:500 14px/1 Geist;color:#546478"><span id="tsPaidLbl">Paid hours</span><small style="display:block;font:400 11.5px/1.4 Geist;color:#8A97A8;margin-top:3px" id="tsPaidNote">Regular + drive</small></span>
                 <span style="font:600 14.5px/1 Geist" id="tsPaidHours">0.0h</span>
               </div>
-              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid #EDF0F5" id="tsOtRow">
                 <span style="font:500 14px/1 Geist;color:#546478">Overtime<small style="display:block;font:400 11.5px/1.4 Geist;color:#8A97A8;margin-top:3px">at 1.5&times; the rate</small></span>
                 <span style="font:600 14.5px/1 Geist" id="tsOtPay">$0.00</span>
               </div>
               <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;background:#EBF0F8">
-                <span style="font:600 15px/1 Geist">Earned so far</span>
+                <span style="font:600 15px/1 Geist">Gross pay (estimate)<small style="display:block;font:400 11.5px/1.4 Geist;color:#546478;margin-top:3px">before taxes and deductions</small></span>
                 <span style="font:700 19px/1 Geist;letter-spacing:-.01em" id="tsPay">$0.00</span>
               </div>
             </div>
@@ -301,8 +306,8 @@
               <span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">info</span>
               <div style="font:400 12.5px/1.45 Geist;color:#546478" id="tsPayInfo">Your office sets your rate and whether drive time is paid.</div>
             </div>
-            <div style="font:600 16px/1 Geist;margin-bottom:10px">Week of Dec 8</div>
-            <div class="card" style="overflow:hidden">
+            <div style="font:600 16px/1 Geist;margin-bottom:10px" id="tsDaysHead">Week of Dec 8</div>
+            <div class="card" style="overflow:hidden" id="tsDays">
               <div class="rowi" data-toast="Mon &mdash; 3 jobs, 8.2h"><div style="width:42px;font:600 13px/1.3 Geist;color:#546478;flex:none">MON<small style="display:block;font:400 11px/1.3 Geist;color:#8A97A8">Dec 8</small></div><div class="t">3 jobs<small>7:55 AM &ndash; 4:10 PM</small></div><span style="font:600 15px/1 Geist">8.2h</span></div>
               <div class="rowi" data-toast="Tue &mdash; 4 jobs, 9.0h"><div style="width:42px;font:600 13px/1.3 Geist;color:#546478;flex:none">TUE<small style="display:block;font:400 11px/1.3 Geist;color:#8A97A8">Dec 9</small></div><div class="t">4 jobs<small>7:48 AM &ndash; 5:02 PM</small></div><span style="font:600 15px/1 Geist;color:#D97706">9.0h</span></div>
               <div class="rowi" data-toast="Wed &mdash; 2 jobs, 7.4h"><div style="width:42px;font:600 13px/1.3 Geist;color:#546478;flex:none">WED<small style="display:block;font:400 11px/1.3 Geist;color:#8A97A8">Dec 10</small></div><div class="t">2 jobs<small>8:10 AM &ndash; 3:36 PM</small></div><span style="font:600 15px/1 Geist">7.4h</span></div>
@@ -381,6 +386,7 @@
             <div class="rowi" data-act="demoNet" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">wifi_off</span><span id="demoNetNote">Demo: go offline</span></div>
             <div class="rowi" data-act="demoPushDispatch" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">notifications_active</span>Demo: push — new job dispatched</div>
             <div class="rowi" data-act="demoPushCancel" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">event_busy</span>Demo: push — job cancelled</div>
+            <div class="rowi" data-act="demoWarranty" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">verified_user</span><span id="warrantyNote">Demo: show as a warranty technician</span></div>
             <!-- demo only: shows Home as a salaried technician sees it (OD-16) -->
             <div class="rowi" data-act="toggleSalaried" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">badge</span><span id="salariedNote">Demo: show as a salaried technician</span></div>
             <div style="text-align:center;font:400 12px/1 Geist;color:#8A97A8;padding:20px 0 6px">Vision 360 v2.4.1 &middot; build 2411</div>
