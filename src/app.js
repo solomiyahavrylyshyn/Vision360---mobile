@@ -8911,7 +8911,7 @@
     },
     private: {
       seg: 'Private', title: 'Private Notes',
-      shared: false, readOnly: false, add: 'Add private note',
+      shared: false, readOnly: false, add: 'Add internal note',          // the web's name (#40)
       banner: 'Internal notes are never shown to the customer.'
     }
   };
@@ -8954,7 +8954,7 @@
   } else {
     noteSeed('ov-note-detailed');          // still need the card template
   }
-  function saveNotes() { remember('notes.v2', notes); }
+  function saveNotes() { remember('notes.v2', notes); if (typeof paintNoteChips === 'function') paintNoteChips(); }
   // the queue went out: nothing on the notes is waiting any more
   function clearNotesWaiting() {
     var any = false;
@@ -9941,6 +9941,26 @@
     var e = byId('demoNetNote'); if (e) e.textContent = net.online ? 'Demo: go offline' : 'Demo: back online';
   }
   setTimeout(paintDemoNet, 0);
+
+  /* M4-3 (#39): the Home card's note chips are the Notes tab's own counts
+     in its order — "Job 2 · Field 2 · Internal 1" — not the board's
+     "Job (1) · Internal (5) · Field". */
+  function paintNoteChips() {
+    if (!jobCard || typeof notes === 'undefined' || !notes) return;
+    var label = $$('span', jobCard).filter(function (e) { return norm(e.textContent) === 'Notes:'; })[0];
+    var box = label && label.parentElement; if (!box) return;
+    var chips = $$(':scope > span', box).filter(function (e) { return e !== label && /^(Job|Field|Internal|Detailed|Technician|Private)/.test(norm(e.textContent)); });
+    var KIND = { Job: 'detailed', Detailed: 'detailed', Field: 'tech', Technician: 'tech', Internal: 'private', Private: 'private' };
+    var NAME = { detailed: 'Job', tech: 'Field', private: 'Internal' };
+    var byKind = {};
+    chips.forEach(function (c) { var k = KIND[norm(c.textContent).split(/[\s(']/)[0]]; if (k) byKind[k] = c; });
+    ['detailed', 'tech', 'private'].forEach(function (k) {
+      var c = byKind[k]; if (!c) return;
+      c.textContent = NAME[k] + ' ' + ((notes[k] || []).length);
+      box.appendChild(c);                     // the tab's order: Job · Field · Internal
+    });
+  }
+  setTimeout(paintNoteChips, 0);
 
   ACT.toggleLocation = function () {
     setLocation(!locationOn);
