@@ -6992,7 +6992,8 @@ body.dev #indexBtn{display:flex}
     if (!viewPast) return;
     var scr = ev.target.closest('.screen,.overlay');
     if (!scr || !isJobScreen(scr.id)) return;
-    if (ev.target.closest('a[data-tel]')) return;
+    // calling the contact and opening the address change nothing on the job (#31, #38)
+    if (ev.target.closest('a[data-tel],[data-maps]')) return;
     var hit = ev.target.closest('[data-act],[data-go],[data-back],[data-tap],input,textarea');
     if (!hit) return;
     if (hit.dataset.back !== undefined) return;
@@ -13522,7 +13523,7 @@ body.dev #indexBtn{display:flex}
     };
     if (!nameEl || !refs.contact || !refs.addr) { MISS.push('job-general :: customer'); return; }
     // M3-7: the service address opens Google Maps, here as on the card
-    refs.addr.dataset.tap = '1';
+    refs.addr.dataset.tap = '1'; refs.addr.dataset.maps = '1';
     refs.addr.style.cursor = 'pointer'; refs.addr.style.color = '#4A6FA5';
     refs.addr.setAttribute('role', 'link');
     refs.addr.addEventListener('click', function (ev) { ev.stopPropagation(); openMaps((JOBS[jobIdx] || {}).addr); }, true);
@@ -13533,7 +13534,16 @@ body.dev #indexBtn{display:flex}
       var c = viewPast && viewPast.card;
       var time = String(j.when).split(', ').pop();
       nameEl.textContent = lastFirst(j.name);
-      refs.contact.textContent = lastFirst(j.name);
+      /* M4-1b (#38): the contact is a link, blue as the phone on the Home
+         card, and a tap opens the dialer with the contact's number */
+      refs.contact.textContent = '';
+      var tel = document.createElement('a');
+      tel.dataset.tel = '1';
+      tel.href = 'tel:+1' + String(j.phone || '').replace(/\D/g, '');
+      tel.setAttribute('aria-label', 'Call ' + j.name + ' ' + (j.phone || ''));
+      tel.setAttribute('style', 'color:#4A6FA5;text-decoration:none');
+      tel.textContent = lastFirst(j.name);
+      refs.contact.appendChild(tel);
       // More → Current job names the job in hand by its number
       var cur = byId('moreCurJob'), live = viewPast ? JOBS[viewPast.idx] : j;
       if (cur && live) cur.textContent = live.name + ' · ' + jobNo(live);
