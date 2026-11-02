@@ -12243,7 +12243,9 @@ body.dev #indexBtn{display:flex}
     meta.setAttribute('style', 'display:flex;justify-content:space-between;align-items:center;' +
       'gap:10px;margin-top:11px;font:500 12.5px/1 Geist;color:#8A97A8');
 
-    if (k.readOnly) return card;
+    // M4-4 (#41): Edit and Delete are on his own notes only — a note by
+    // Sarah Thompson or James Reynolds is read, not changed
+    if (k.readOnly || rec.author !== 'Marek Stroz') return card;
 
     var acts = document.createElement('div');
     acts.setAttribute('style', 'display:flex;gap:2px;flex:none;margin:-8px -6px -8px 0');
@@ -12319,6 +12321,7 @@ body.dev #indexBtn{display:flex}
     var hide = $$(':scope > div', card);
     hide.forEach(function (e) { toggleDisplay(e, false); });
     card.appendChild(box);
+    noteAddAside(card.parentElement, true, box);
     var ta = $('textarea', box);
     setTimeout(function () { ta.focus(); }, 30);
     box.addEventListener('click', function (ev) {
@@ -12329,7 +12332,6 @@ body.dev #indexBtn{display:flex}
       if (!text) { ta.focus(); return; }
       rec.text = text;
       rec.stamp = noteStampNow();
-      rec.author = 'Marek Stroz';          // whoever last touched it owns it
       rec.waiting = !net.online ? 'edit' : '';
       saveNotes();
       paintNotes(kind);
@@ -12365,6 +12367,7 @@ body.dev #indexBtn{display:flex}
   function addNote(kind, box) {
     var editor = noteEditor(noteDrafts[kind] || '');
     box.appendChild(editor);
+    noteAddAside(box, true, editor);
     var ta = $('textarea', editor);
     if (focusDraft) {
       setTimeout(function () {
@@ -12407,13 +12410,23 @@ body.dev #indexBtn{display:flex}
         sf.banner.innerHTML = fresh.innerHTML;
       }
       if (sf.addBtn) {
-        toggleDisplay(sf.addBtn, !spec.readOnly);
+        // #42: while a note is being written the Add button steps aside, so
+        // it does not sit over Cancel and Save note
+        toggleDisplay(sf.addBtn, !spec.readOnly && !$('[data-noteeditor]', sf.box));
         var lbl = sf.addBtn.lastChild;
         if (spec.add && lbl && lbl.nodeType === 3) lbl.nodeValue = spec.add;
       }
       if (sf.count) sf.count.textContent = String(notes[k].length);
     });
     paintNoteSegment();
+  }
+
+  function noteAddAside(box, aside, editor) {
+    noteSurfaces.forEach(function (sf) {
+      if (sf.box !== box || !sf.addBtn) return;
+      toggleDisplay(sf.addBtn, !aside && !NOTE_KINDS[sf.kind || tabNoteKind].readOnly);
+    });
+    if (aside && editor) setTimeout(function () { editor.scrollIntoView({ block: 'nearest' }); }, 40);
   }
 
   function noteSurface(screenId, kind) {
@@ -12450,12 +12463,16 @@ body.dev #indexBtn{display:flex}
   var tabNoteKind = 'detailed';
   function paintNoteSegment() {
     var root = byId('job-notes'); if (!root) return;
+    // the switches carry the web's names (Job · Field · Internal) once
+    // mvpTrim has run, so either name finds them, and the count follows
+    var WEB = { detailed: 'Job', tech: 'Field', private: 'Internal' };
     NOTE_ORDER.forEach(function (k) {
       var spec = NOTE_KINDS[k];
       var el = $$('div', root).filter(function (e) {
-        return !e.children.length && norm(e.textContent).indexOf(spec.seg + ' ') === 0;
+        var t = norm(e.textContent);
+        return !e.children.length && (t.indexOf(spec.seg + ' ') === 0 || t.indexOf(WEB[k] + ' ') === 0);
       })[0];
-      if (el) el.textContent = spec.seg + ' ' + notes[k].length;
+      if (el) el.textContent = (norm(el.textContent).indexOf(WEB[k] + ' ') === 0 ? WEB[k] : spec.seg) + ' ' + notes[k].length;
     });
   }
 
