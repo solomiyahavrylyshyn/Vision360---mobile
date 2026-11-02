@@ -3621,7 +3621,7 @@ body.dev #indexBtn{display:flex}
       remember('jobIdx', viewPast ? viewPast.idx : jobIdx);   // a job being looked at is not the job
       remember('jobs', JOBS.map(function (j) {
         return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, estDeclined: j.estDeclined || null, paperApproved: j.paperApproved || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
+          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, estDeclined: j.estDeclined || null, invNeeded: typeof j.invNeeded === 'boolean' ? j.invNeeded : null, paperApproved: j.paperApproved || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
       }));
     }
     paintDash();
@@ -6112,17 +6112,31 @@ body.dev #indexBtn{display:flex}
     paintInvRows();
   })();
 
+  /* M7-6 (#85): an invoice's status is about the money, as on the web —
+     Unpaid, Partially paid, Paid, Overdue, Void. Sent is delivery, not a status. */
+  // a function, not a var: the rows are painted before this line runs
+  function invStatusStyle(st) {
+    return {
+      'Unpaid': 'color:#546478;background:#EDF0F5', 'Partially paid': 'color:#8A6114;background:#FEF3E2',
+      'Paid': 'color:#15803D;background:#E7F6EC', 'Overdue': 'color:#DC2626;background:#FDECEC',
+      'Void': 'color:#8A97A8;background:#EDF0F5'
+    }[st] || 'color:#546478;background:#EDF0F5';
+  }
+  function invStatus() {
+    if (state.inv === 'paid') return 'Paid';
+    if (state.inv === 'void') return 'Void';
+    if (invPaidSoFar > 0) return 'Partially paid';
+    return 'Unpaid';
+  }
   function paintInvRows() {
     var has = state.inv !== 'none';
     invRows.forEach(function (R) {
       var open = !has && R.open;
       R.panel.hidden = !open;
       if (R.chev) R.chev.textContent = has ? 'chevron_right' : (open ? 'expand_less' : 'expand_more');
-      R.badge.textContent = has ? (state.inv === 'paid' ? 'Paid' : state.inv === 'sent' ? 'Sent' : 'Created') : 'None';
-      R.badge.setAttribute('style', 'font:600 12px/1 Geist;border-radius:5px;padding:5px 8px;' +
-        (state.inv === 'paid' ? 'color:#15803D;background:#E7F6EC'
-          : state.inv === 'sent' ? 'color:#4A6FA5;background:#EBF0F8'
-            : 'color:#546478;background:#EDF0F5'));
+      var st = invStatus();
+      R.badge.textContent = has ? st : 'None';
+      R.badge.setAttribute('style', 'font:600 12px/1 Geist;border-radius:5px;padding:5px 8px;' + invStatusStyle(has ? st : 'None'));
     });
   }
 
@@ -6288,8 +6302,8 @@ body.dev #indexBtn{display:flex}
     { id: 'cash', name: 'Cash', icon: 'payments', btn: 'Confirm payment',
       fields: [[{ l: 'Cash received', k: 'amount' }]] },
     { id: 'check', name: 'Check', icon: 'receipt', btn: 'Confirm payment',
-      fields: [[{ l: 'Name on the check' }], [{ l: 'Bank name' }], [{ l: 'Check number', k: 'num' }],
-        [{ l: 'Check date', k: 'date' }]] },
+      // M7-8 (#83): the web records a check by its number — no bank, no date
+      fields: [[{ l: 'Check number', k: 'num', req: true }]] },
     { id: 'financing', name: 'Financing', icon: 'account_balance', btn: 'Confirm payment',
       fields: [[{ l: 'Lender' }], [{ l: 'Application number' }]] },
     { id: 'bank', name: 'Bank transfer', icon: 'account_balance', btn: 'Confirm payment',
@@ -6324,7 +6338,7 @@ body.dev #indexBtn{display:flex}
     var v = pay.values[key] || '';
     return '<div style="flex:1;min-width:0;position:relative">' +
       (fd.k === 'amount' ? '<span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font:500 15px/1 Geist;color:#8A97A8">$</span>' : '') +
-      '<input data-pkey="' + key + '" class="inp" inputmode="' + mode + '" placeholder="' + fd.l + '" value="' + v.replace(/"/g, '&quot;') + '" ' +
+      '<input data-pkey="' + key + '" class="inp" inputmode="' + mode + '" placeholder="' + fd.l + (fd.req ? ' (required)' : '') + '" value="' + v.replace(/"/g, '&quot;') + '" ' +
       'style="' + FBOX + 'width:100%;min-width:0;outline:none;' + FVAL + (fd.k === 'amount' ? 'padding-left:28px' : '') + '"></div>';
   }
 
@@ -6358,9 +6372,9 @@ body.dev #indexBtn{display:flex}
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">' +
       '<div><div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase">Invoice</div>' +
       '<div data-payinv style="font:600 16px/1.2 Geist;margin-top:5px"></div></div>' +
-      '<div style="text-align:right"><div style="font:400 12.5px/1 Geist;color:#546478">Amount due</div>' +
+      '<div style="text-align:right"><div style="font:400 12.5px/1 Geist;color:#546478">Balance</div>' +
       '<div data-payinvdue style="font:700 20px/1 Geist;letter-spacing:-.01em;color:#1C2B3A;margin-top:4px"></div></div></div>' +
-      '<div style="font:500 12.5px/1 Geist;color:#546478;margin-bottom:7px">Amount to take now</div>' +
+      '<div style="font:500 12.5px/1 Geist;color:#546478;margin-bottom:7px">Amount</div>' +
       '<div style="display:flex;align-items:center;gap:8px;height:50px;padding:0 13px;margin-bottom:12px;background:#fff;border:1.5px solid #4A6FA5;border-radius:10px">' +
       '<span style="font:600 17px/1 Geist;color:#8A97A8">$</span>' +
       '<input data-payamt class="inp" inputmode="decimal" style="flex:1;height:auto;border:0;padding:0;background:transparent;font:600 17px/1 Geist"></div>' +
@@ -6380,9 +6394,9 @@ body.dev #indexBtn{display:flex}
       '<div data-payfields></div>' +
       '<div data-paychange style="display:none;justify-content:space-between;padding:10px 2px 0;font:400 13.5px/1 Geist;color:#546478"><span>Change due</span><span data-paychangeval style="font:600 13.5px/1 Geist;color:#1A2332">$0.00</span></div>' +
       '<div style="margin-top:16px;background:#fff;border:1px solid #DDE3EE;border-radius:12px;overflow:hidden">' +
-      '<div style="display:flex;justify-content:space-between;padding:13px 14px;border-bottom:1px solid #EDF0F5;font:400 14.5px/1 Geist;color:#546478"><span>Down payment amount</span><span data-paydown style="font:600 14.5px/1 Geist;color:#1A2332"></span></div>' +
       '<div style="display:flex;justify-content:space-between;padding:13px 14px;border-bottom:1px solid #EDF0F5;font:400 14.5px/1 Geist;color:#546478"><span>Total</span><span data-paytotal style="font:600 14.5px/1 Geist;color:#1A2332"></span></div>' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;padding:14px;background:#EBF0F8"><span style="font:600 15px/1 Geist">To be paid</span><span data-paydue style="font:700 22px/1 Geist;letter-spacing:-.01em;color:#1C2B3A"></span></div></div>';
+      '<div style="display:flex;justify-content:space-between;padding:13px 14px;border-bottom:1px solid #EDF0F5;font:400 14.5px/1 Geist;color:#546478"><span>Paid</span><span data-paydown style="font:600 14.5px/1 Geist;color:#1A2332"></span></div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:14px;background:#EBF0F8"><span style="font:600 15px/1 Geist">Balance</span><span data-paydue style="font:700 22px/1 Geist;letter-spacing:-.01em;color:#1C2B3A"></span></div></div>';
 
     var P = { id: 'pay-step', root: screen, panel: panel, rendered: '' };
     payPanels.push(P);
@@ -6415,10 +6429,14 @@ body.dev #indexBtn{display:flex}
     paintPayPanels();
   })();
 
+  // M7-7b (#82): who paid — the customer by default, someone else when not
+  function payerDefault() { var j = (typeof JOBS === 'undefined' ? null : JOBS[jobIdx]) || {}; return j.name || ''; }
   function renderPayFields(P) {
     var m = payMethodDef();
     var area = $('[data-payfields]', P.panel);
-    area.innerHTML = (m.id === 'card' ? cardPanelHtml() : '') + m.fields.map(function (row) {
+    var pk = m.id + '|Payer';
+    if (pay.values[pk] === undefined && payerDefault()) pay.values[pk] = payerDefault();
+    area.innerHTML = (m.id === 'card' ? cardPanelHtml() : '') + [[{ l: 'Payer' }]].concat(m.fields).map(function (row) {
       return '<div style="display:flex;gap:10px;margin-top:10px">' + row.map(fieldHtml).join('') + '</div>';
     }).join('') + dlSlotHtml(m);
     // a date field is a list of the days around today
@@ -6497,7 +6515,7 @@ body.dev #indexBtn{display:flex}
       var got = cashReceived();
       r.sub = got > payAmount ? fmt(got) + ' received · ' + fmt(got - payAmount) + ' change' : 'Paid in full';
     } else if (m.id === 'check') {
-      r.sub = (v('Check number') ? 'Check #' + v('Check number') : 'Paper check') + (v('Bank name') ? ' · ' + v('Bank name') : '');
+      r.sub = 'Check #' + v('Check number');
     } else {
       var bits = [];
       m.fields.forEach(function (row) { row.forEach(function (fd) { if (fd.k !== 'date' && v(fd.l)) bits.push(v(fd.l)); }); });
@@ -6590,6 +6608,9 @@ body.dev #indexBtn{display:flex}
 
   ACT.payInline = function () {
     var m = payMethodDef();
+    var miss = [];
+    m.fields.forEach(function (row) { row.forEach(function (fd) { if (fd.req && !norm(pay.values[m.id + '|' + fd.l] || '')) miss.push(fd.l); }); });
+    if (miss.length) { toast('Enter the ' + miss[0].toLowerCase() + ' first', 'edit'); return; }
     if (dlRequired(m) && !(pay.dl && pay.dl[m.id])) {
       toast('Take a photo of the customer’s driver’s licence first', 'badge');
       return;
@@ -6680,11 +6701,22 @@ body.dev #indexBtn{display:flex}
       '<div style="width:82px;height:82px;border-radius:41px;background:#EBF0F8;border:1px solid #C8D5E8;display:flex;align-items:center;justify-content:center;margin-bottom:20px">' +
       '<span class="mi" style="font-size:38px;color:#4A6FA5">receipt_long</span></div>' +
       '<div style="font:600 21px/1.25 Geist;letter-spacing:-.01em;margin-bottom:9px">No invoice yet</div>' +
-      '<div data-finhelp style="font:400 15px/1.55 Geist;color:#546478;text-wrap:pretty">Create the invoice for this job. Items, the approved estimate and payment are added to it.</div>';
+      '<div data-finhelp style="font:400 15px/1.55 Geist;color:#546478;text-wrap:pretty">Create the invoice for this job. Items, the approved estimate and payment are added to it.</div>' +
+      // M7-1 / M7-1b / M7-4 (#87): not every job is invoiced
+      '<div data-invneed data-tap="1" style="display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;margin-top:22px;padding:13px 14px;background:#fff;border:1px solid #DDE3EE;border-radius:11px;text-align:left">' +
+      '<div><div data-invneedt style="font:600 14.5px/1.25 Geist">Invoice needed</div><div data-invneeds style="font:400 12.5px/1.35 Geist;color:#8A97A8;margin-top:3px"></div></div><span data-invneedsw></span></div>';
     var foot = document.createElement('div');
     foot.setAttribute('style', 'padding:14px 16px 16px;background:#fff;border-top:1px solid #DDE3EE;flex:none');
+    foot.dataset.finfoot = '1';
     foot.innerHTML = '<div data-act="createInvoice" data-tap="1" style="height:54px;display:flex;align-items:center;justify-content:center;gap:8px;background:#4A6FA5;color:#fff;border-radius:11px;font:600 16px/1 Geist">' +
-      '<span class="mi" style="font-size:21px">add</span>Create invoice</div>';
+      '<span class="mi" style="font-size:21px">add</span><span data-createlbl>Create invoice</span></div>';
+    $('[data-invneed]', empty).addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      var j = JOBS[jobIdx]; if (!j) return;
+      j.invNeeded = !invNeeded(j); saveJobs();
+      paintPayScreens();
+      toast(j.invNeeded ? 'Invoice needed for this job' : 'No invoice needed for this job', 'receipt_long');
+    }, true);
     sc.parentElement.insertBefore(empty, sc.nextSibling);
     sc.parentElement.insertBefore(foot, empty.nextSibling);
   })();
@@ -8077,6 +8109,26 @@ body.dev #indexBtn{display:flex}
     return Math.round(sum * 100) / 100;
   }
 
+  // an install sold on an earlier job was billed with the sale
+  var SALE_JOB = '10301-J01';
+  function invNeeded(j) {
+    if (typeof j.invNeeded === 'boolean') return j.invNeeded;
+    return j.type !== 'Install';
+  }
+  function paintInvNeeded(j) {
+    var fin = byId('fin-empty'); if (!fin) return;
+    var row = $('[data-invneed]', fin); if (!row) return;
+    var need = invNeeded(j), zero = invoiceTotal() === 0;
+    $('[data-invneedsw]', row).innerHTML = switchHtml(need);
+    $('[data-invneedt]', row).textContent = need ? 'Invoice needed' : 'No invoice needed for this job';
+    $('[data-invneeds]', row).textContent = need
+      ? (zero ? 'Nothing billable yet — a $0 invoice closes the call' : 'The invoice bills what is on the job')
+      : j.type === 'Install' ? 'Billed on the sale (' + SALE_JOB + ')' : 'The job closes without an invoice';
+    var foot = $('[data-finfoot]', fin);
+    if (foot) toggleDisplay(foot, need);
+    var lbl = $('[data-createlbl]', fin);
+    if (lbl) lbl.textContent = zero ? 'Create $0 invoice' : 'Create invoice';
+  }
   function paintPayScreens() {
     if (typeof JOBS === 'undefined') return;
     var j = JOBS[jobIdx] || {};
@@ -8106,6 +8158,7 @@ body.dev #indexBtn{display:flex}
     paintVoidRow();
     paintPayPanels();
     paintDetailPanels();
+    paintInvNeeded(j);
     var jp = j.plan, fh = $('[data-finhelp]');
     if (fh) fh.textContent = jp && jp.prepaid
       ? 'Prepaid maintenance plan (' + fmt(jp.total) + ', invoiced on visit 1). Visit ' + jp.visit + ' of ' + jp.of + ' is covered — create an invoice only for work beyond the plan.'
@@ -8122,9 +8175,11 @@ body.dev #indexBtn{display:flex}
     })[0];
     if (badge) {
       badge.dataset.invbadge = '1';
-      badge.textContent = sent ? 'SENT' : 'CREATED';
-      badge.style.background = sent ? '#4A6FA5' : '#EDF0F5';
-      badge.style.color = sent ? '#fff' : '#546478';
+      var st = invStatus();
+      badge.textContent = st.toUpperCase();
+      var bs = invStatusStyle(st).match(/color:([^;]+);background:(.+)/);
+      badge.style.background = bs[2];
+      badge.style.color = bs[1];
     }
     var row = $('[data-sentrow]', root);
     if (!row) {
@@ -9937,7 +9992,7 @@ body.dev #indexBtn{display:flex}
   }
   function jobAmount(j) {
     if (!j) return 0;
-    var site = siteItems(j).reduce(function (a, it) { return a + it.price * it.qty; }, 0);
+    var site = siteItems(j).reduce(function (a, it) { return a + (it.incl ? 0 : it.price * it.qty); }, 0);
     return Math.round(((j.sold ? j.sold.total : 0) + site) * 100) / 100;
   }
   /* The invoice is made from the job. A job can have several invoices (an
@@ -9956,8 +10011,8 @@ body.dev #indexBtn{display:flex}
     siteItems(j).forEach(function (it) {
       if (it.inv) return;
       rows.push({
-        name: (it.qty > 1 ? it.qty + ' × ' : '') + it.name + (it.from === 'site' || it.from === 'manual' ? ' (added on site)' : ''),
-        price: (it.price || 0) * (it.qty || 1)
+        name: (it.qty > 1 ? it.qty + ' × ' : '') + it.name + (it.incl ? ' (included in the sold price)' : it.from === 'site' || it.from === 'manual' ? ' (added on site)' : ''),
+        price: it.incl ? 0 : (it.price || 0) * (it.qty || 1)
       });
     });
     return rows;
@@ -10067,7 +10122,7 @@ body.dev #indexBtn{display:flex}
   function saveJobs() {
     remember('jobs', JOBS.map(function (j) {
       return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, estDeclined: j.estDeclined || null, paperApproved: j.paperApproved || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
+        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, estDeclined: j.estDeclined || null, invNeeded: typeof j.invNeeded === 'boolean' ? j.invNeeded : null, paperApproved: j.paperApproved || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
     }));
   }
 
@@ -10108,8 +10163,29 @@ body.dev #indexBtn{display:flex}
           ctl.children[1].textContent = 'Qty ' + it.qty + ' · ' + fmt(it.price) + ' each · set by the signed ' + j.sold.option;
         }
       }
+      /* M7-5 (#88): a part the sold price already covers is on the job for
+         the record and bills $0 */
+      if (j.sold && it.from !== 'estimate') {
+        var inc = document.createElement('div');
+        inc.dataset.incl = String(i); inc.dataset.tap = '1';
+        inc.setAttribute('style', 'display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;font:500 13px/1.3 Geist;color:#33475B');
+        inc.innerHTML = '<span>Included in the sold price' + (it.incl ? ' <span style="color:#8A97A8;font-weight:400">· Included · $0.00</span>' : '') + '</span>' + switchHtml(!!it.incl);
+        row.appendChild(inc);
+        if (it.incl) { var pr = $('[data-price]', row); if (pr) pr.innerHTML = '<span style="text-decoration:line-through;color:#A9B4C2;font-weight:500">' + fmt(it.price * it.qty) + '</span><br><span style="color:#16A34A">$0.00</span>'; }
+      }
       R.card.insertBefore(row, R.add);
     });
+    if (!R.card.dataset.inclwired) {
+      R.card.dataset.inclwired = '1';
+      R.card.addEventListener('click', function (ev) {
+        var t = ev.target.closest('[data-incl]'); if (!t) return;
+        ev.stopPropagation();
+        var jj = JOBS[jobIdx], it = jj && jj.items[+t.dataset.incl]; if (!it) return;
+        it.incl = !it.incl; saveJobs();
+        renderJobItems(); paintPayScreens();
+        toast(it.incl ? it.name + ' — included in the sold price · $0.00' : it.name + ' — billed at ' + fmt(it.price * it.qty), 'sell');
+      }, true);
+    }
 
     var sold = j.sold;
     var total = jobAmount(j);
@@ -11074,7 +11150,7 @@ body.dev #indexBtn{display:flex}
     if (s.sold !== undefined) JOBS[i].sold = s.sold;
     if (s.expenses) JOBS[i].expenses = s.expenses;
     if (s.estNo) { JOBS[i].estNo = s.estNo; JOBS[i].estTmp = !!s.estTmp; }
-    JOBS[i].reopened = !!s.reopened; JOBS[i].paused = !!s.paused; JOBS[i].cancelled = !!s.cancelled; JOBS[i].completedAt = s.completedAt || ''; JOBS[i].rcFilled = !!s.rcFilled; JOBS[i].reopenReq = s.reopenReq || null; JOBS[i].estDeclined = s.estDeclined || null; JOBS[i].paperApproved = s.paperApproved || null; JOBS[i].pausedAt = s.pausedAt || 0; JOBS[i].pausedFrom = s.pausedFrom || '';
+    JOBS[i].reopened = !!s.reopened; JOBS[i].paused = !!s.paused; JOBS[i].cancelled = !!s.cancelled; JOBS[i].completedAt = s.completedAt || ''; JOBS[i].rcFilled = !!s.rcFilled; JOBS[i].reopenReq = s.reopenReq || null; JOBS[i].estDeclined = s.estDeclined || null; JOBS[i].paperApproved = s.paperApproved || null; if (typeof s.invNeeded === 'boolean') JOBS[i].invNeeded = s.invNeeded; JOBS[i].pausedAt = s.pausedAt || 0; JOBS[i].pausedFrom = s.pausedFrom || '';
     JOBS[i].startReq = s.startReq || null; JOBS[i].officeStartAt = s.officeStartAt || '';
     if (s.sentAt) JOBS[i].sentAt = s.sentAt;
     if (s.estType) JOBS[i].estType = s.estType;
