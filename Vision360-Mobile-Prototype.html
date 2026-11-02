@@ -3612,7 +3612,7 @@ body.dev #indexBtn{display:flex}
       remember('jobIdx', viewPast ? viewPast.idx : jobIdx);   // a job being looked at is not the job
       remember('jobs', JOBS.map(function (j) {
         return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, pausedAt: j.pausedAt || 0 };
+          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
       }));
     }
     paintDash();
@@ -4031,7 +4031,7 @@ body.dev #indexBtn{display:flex}
   // the job goes live: on the tech's own Start, or when the office starts it
   function beginJob() {
     var bj = JOBS[jobIdx];
-    if (bj) { bj.reopened = false; bj.paused = false; }
+    if (bj) { bj.reopened = false; bj.paused = false; bj.startReq = null; }
     setRun(jobIdx);
     state.onsite = true;
     state.paused = false;
@@ -4089,33 +4089,29 @@ body.dev #indexBtn{display:flex}
         });
         return;
       }
-      /* Marek, Oct 21: "without geolocation you can't start". There is no
-         Start anyway: beyond the radius, plus what the GPS may be off by,
-         the technician asks the office, and the office starts the job in
-         the web app. */
-      var miles = jobAwayMiles();
-      if (miles * 5280 > START_RADIUS_FT + GPS_SLACK_FT) {
-        confirmSheet({
-          title: 'You are ' + (miles < 0.2 ? Math.round(miles * 5280) + ' feet' : miles + ' miles') + ' from the job',
-          text: ((JOBS[jobIdx] || {}).addr || 'The job address') + '. A job starts within ' + START_RADIUS_FT +
-            ' feet of the service address. If you are there and the phone disagrees, ask the office — they start it in the web app.',
-          ok: 'Ask office to start', alt: null,
-          onOk: function () { ACT.askOfficeStart(); }
-        });
-        return;
-      }
-      beginJob();
+      // M3-5: one request is enough — the card already says it was asked
+      if ((JOBS[jobIdx] || {}).startReq) { toast('Start requested — the office starts the job', 'support_agent'); return; }
+      locateThenStart();
     },
-    askOfficeStart: function () {
+    /* M3-5: the office starts the job when the phone can't check the
+       address — no GPS fix, or no map location. The card says so, and the
+       time counts from the request. */
+    askOfficeStart: function (reason) {
       var j = JOBS[jobIdx] || {};
-      queued('Start request');
+      j.startReq = { at: clockNow(), reason: typeof reason === 'string' ? reason : 'No GPS fix' };
+      saveJobs();
+      queued('Start request', 'Start request — ' + j.startReq.reason);
+      paintJob();
       if (!net.online) { toast('Request to start saved — it goes to the office when there is signal', 'cloud_off'); return; }
-      toast('Request sent — the office will start ' + (j.name ? j.name + '’s' : 'the') + ' job', 'support_agent');
+      toast('Start requested — the office will start ' + (j.name ? j.name + '’s' : 'the') + ' job', 'support_agent');
       // the demo plays the office's part: a dispatcher starts it from the web
       setTimeout(function () {
-        if (state.onsite || JOBS[jobIdx] !== j) return;
+        if (state.onsite || !j.startReq) return;
+        var at = jobIdx; for (var i = 0; i < JOBS.length; i++) if (JOBS[i] === j) at = i;
+        jobIdx = at; loadJob();
+        j.officeStartAt = clockNow(); j.startReq = null; saveJobs();
         beginJob();
-        toast('The office started the job · timer running', 'play_circle');
+        toast('Started by the office · ' + j.officeStartAt, 'play_circle');
       }, 4000);
     },
     enroute: function () {
@@ -4125,6 +4121,7 @@ body.dev #indexBtn{display:flex}
       if (state.enroute && mineRunning()) {
         state.enroute = false;
         markPaused(JOBS[jobIdx]);
+        JOBS[jobIdx].pausedFrom = 'drive';
         setRun(-1);
         setClock('off');
         queued('Job status', 'Status: Paused');
@@ -7038,12 +7035,19 @@ body.dev #indexBtn{display:flex}
     $('[data-cftext]', confirmEl).textContent = o.text || '';
     var ok = $('[data-act="confirmOk"]', confirmEl), alt = $('[data-act="confirmAlt"]', confirmEl);
     ok.textContent = o.ok || 'OK';
-    ok.style.background = o.danger ? '#DC2626' : '#16A34A';
+    // a sheet that only waits (Getting your location…) has just its Cancel
+    toggleDisplay(ok, o.ok !== null);
+    ok.style.background = o.danger ? '#DC2626' : o.neutral ? '#546478' : '#16A34A';
     toggleDisplay(alt, !!o.alt);
     alt.textContent = o.alt || '';
-    confirmCb = { ok: o.onOk || null, alt: o.onAlt || null };
+    confirmCb = { ok: o.onOk || null, alt: o.onAlt || null, cancel: o.onCancel || null };
     go('ov-confirm', 'overlay');
   }
+  // Cancel (or the dimmed backdrop) may have something to undo
+  confirmEl.addEventListener('click', function (ev) {
+    if (!ev.target.closest('[data-back]') || !confirmCb.cancel) return;
+    var c = confirmCb.cancel; confirmCb.cancel = null; c();
+  }, true);
   ACT.confirmOk = function () { var cb = confirmCb.ok; closeOverlays(true); confirmCb = {}; if (cb) cb(); };
   ACT.confirmAlt = function () { var cb = confirmCb.alt; closeOverlays(true); confirmCb = {}; if (cb) cb(); };
 
@@ -9517,7 +9521,7 @@ body.dev #indexBtn{display:flex}
       sold: { option: 'Option A', total: 5665 }
     },
     {
-      cust: '10458', no: 3,
+      cust: '10458', no: 3, gps: 'nofix',   // demo: the phone never gets a close fix here
       name: 'Joseph Lane', when: 'Today, 2:15 PM', brief: 'AC not cooling', type: 'Demand Service',
       addr: '255 Standish Drive, Tampa, FL 33615', away: '6.8 miles away', phone: '(352) 258-9710',
       est: 'none', inv: 'none',             // nothing quoted yet — the estimate is built on site
@@ -9527,7 +9531,7 @@ body.dev #indexBtn{display:flex}
        visit; the visits after it are scheduled at zero dollars and carry
        the plan as a reference. */
     {
-      cust: '10233', no: 21,
+      cust: '10233', no: 21, gps: 'nomap',  // demo: the address has no point on the map
       name: 'Maria Gomez', when: 'Today, 4:00 PM', brief: 'Maintenance plan · visit 3 of 10 · prepaid', type: 'Maintenance',
       addr: '1180 W Linebaugh Ave, Tampa, FL 33612', away: '5.1 miles away', phone: '(813) 240-7718',
       est: 'none', inv: 'none',
@@ -9709,7 +9713,7 @@ body.dev #indexBtn{display:flex}
   function saveJobs() {
     remember('jobs', JOBS.map(function (j) {
       return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, pausedAt: j.pausedAt || 0 };
+        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
     }));
   }
 
@@ -10716,7 +10720,8 @@ body.dev #indexBtn{display:flex}
     if (s.sold !== undefined) JOBS[i].sold = s.sold;
     if (s.expenses) JOBS[i].expenses = s.expenses;
     if (s.estNo) { JOBS[i].estNo = s.estNo; JOBS[i].estTmp = !!s.estTmp; }
-    JOBS[i].reopened = !!s.reopened; JOBS[i].paused = !!s.paused; JOBS[i].pausedAt = s.pausedAt || 0;
+    JOBS[i].reopened = !!s.reopened; JOBS[i].paused = !!s.paused; JOBS[i].pausedAt = s.pausedAt || 0; JOBS[i].pausedFrom = s.pausedFrom || '';
+    JOBS[i].startReq = s.startReq || null; JOBS[i].officeStartAt = s.officeStartAt || '';
     if (s.sentAt) JOBS[i].sentAt = s.sentAt;
     if (s.estType) JOBS[i].estType = s.estType;
     if (s.signoff) JOBS[i].signoff = s.signoff;
@@ -13420,6 +13425,49 @@ body.dev #indexBtn{display:flex}
   })();
 
   /* =========================================================
+     M3-4 — the start check. "Getting your location…" with Cancel; a good
+     fix within 100 ft (+50 ft GPS slack, A8) starts the job; a good fix
+     further away is blocked with only Open in Maps; no fix in 30 s, or an
+     address with no map location, offers Ask office to start (M3-5).
+     The demo: Start right after En route has arrived; without it the phone
+     is where the card says; Joseph Lane's street never gives a fix; Maria
+     Gomez's address has no point on the map.
+     ========================================================= */
+  var locToken = 0;
+  function clockNow() { return new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); }
+  function locateThenStart() {
+    var j = JOBS[jobIdx] || {}, token = ++locToken;
+    var arrived = state.enroute && runIdx === jobIdx;
+    confirmSheet({
+      title: 'Getting your location…', text: 'Checking where you are against the service address.',
+      ok: null, alt: null,
+      onCancel: function () { locToken++; }         // nothing changes, nothing is queued
+    });
+    var noFix = j.gps === 'nofix' && !arrived, noMap = j.gps === 'nomap';
+    setTimeout(function () {
+      if (token !== locToken) return;
+      if (noMap) {
+        confirmSheet({ title: 'This address has no map location',
+          text: 'Start checks where you are against the service address, and this one has no point on the map. The office can start the job for you.',
+          ok: 'Ask office to start', alt: null, onOk: function () { ACT.askOfficeStart('no map location'); } });
+        return;
+      }
+      if (noFix) {
+        confirmSheet({ title: 'No GPS fix',
+          text: 'The phone could not tell closely enough where you are. The office can start the job for you.',
+          ok: 'Ask office to start', alt: null, onOk: function () { ACT.askOfficeStart('No GPS fix'); } });
+        return;
+      }
+      if (arrived) { closeOverlays(true); beginJob(); return; }
+      var miles = jobAwayMiles();
+      var far = miles < 0.2 ? Math.round(miles * 5280) + ' ft' : (Math.round(miles * 10) / 10) + ' miles';
+      confirmSheet({ title: 'You’re ' + far + ' from the address. Start works within ' + START_RADIUS_FT + ' ft.',
+        text: (j.addr || '') + '.', ok: 'Open in Maps', alt: null,
+        onOk: function () { toast('Opens Google Maps at ' + (j.addr || 'the address'), 'map'); } });
+    }, noFix ? 30000 : 1400);
+  }
+
+  /* =========================================================
      M2-8 — the Sync screen, and what a job says while something of it
      is waiting. The strip and More's card open the same screen.
      ========================================================= */
@@ -13578,7 +13626,7 @@ body.dev #indexBtn{display:flex}
   }
   function markPaused(j) {
     if (!j) return;
-    j.paused = true; j.pausedAt = Date.now();
+    j.paused = true; j.pausedAt = Date.now(); j.pausedFrom = ''; j.officeStartAt = '';
     saveJobs();
   }
   function pauseRunning() {
@@ -13610,6 +13658,9 @@ body.dev #indexBtn{display:flex}
       if (j && state.enroute && runIdx === jobIdx) {
         var secs = clock.drive + (clock.mode === 'drive' && clock.since ? (Date.now() - clock.since) / 1000 : 0);
         txt = 'On the way · ' + Math.max(1, Math.round(secs / 60)) + ' min'; tone = 'brand';
+      } else if (j && state.onsite && runIdx === jobIdx && j.officeStartAt) {
+        txt = 'Started by the office · ' + j.officeStartAt; tone = 'brand';
+      } else if (j && j.paused && j.pausedFrom === 'drive') { txt = 'Paused · on the way'; tone = 'grey';
       } else if (j && j.paused) { txt = 'Paused · ' + hhmmss(Math.max(0, (Date.now() - (j.pausedAt || Date.now())) / 1000)).replace(/^0(\d)/, '$1'); tone = 'grey'; }
       else if (j && j.reopened) { txt = 'Reopened · Start'; tone = 'warn'; }
       if (whenEl && txt) {
@@ -13638,6 +13689,7 @@ body.dev #indexBtn{display:flex}
           '<div style="font:400 13px/1.5 Geist;color:#546478">Your jobs come down the first time you are online; after that the app works without signal.</div>';
       }
       paintNextList();
+      paintReqBar(j);
       if (!stateBox.hidden) {
         jobCard.hidden = true;
         var em = $('[data-homeempty]', home); if (em) em.hidden = true;
@@ -13680,6 +13732,21 @@ body.dev #indexBtn{display:flex}
       loadJob(); paintJob(); paintEnroute(); paintStartButtons();
       go('job-general', 'push');
     };
+    // M3-5: the card says a start was asked for, and offers to call
+    var reqBar = document.createElement('div');
+    reqBar.dataset.reqbar = '1';
+    reqBar.setAttribute('style', 'display:flex;align-items:flex-start;gap:9px;margin:12px 0 0;padding:11px 12px;border-radius:10px;' +
+      'background:#FEF3E2;border:1px solid #F3D9AE;color:#7A5B12;font:500 13px/1.4 Geist');
+    function paintReqBar(j) {
+      var on = !!(j && j.startReq && !state.onsite);
+      if (!on) { reqBar.hidden = true; return; }
+      var row = $('[data-act="start"]', jobCard); row = row && row.parentElement;
+      if (row && reqBar.nextSibling !== row) row.parentElement.insertBefore(reqBar, row);
+      reqBar.hidden = false;
+      reqBar.innerHTML = '<span class="mi" style="font-size:18px;color:#D97706;margin-top:1px">support_agent</span>' +
+        '<div style="flex:1"><b style="font-weight:600">Start requested · ' + j.startReq.at + '</b> — Your time counts from now once the office starts the job.</div>' +
+        '<span data-tap="1" data-toast="Calling the office — (813) 555-0100" style="font:600 13px/1 Geist;color:#4A6FA5;white-space:nowrap;padding:3px 0">Call office</span>';
+    }
     var prev = paintJob;
     // the card's buttons follow the job on it, not the one being driven to
     paintJob = function () { prev(); paintEnroute(); paintHomeState(); };
