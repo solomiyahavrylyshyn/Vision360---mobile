@@ -12375,10 +12375,31 @@ body.dev #indexBtn{display:flex}
         ta.selectionStart = ta.selectionEnd = ta.value.length;   // after what's there
       }, 30);
     }
-    ta.addEventListener('input', function () { setDraft(kind, ta.value); });
+    /* M4-5 (#43): what is typed is a draft kept on this phone — through a
+       closed sheet, a reload or a killed app — and says so. Discarding it
+       asks first. */
+    var mark = document.createElement('div');
+    mark.setAttribute('style', 'display:flex;align-items:center;gap:6px;margin-bottom:7px;font:600 11.5px/1 Geist;color:#8A6114');
+    mark.innerHTML = '<span style="background:#FEF3E2;border:1px solid #F3D9AE;border-radius:5px;padding:4px 7px">Draft</span>' +
+      '<span style="font-weight:400;color:#8A97A8">saved on this phone, not sent</span>';
+    editor.insertBefore(mark, editor.firstChild);
+    var cancelBtn = $('[data-cancel]', editor);
+    function paintDraftMark() {
+      var has = !!norm(ta.value);
+      mark.style.display = has ? 'flex' : 'none';
+      if (cancelBtn) cancelBtn.textContent = has ? 'Discard' : 'Cancel';
+    }
+    paintDraftMark();
+    ta.addEventListener('input', function () { setDraft(kind, ta.value); paintDraftMark(); paintNoteSegment(); });
     editor.addEventListener('click', function (ev) {
       ev.stopPropagation();
-      if (ev.target.closest('[data-cancel]')) { setDraft(kind, ''); paintNotes(kind); return; }
+      if (ev.target.closest('[data-cancel]')) {
+        if (!norm(ta.value)) { setDraft(kind, ''); paintNotes(kind); return; }
+        confirmSheet({ title: 'Discard draft?', text: 'The note you started is removed from this phone. Nothing is sent.',
+          ok: 'Discard', danger: true, alt: null,
+          onOk: function () { setDraft(kind, ''); paintNotes(kind); toast('Draft discarded', 'delete_outline'); } });
+        return;
+      }
       if (!ev.target.closest('[data-save]')) return;
       var text = ta.value.trim();
       if (!text) { ta.focus(); return; }
@@ -12472,7 +12493,9 @@ body.dev #indexBtn{display:flex}
         var t = norm(e.textContent);
         return !e.children.length && (t.indexOf(spec.seg + ' ') === 0 || t.indexOf(WEB[k] + ' ') === 0);
       })[0];
-      if (el) el.textContent = (norm(el.textContent).indexOf(WEB[k] + ' ') === 0 ? WEB[k] : spec.seg) + ' ' + notes[k].length;
+      // a kind with a draft says so on its switch, so a reload does not hide it
+      if (el) el.textContent = (norm(el.textContent).indexOf(WEB[k] + ' ') === 0 ? WEB[k] : spec.seg) + ' ' + notes[k].length +
+        (noteDrafts[k] && norm(noteDrafts[k]) ? ' · Draft' : '');
     });
   }
 
