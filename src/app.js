@@ -1433,7 +1433,6 @@
       if (state.est === 'approved' && done && done.sold) clock.sold += done.sold.total;
       // compensation splits: labour is earned on the items, commission on the sale
       clock.labor += jobLabor(done);
-      clock.commission += (done && done.sold ? done.sold.total : 0) * COMMISSION_RATE;
       paintClock();
       remember('clock', clock);
       // the closeout form belongs to the visit that just ended
@@ -2840,7 +2839,8 @@
     printRow.parentElement.appendChild(voidRow);
   })();
   function paintVoidRow() {
-    if (voidRow) toggleDisplay(voidRow, state.inv === 'sent' || state.inv === 'created');
+    // M7-14 (#84): only the office voids an invoice — not offered on the phone
+    if (voidRow) toggleDisplay(voidRow, false);
     // what went out is what went out; what is paid is paid
     var edit = $('#ov-inv-share [data-go="inv-details"]');
     if (edit) toggleDisplay(edit, false);        // OD-15: bill-to is the office's
@@ -3565,7 +3565,9 @@
   }
   function rcRating(withCam) {
     return '<div style="display:flex;gap:6px;margin-top:11px">' +
-      RATING.map(function (l) { return '<div style="' + RATE_OFF_ST + '">' + l + '</div>'; }).join('') +
+      // M5-3 (#69): named as the legend names them, for TalkBack too
+      RATING.map(function (l) { return '<div aria-label="' + ({ Attention: 'Needs Attention', Immediate: 'Needs Immediate Action' }[l] || l) +
+        '" style="' + RATE_OFF_ST + '">' + l + '</div>'; }).join('') +
       (withCam ? '<div style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px dashed #C8D5E8;color:#4A6FA5;border-radius:8px">' +
         '<span class="mi" data-tap="1" data-go="ov-media-source" style="font-size:19px">photo_camera</span></div>' : '') + '</div>';
   }
@@ -4440,7 +4442,7 @@
      ========================================================= */
   var HIST_DAYS = { Today: 0, Week: 7, Month: 31, Quarter: 92, Year: 366, 'All time': 36500 };
   var HIST_AGO = [0, 4, 20];                    // today, this week, this month
-  var histPeriod = recall('histPeriod', 'Month');
+  var histPeriod = recall('histPeriod', 'Today');     // M4-15 (#64): Today, as the design and the story
   var paintHistory = function () { };
   var histJob = '';
 
@@ -4499,7 +4501,9 @@
         'gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid #EDF0F5');
       link.style.flex = 'none';
       price.setAttribute('style', 'text-align:right;font:500 13px/1.35 Geist;color:#546478');
-      price.innerHTML = '<span>Price range: </span>' +
+      // M4-15 (#63): "Price range" only for an undecided estimate's span;
+      // a job with one sum reads "Amount"
+      price.innerHTML = '<span>' + (/\u2013|–/.test(money) ? 'Price range: ' : 'Amount: ') + '</span>' +
         '<span data-money style="font:600 13.5px/1.35 Geist;color:#1A2332;white-space:nowrap"></span>';
       $('[data-money]', price).textContent = money;
 
@@ -4541,7 +4545,7 @@
 
     var empty = document.createElement('div');
     empty.setAttribute('style', 'padding:34px 20px;text-align:center;font:400 14px/1.5 Geist;color:#8A97A8');
-    empty.textContent = 'Nothing closed in this period.';
+    empty.textContent = 'No completed jobs in this period';
     list.appendChild(empty);
 
     paintHistory = function () {
@@ -5167,7 +5171,6 @@
     admin: ['Admin fee', '#546478', '#F1F4F9'],
     asset: ['Asset use', '#0E7490', '#E4F3F7']
   };
-  var COMMISSION_RATE = 0.10;      // Marek's own worked example: 10% labour, 10% commission
 
   /* price is what the customer pays. `labor` is what the technician earns
      on it — theirs to see. `supply` is what we pay someone else, and it
@@ -5599,7 +5602,7 @@
      has to be able to see it.
      ========================================================= */
   var jobTimerEl = sel(phone, '43:45')[0] || null;   // the bar left home-active
-  var VISIT_BASE = 15;
+  // Marek 21.10 (#94): no $15 per visit and no commission — those are Pro pay plans
   var WEEK = { regular: 32.5, overtime: 4.0, drive: 6.2 };   // Mon–Thu, already banked
   // set in the web app: the rate on the employee's invite form, drive time
   // compensable as a company setting (on out of the box)
@@ -6190,8 +6193,8 @@
     avgTicket: 1200, avgTarget: 2000
   }, recall('kpi', {}));
 
-  function kfmt(n) {                      // the mockup writes $65,2k — comma decimal
-    return '$' + (n / 1000).toFixed(1).replace('.', ',') + 'k';
+  function kfmt(n) {                      // M10-5b (#76): "$65.2k", a decimal point, not the board's comma
+    return '$' + (n / 1000).toFixed(1) + 'k';
   }
   var kpiRefs = null;
 
@@ -6295,6 +6298,8 @@
     }
     if (r.avg) {
       setLead(r.avg.value, kfmt(kpi.avgTicket));
+      // the target half of the tile was the board's "$2,0k" — a decimal point too (#76)
+      var tgt = r.avg.value.lastElementChild; if (tgt) tgt.textContent = '/ ' + kfmt(kpi.avgTarget);
       if (r.avg.bar) r.avg.bar.style.width = pct(kpi.avgTicket, kpi.avgTarget) + '%';
       // the caption was fixed at "Below target" however big the tickets got
       if (r.avgNote) {
@@ -9855,6 +9860,20 @@
     });
   }
   function mvpTrim() {
+    /* M7-6b (#86): SMS is Pro — the invoice is emailed or printed */
+    $$('#ov-inv-share .mi, #inv-paid .mi').forEach(function (ic) {
+      if (norm(ic.textContent) !== 'sms') return;
+      var row = ic.closest('[data-act="invSms"]') || ic.parentElement;
+      if (row) row.style.display = 'none';
+    });
+    /* M5-3 (#69): the rating buttons are named as the legend names them —
+       "Needs Attention", "Needs Immediate Action" — for TalkBack too */
+    $$('[id^="rc-"] div, [id^="rc-"] span').forEach(function (e) {
+      if (e.children.length) return;
+      var t = norm(e.textContent);
+      if (t === 'Attention') { e.setAttribute('aria-label', 'Needs Attention'); e.title = 'Needs Attention'; }
+      if (t === 'Immediate') { e.setAttribute('aria-label', 'Needs Immediate Action'); e.title = 'Needs Immediate Action'; }
+    });
     /* Marek, Oct 21: follow-ups are Pro ("if we're designing MVP, let's
        design MVP"), so History opens on the jobs, not on a callback list. */
     var fuCard = $('#history [data-followups]'); if (fuCard) fuCard.remove();
