@@ -3470,7 +3470,7 @@ body.dev #indexBtn{display:flex}
      approved one can have changes requested, be revised, and be resent for
      the customer's approval. Review and ready, if a phone saved them, read
      as a draft. */
-  var EST = { none: 'est-empty', draft: 'est-draft', review: 'est-draft', ready: 'est-draft', changes: 'est-draft', approved: 'est-approved' };
+  var EST = { none: 'est-empty', draft: 'est-draft', review: 'est-draft', ready: 'est-draft', changes: 'est-draft', approved: 'est-approved', declined: 'est-draft' };
   function estScreen() { return EST[state.est]; }
   function finScreen() {
     if (state.inv === 'paid') return 'inv-paid';
@@ -3621,7 +3621,7 @@ body.dev #indexBtn{display:flex}
       remember('jobIdx', viewPast ? viewPast.idx : jobIdx);   // a job being looked at is not the job
       remember('jobs', JOBS.map(function (j) {
         return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
+          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, estDeclined: j.estDeclined || null, paperApproved: j.paperApproved || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
       }));
     }
     paintDash();
@@ -4333,7 +4333,65 @@ body.dev #indexBtn{display:flex}
       }
       changesPrevTotal = null;
     },
+    /* M6-12 (#79): "Decline all options" — confirmed, with an optional
+       reason. Declined is final, as on the web: read-only, no presenting;
+       a new estimate is made on the job. No follow-up (Pro). */
     estDecline: function () {
+      var el = sheetEl('ov-decline'), b = $('[data-sheetbody]', el);
+      b.innerHTML = '<div style="display:flex;justify-content:center;padding:0 0 10px"><div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div></div>' +
+        '<div style="font:600 18px/1.25 Geist">Decline all options?</div>' +
+        '<div style="font:400 13.5px/1.45 Geist;color:#546478;margin:5px 0 12px">The estimate becomes Declined and cannot be approved later — the office makes a new one.</div>' +
+        '<textarea data-dreason class="inp" rows="3" placeholder="Reason (optional) — e.g. Going with another company" style="width:100%;height:auto;padding:11px 12px;font:400 15px/1.5 Geist;resize:none"></textarea>' +
+        '<div data-tap="1" data-dgo style="height:52px;display:flex;align-items:center;justify-content:center;margin-top:12px;border-radius:11px;background:#DC2626;color:#fff;font:600 16px/1 Geist">Decline all options</div>' +
+        '<div data-back data-tap="1" style="height:44px;display:flex;align-items:center;justify-content:center;font:500 14.5px/1 Geist;color:#546478;margin-top:4px">Cancel</div>';
+      b.onclick = function (ev) {
+        if (!ev.target.closest('[data-dgo]')) return;
+        var why = norm($('[data-dreason]', b).value);
+        var j = JOBS[jobIdx];
+        if (j) { j.estDeclined = { at: stamp(), reason: why }; saveJobs(); }
+        state.est = 'declined';
+        closeOverlays(true);
+        go('est-draft', 'root');
+        paintDraftAction();
+        queued('Estimate', 'Estimate declined');
+        toast('Declined by the customer on the device' + (why ? ' — ' + why : ''), 'block');
+      };
+      go('ov-decline', 'overlay');
+    },
+    estPaper: function () {
+      var j = JOBS[jobIdx]; if (!j) return;
+      var names = Object.keys(OPTION_TOTALS), pick = names[0], photo = false;
+      var el = sheetEl('ov-paper'), b = $('[data-sheetbody]', el);
+      function draw() {
+        b.innerHTML = '<div style="display:flex;justify-content:center;padding:0 0 10px"><div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div></div>' +
+          '<div style="font:600 18px/1.25 Geist">Mark approved — signed on paper</div>' +
+          '<div style="font:400 13.5px/1.45 Geist;color:#546478;margin:5px 0 10px">Which option did the customer sign?</div>' +
+          names.map(function (n) {
+            var on = n === pick;
+            return '<div data-tap="1" data-ppick="' + n + '" style="display:flex;align-items:center;gap:10px;padding:12px 0;border-top:1px solid #EDF0F5">' +
+              '<span class="mi" style="font-size:21px;color:' + (on ? '#4A6FA5' : '#A9B4C2') + '">' + (on ? 'radio_button_checked' : 'radio_button_unchecked') + '</span>' +
+              '<span style="flex:1;font:500 15px/1.3 Geist">' + n + '</span><span style="font:600 14.5px/1 Geist">' + fmt(OPTION_TOTALS[n] || 0) + '</span></div>';
+          }).join('') +
+          '<div data-tap="1" data-pphoto style="display:flex;align-items:center;gap:10px;padding:12px;margin-top:8px;border:1px dashed #C8D5E8;border-radius:11px;font:500 14px/1.3 Geist;color:' + (photo ? '#16A34A' : '#4A6FA5') + '">' +
+          '<span class="mi" style="font-size:20px">' + (photo ? 'check_circle' : 'photo_camera') + '</span>' + (photo ? 'Photo of the paper copy attached' : 'Add a photo of the paper copy (optional)') + '</div>' +
+          '<div data-tap="1" data-pgo style="height:52px;display:flex;align-items:center;justify-content:center;margin-top:12px;border-radius:11px;background:#16A34A;color:#fff;font:600 16px/1 Geist">Mark approved</div>' +
+          '<div data-back data-tap="1" style="height:44px;display:flex;align-items:center;justify-content:center;font:500 14.5px/1 Geist;color:#546478;margin-top:4px">Cancel</div>';
+      }
+      b.onclick = function (ev) {
+        var p = ev.target.closest('[data-ppick]');
+        if (p) { pick = p.dataset.ppick; draw(); return; }
+        if (ev.target.closest('[data-pphoto]')) { photo = !photo; draw(); return; }
+        if (!ev.target.closest('[data-pgo]')) return;
+        j.paperApproved = { at: stamp(), photo: photo, by: 'Marek Stroz' }; saveJobs();
+        pickedOption = pick; estSigned = true;
+        ACT.estOrder();
+        paintPaperNote();
+        toast('Approved by hand — ' + pick + (photo ? ', paper copy attached' : ''), 'history_edu');
+      };
+      draw();
+      go('ov-paper', 'overlay');
+    },
+    estDeclineOld: function () {
       state.est = 'draft';                 // still presentable — that's the fix
       markDeclined();
       closeOverlays(true);
@@ -7221,12 +7279,14 @@ body.dev #indexBtn{display:flex}
     // a resend after changes is a send of its own, so Sent wins
     var sent = !!j.sentAt;
     var changes = !sent && state.est === 'changes';
-    estBadge.textContent = changes ? 'CHANGES REQUESTED' : sent ? 'SENT' : 'DRAFT';
-    estBadge.setAttribute('style', estBadgeStyle + (changes ? ';color:#8A6114;background:#FEF3E2;border-color:#F5D7A8'
+    var declined = state.est === 'declined';
+    estBadge.textContent = declined ? 'DECLINED' : changes ? 'CHANGES REQUESTED' : sent ? 'SENT' : 'DRAFT';
+    estBadge.setAttribute('style', estBadgeStyle + (declined ? ';color:#DC2626;background:#FDECEC;border-color:#F5C2C2' : changes ? ';color:#8A6114;background:#FEF3E2;border-color:#F5D7A8'
       : sent ? ';color:#4A6FA5;background:#EBF0F8;border-color:#C8D5E8' : ''));
     var no = estNoOf(j);
     estBadgeLine.textContent = (no ? (j.estTmp ? no + ' · final number after sync' : no) + ' · ' : '') +
-      (sent ? 'Presented on the device · ' + j.sentAt.split(', ').slice(-1)[0]
+      (declined ? 'Declined by the customer' + (j.estDeclined && j.estDeclined.reason ? ' — ' + j.estDeclined.reason : '') + ' · read-only'
+      : sent ? 'Presented on the device · ' + j.sentAt.split(', ').slice(-1)[0]
       : changes ? 'Revise and resend for approval' : 'Autosaved 2 min ago');
   }
 
@@ -7256,7 +7316,66 @@ body.dev #indexBtn{display:flex}
         : 'The customer asked for changes — revise the options and present again.';
     }
     toggleDisplay(changesStrip, changes);
+    // M6-12 (#79): declined is read-only — nothing to present, nothing to edit
+    var declined = state.est === 'declined';
+    root.classList.toggle('est-declined', declined);
+    toggleDisplay(optSendBtn, !declined);
+    paintPaperBtn();
   }
+  /* M6-16 (#81): a customer who signed the paper copy — shown once the
+     estimate was sent or presented */
+  var paperBtn = null;
+  function paintPaperBtn() {
+    var root = byId('est-draft'); if (!root || !optSendBtn) return;
+    if (!paperBtn) {
+      paperBtn = document.createElement('div');
+      paperBtn.dataset.act = 'estPaper'; paperBtn.dataset.tap = '1';
+      paperBtn.setAttribute('style', 'height:44px;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:6px;font:600 14px/1 Geist;color:#4A6FA5');
+      paperBtn.innerHTML = '<span class="mi" style="font-size:18px">history_edu</span>Mark approved — signed on paper';
+      optSendBtn.parentElement.insertBefore(paperBtn, optSendBtn.nextSibling);
+    }
+    var j = JOBS[jobIdx] || {};
+    toggleDisplay(paperBtn, !!j.sentAt && state.est !== 'declined' && state.est !== 'approved');
+  }
+  document.addEventListener('click', function (ev) {
+    if (state.est !== 'declined' || curPage() !== 'est-draft') return;
+    var t = ev.target.closest('#est-draft .sc [data-tap], #est-draft .sc [data-act]');
+    if (!t) return;
+    ev.stopPropagation(); ev.preventDefault();
+    toast('Declined estimates are read-only — make a new estimate on the job', 'lock');
+  }, true);
+
+  /* M6-10 / M6-12 (#80): the customer view is the customer's. Leaving it
+     takes the phone's own unlock, then a choice — no decision keeps it Sent. */
+  document.addEventListener('click', function (ev) {
+    if (curPage() !== 'est-customer') return;
+    var x = ev.target.closest('#est-customer .mi');
+    if (!x || norm(x.textContent) !== 'close') return;
+    ev.stopPropagation(); ev.preventDefault();
+    var el = sheetEl('ov-unlock'), b = $('[data-sheetbody]', el);
+    b.innerHTML = '<div style="text-align:center;padding:18px 6px 6px"><span class="mi" style="font-size:44px;color:#4A6FA5">fingerprint</span>' +
+      '<div style="font:600 18px/1.25 Geist;margin-top:8px">Hand the phone back?</div>' +
+      '<div style="font:400 13.5px/1.45 Geist;color:#546478;margin-top:5px">Unlock with your phone\'s PIN or fingerprint</div></div>' +
+      '<div data-tap="1" data-unlock style="height:52px;display:flex;align-items:center;justify-content:center;margin-top:14px;border-radius:11px;background:#4A6FA5;color:#fff;font:600 16px/1 Geist">Unlock</div>' +
+      '<div data-back data-tap="1" style="height:44px;display:flex;align-items:center;justify-content:center;font:500 14.5px/1 Geist;color:#546478;margin-top:4px">Cancel</div>';
+    b.onclick = function (e) {
+      if (!e.target.closest('[data-unlock]')) return;
+      b.innerHTML = '<div style="display:flex;justify-content:center;padding:0 0 10px"><div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div></div>' +
+        '<div style="font:600 18px/1.25 Geist">Leave the customer view?</div>' +
+        '<div style="font:400 13.5px/1.45 Geist;color:#546478;margin:5px 0 12px">The customer has not approved or declined.</div>' +
+        '<div data-tap="1" data-bk style="height:52px;display:flex;align-items:center;justify-content:center;border-radius:11px;background:#4A6FA5;color:#fff;font:600 16px/1 Geist">Back to the customer</div>' +
+        '<div data-tap="1" data-end style="height:48px;display:flex;align-items:center;justify-content:center;margin-top:8px;border-radius:11px;border:1px solid #C8D5E8;color:#1C2B3A;font:600 15px/1 Geist">End presentation — no decision</div>';
+      b.onclick = function (e2) {
+        if (e2.target.closest('[data-bk]')) { back(); return; }
+        if (!e2.target.closest('[data-end]')) return;
+        closeOverlays(true);
+        go('est-draft', 'root');
+        paintDraftAction();
+        toast('Presented on the device — no decision', 'present_to_all');
+      };
+    };
+    go('ov-unlock', 'overlay');
+  }, true);
 
   /* On the approved estimate, the one thing that can happen to it next. */
   (function () {
@@ -8294,12 +8413,18 @@ body.dev #indexBtn{display:flex}
   /* US-M03-5 — work-type filter; picking one relabels the chip on Home */
   (function () {
     var chip = sel(byId('home'), '~Demand Service')[0];
+    // runs before the KPI block below, so the list is spelled out here too
     var TYPES = ['All work types', 'Demand Service', 'Maintenance', 'Estimate', 'Install'];
-    seg('ov-worktype', TYPES.map(function (t) { return '~' + t; }), 1, function (i, label) {
+    kpiType = recall('kpiType', 'All work types');
+    var pickType = seg('ov-worktype', TYPES.map(function (t) { return '~' + t; }), 1, function (i, label) {
+      kpiType = TYPES[i]; remember('kpiType', kpiType);
       if (chip) chip.childNodes[0].nodeValue = TYPES[i];
+      paintKPI();
       setTimeout(back, 240);
       toast(i === 0 ? 'Showing every work type' : 'Filtered to ' + TYPES[i], 'filter_alt');
     });
+    if (pickType) pickType(Math.max(0, TYPES.indexOf(kpiType)));
+    if (chip) chip.childNodes[0].nodeValue = kpiType;
   })();
 
   /* US-M05-2 — the closeout's "need to go back" reveals which department */
@@ -9574,12 +9699,13 @@ body.dev #indexBtn{display:flex}
   function paintSparks() {
     Object.keys(sparks).forEach(function (k) {
       var series = TREND[k].slice();
-      var now = trendNow(k), was = series[0];
+      // M10-5 (#78): against the whole previous period, not the first of six
+      var now = trendNow(k), was = series[series.length - 2];
       var up = now >= was;
       var el = sparks[k];
       el.textContent = up ? 'trending_up' : 'trending_down';
       el.style.color = up ? '#16A34A' : '#DC2626';
-      el.title = (up ? 'Up' : 'Down') + ' over the last ' + series.length + ' periods';
+      el.title = (up ? 'Up' : 'Down') + ' on the previous period';
     });
   }
 
@@ -9628,8 +9754,35 @@ body.dev #indexBtn{display:flex}
     var t = el.firstChild;
     if (t && t.nodeType === 3) t.nodeValue = lead + ' '; else el.textContent = lead;
   }
+  /* M10-5c (#51): the work-type filter lists the company's job types, in
+     the web's Settings order, and the tiles count only that type */
+  var COMPANY_JOB_TYPES = ['Demand Service', 'Maintenance', 'Estimate', 'Install'];
+  var TYPE_SHARE = { 'Demand Service': 0.34, 'Maintenance': 0.18, 'Estimate': 0.12, 'Install': 0.36 };
+  var kpiType = recall('kpiType', 'All work types');
+  function kpiView() {
+    var f = TYPE_SHARE[kpiType];
+    if (!f) return kpi;
+    var v = {}; for (var k in kpi) v[k] = kpi[k];
+    v.revenue = kpi.revenue * f; v.target = kpi.target * f; v.estValue = kpi.estValue * f;
+    v.estimates = Math.max(1, Math.round(kpi.estimates * f)); v.conv = Math.round(kpi.conv * f * 10) / 10;
+    v.closed = Math.round(kpi.closed * f);
+    return v;
+  }
+  // M10-6b (#77): every tile with a target says On track or Behind
+  function trackWord(tile, on) {
+    if (!tile) return;
+    var w = $('[data-track]', tile);
+    if (!w) {
+      w = document.createElement('div'); w.dataset.track = '1';
+      w.setAttribute('style', 'font:600 11.5px/1 Geist;margin-top:6px');
+      tile.appendChild(w);
+    }
+    w.textContent = on ? 'On track' : 'Behind';
+    w.style.color = on ? '#16A34A' : '#DC2626';
+  }
   function paintKPI() {
     var r = kpiRefsGet(); if (!r) return;
+    var kpi = kpiView();
     var pct = function (a, b) { return Math.max(0, Math.min(100, a / b * 100)); };
     if (r.rev) { setLead(r.rev.value, kfmt(kpi.revenue)); if (r.rev.bar) r.rev.bar.style.width = pct(kpi.revenue, kpi.target) + '%'; }
     if (r.est) {
@@ -9645,7 +9798,8 @@ body.dev #indexBtn{display:flex}
       if (r.avg.bar) r.avg.bar.style.width = pct(kpi.avgTicket, kpi.avgTarget) + '%';
       // the caption was fixed at "Below target" however big the tickets got
       if (r.avgNote) {
-        r.avgNote.textContent = kpi.avgTicket >= kpi.avgTarget ? 'On target' : 'Below target';
+        r.avgNote.textContent = kpi.avgTicket >= kpi.avgTarget ? 'On track' : 'Behind';
+        r.avgNote.style.color = kpi.avgTicket >= kpi.avgTarget ? '#16A34A' : '#DC2626';
       }
     }
     if (r.close) {
@@ -9654,6 +9808,17 @@ body.dev #indexBtn{display:flex}
       setLead(r.close.value, Math.round(cl) + '%');
       if (r.close.bar) r.close.bar.style.width = pct(cl, kpi.closeTarget) + '%';
       if (r.estCount) r.estCount.textContent = Math.round(kpi.closed) + ' of ' + kpi.estimates + ' estimates closed';
+      trackWord(r.close.value.closest('div[style*="border-radius"]'), cl >= kpi.closeTarget);
+    }
+    // Revenue: the running period's Tracking against the target
+    // (the board's $65.2k so far runs to $243k by the end of the period)
+    if (r.rev) {
+      var revTile = r.rev.value.closest('div[style*="border-radius"]');
+      var proj = kpi.revenue * 243000 / 65200;
+      var rt = r.rev.value.lastElementChild; if (rt) rt.textContent = '/ ' + '$' + Math.round(kpi.target / 1000) + 'k';
+      var tl = revTile && $$('*', revTile).filter(function (e) { return !e.children.length && /^Tracking:/.test(norm(e.textContent)); })[0];
+      if (tl) tl.textContent = 'Tracking: ' + kfmt(proj);
+      trackWord(revTile, proj >= kpi.target);
     }
     paintSparks();
     remember('kpi', kpi);
@@ -9902,7 +10067,7 @@ body.dev #indexBtn{display:flex}
   function saveJobs() {
     remember('jobs', JOBS.map(function (j) {
       return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
+        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, estDeclined: j.estDeclined || null, paperApproved: j.paperApproved || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
     }));
   }
 
@@ -10909,7 +11074,7 @@ body.dev #indexBtn{display:flex}
     if (s.sold !== undefined) JOBS[i].sold = s.sold;
     if (s.expenses) JOBS[i].expenses = s.expenses;
     if (s.estNo) { JOBS[i].estNo = s.estNo; JOBS[i].estTmp = !!s.estTmp; }
-    JOBS[i].reopened = !!s.reopened; JOBS[i].paused = !!s.paused; JOBS[i].cancelled = !!s.cancelled; JOBS[i].completedAt = s.completedAt || ''; JOBS[i].rcFilled = !!s.rcFilled; JOBS[i].reopenReq = s.reopenReq || null; JOBS[i].pausedAt = s.pausedAt || 0; JOBS[i].pausedFrom = s.pausedFrom || '';
+    JOBS[i].reopened = !!s.reopened; JOBS[i].paused = !!s.paused; JOBS[i].cancelled = !!s.cancelled; JOBS[i].completedAt = s.completedAt || ''; JOBS[i].rcFilled = !!s.rcFilled; JOBS[i].reopenReq = s.reopenReq || null; JOBS[i].estDeclined = s.estDeclined || null; JOBS[i].paperApproved = s.paperApproved || null; JOBS[i].pausedAt = s.pausedAt || 0; JOBS[i].pausedFrom = s.pausedFrom || '';
     JOBS[i].startReq = s.startReq || null; JOBS[i].officeStartAt = s.officeStartAt || '';
     if (s.sentAt) JOBS[i].sentAt = s.sentAt;
     if (s.estType) JOBS[i].estType = s.estType;
@@ -11526,7 +11691,7 @@ body.dev #indexBtn{display:flex}
     decline.dataset.tap = '1';
     decline.setAttribute('style',
       'padding:11px 16px 2px;text-align:center;font:600 14px/1 Geist;color:#8A97A8;background:#fff;flex:none');
-    decline.textContent = 'Customer declined';
+    decline.textContent = 'Decline all options';   // M6-12 (#79)
     footer.parentElement.insertBefore(decline, footer);
   })();
 
@@ -11625,7 +11790,22 @@ body.dev #indexBtn{display:flex}
     custPlanRefs.terms.textContent = planTerms();
   }
 
+  // M6-16 (#81): the approval's Activity line says it was by hand
+  function paintPaperNote() {
+    var root = byId('est-approved'); if (!root) return;
+    var sc = $('.sc', root); if (!sc) return;
+    var n = $('[data-paper]', root), j = JOBS[jobIdx] || {}, pa = j.paperApproved;
+    if (!pa) { if (n) n.remove(); return; }
+    if (!n) {
+      n = document.createElement('div'); n.dataset.paper = '1';
+      n.setAttribute('style', 'display:flex;gap:9px;align-items:flex-start;padding:11px 13px;margin-bottom:11px;background:#F4F7FB;border:1px solid #DDE3EE;border-radius:11px;font:400 13px/1.45 Geist;color:#33475B');
+      sc.insertBefore(n, sc.firstChild);
+    }
+    n.innerHTML = '<span class="mi" style="font-size:19px;color:#4A6FA5">history_edu</span><span>Approved by hand by ' + pa.by + ' · ' + pa.at +
+      (pa.photo ? ' — signed paper copy attached' : ' — no photo of the paper copy') + '</span>';
+  }
   function paintApproved() {
+    paintPaperNote();
     var R = approvedRefs; if (!R) return;
     var pick = pickedOption;
     R.name.textContent = pick;
