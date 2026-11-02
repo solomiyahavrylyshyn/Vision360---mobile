@@ -379,7 +379,7 @@
       remember('jobIdx', viewPast ? viewPast.idx : jobIdx);   // a job being looked at is not the job
       remember('jobs', JOBS.map(function (j) {
         return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
+          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
       }));
     }
     paintDash();
@@ -6321,6 +6321,15 @@
       plan: { visit: 3, of: 10, prepaid: true, total: 6000 }
     }
   ];
+  /* M3-11 demo: the job the office dispatches during the call. It lives at
+     the end of the list once the push has brought it, reload or not. */
+  var DEMO_DISPATCH = {
+    cust: '10624', no: 4,
+    name: 'Lisa Brown', when: 'Today, 5:30 PM', brief: 'Furnace makes a banging noise', type: 'Demand Service',
+    addr: '3802 W Kennedy Blvd, Tampa, FL 33609', away: '7.25 miles away', phone: '(813) 555-0187',
+    est: 'none', inv: 'none', items: [], sold: null
+  };
+  if (recall('demoDispatched', false)) JOBS.push(DEMO_DISPATCH);
 
   /* =========================================================
      The job's items.
@@ -6495,7 +6504,7 @@
   function saveJobs() {
     remember('jobs', JOBS.map(function (j) {
       return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
+        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
     }));
   }
 
@@ -7318,7 +7327,7 @@
   function jobActive() { return !!(state.onsite || state.enroute); }
   function openJobs() {
     var o = [];
-    for (var i = 0; i < JOBS.length; i++) if (!JOBS[i].done) o.push(i);
+    for (var i = 0; i < JOBS.length; i++) if (!JOBS[i].done && !JOBS[i].cancelled) o.push(i);
     // the job you are driving to comes first under Next jobs (M3-1)
     var at = (state.enroute || state.onsite) ? o.indexOf(runIdx) : -1;
     if (at > 0) { o.splice(at, 1); o.unshift(runIdx); }
@@ -7502,7 +7511,7 @@
     if (s.sold !== undefined) JOBS[i].sold = s.sold;
     if (s.expenses) JOBS[i].expenses = s.expenses;
     if (s.estNo) { JOBS[i].estNo = s.estNo; JOBS[i].estTmp = !!s.estTmp; }
-    JOBS[i].reopened = !!s.reopened; JOBS[i].paused = !!s.paused; JOBS[i].pausedAt = s.pausedAt || 0; JOBS[i].pausedFrom = s.pausedFrom || '';
+    JOBS[i].reopened = !!s.reopened; JOBS[i].paused = !!s.paused; JOBS[i].cancelled = !!s.cancelled; JOBS[i].pausedAt = s.pausedAt || 0; JOBS[i].pausedFrom = s.pausedFrom || '';
     JOBS[i].startReq = s.startReq || null; JOBS[i].officeStartAt = s.officeStartAt || '';
     if (s.sentAt) JOBS[i].sentAt = s.sentAt;
     if (s.estType) JOBS[i].estType = s.estType;
@@ -9856,6 +9865,81 @@
       paint(row);
     });
   })();
+
+  /* =========================================================
+     M3-11 — pushes, as the phone shows them: a banner over the top of the
+     screen; a tap opens the job it names, or Home when that job is gone.
+     The demo menu at the foot of More plays the office: a new job
+     dispatched, then that job cancelled. And it switches the connection
+     off and on, for showing offline work on a call.
+     ========================================================= */
+  var pushEl = document.createElement('div');
+  pushEl.setAttribute('style', 'position:absolute;left:10px;right:10px;top:8px;z-index:60;display:flex;gap:11px;align-items:flex-start;' +
+    'background:rgba(255,255,255,.97);border:1px solid #DDE3EE;border-radius:16px;padding:12px 13px;box-shadow:0 10px 30px rgba(26,35,50,.22);' +
+    'transform:translateY(-140%);transition:transform .32s ease;cursor:pointer');
+  pushEl.innerHTML = '<div style="width:34px;height:34px;border-radius:8px;background:#1C2B3A;color:#fff;font:700 12px/34px Geist;text-align:center;flex:none">V3</div>' +
+    '<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;font:500 11.5px/1 Geist;color:#8A97A8"><span>VISION 360</span><span>now</span></div>' +
+    '<div data-pushtitle style="font:600 14px/1.35 Geist;color:#1A2332;margin-top:5px"></div></div>';
+  phone.appendChild(pushEl);
+  var pushTap = null, pushHide = null;
+  function showPush(text, onTap) {
+    $('[data-pushtitle]', pushEl).textContent = text;
+    pushTap = onTap;
+    pushEl.style.transform = 'translateY(0)';
+    clearTimeout(pushHide);
+    pushHide = setTimeout(function () { pushEl.style.transform = 'translateY(-140%)'; }, 6000);
+  }
+  pushEl.addEventListener('click', function () {
+    pushEl.style.transform = 'translateY(-140%)';
+    if (pushTap) pushTap();
+  });
+  function jobIndexOf(j) { for (var i = 0; i < JOBS.length; i++) if (JOBS[i] === j) return i; return -1; }
+  function demoGuard() {
+    if (!recall('signedIn', false)) { toast('Sign in first', 'info'); return false; }
+    if (!net.online) { toast('Pushes need a connection — go back online first', 'cloud_off'); return false; }
+    return true;
+  }
+  ACT.demoPushDispatch = function () {
+    if (!demoGuard()) return;
+    var j = DEMO_DISPATCH;
+    if (jobIndexOf(j) < 0) { JOBS.push(j); remember('demoDispatched', true); }
+    j.cancelled = false;
+    saveJobs(); paintJob();
+    go(homeScreen(), 'root');
+    setTimeout(function () {
+      showPush('New job dispatched: ' + jobNo(j) + ' · ' + j.when, function () {
+        var at = jobIndexOf(j); if (at < 0 || j.cancelled) { go(homeScreen(), 'root'); return; }
+        if (!state.onsite) jobIdx = at;
+        loadJob(); paintJob(); paintEnroute(); paintStartButtons();
+        go('job-general', 'push');
+      });
+    }, 900);
+  };
+  ACT.demoPushCancel = function () {
+    if (!demoGuard()) return;
+    // the dispatched demo job if it is on Home, otherwise the last open job not being worked
+    var open = openJobs().filter(function (i) { return i !== runIdx; });
+    var at = jobIndexOf(DEMO_DISPATCH);
+    if (open.indexOf(at) < 0) at = open[open.length - 1];
+    var j = JOBS[at];
+    if (!j) { toast('No job to cancel', 'info'); return; }
+    j.cancelled = true;
+    if (jobIdx === at) { var left = openJobs(); jobIdx = left.length ? left[0] : JOBS.length; loadJob(); }
+    saveJobs(); paintJob(); paintEnroute();
+    go(homeScreen(), 'root');
+    setTimeout(function () {
+      showPush(jobNo(j) + ' was cancelled by the office', function () { go(homeScreen(), 'root'); });
+    }, 900);
+  };
+  ACT.demoNet = function () {
+    if (net.online) { window.dispatchEvent(new Event('offline')); }
+    else { window.dispatchEvent(new Event('online')); }
+    paintDemoNet();
+  };
+  function paintDemoNet() {
+    var e = byId('demoNetNote'); if (e) e.textContent = net.online ? 'Demo: go offline' : 'Demo: back online';
+  }
+  setTimeout(paintDemoNet, 0);
 
   ACT.toggleLocation = function () {
     setLocation(!locationOn);
