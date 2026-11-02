@@ -9838,6 +9838,25 @@
       });
     });
   }
+  // M3-10: each event's Push toggle, on by default
+  (function () {
+    var root = byId('more-notifications'); if (!root) return;
+    var prefs = recall('notifPush', {});
+    function paint(row) {
+      var on = prefs[row.dataset.notif] !== false, sw = $('[data-notifsw]', row), knob = sw && sw.firstElementChild;
+      if (!sw) return;
+      sw.style.background = on ? '#4A6FA5' : '#DDE3EE';
+      knob.style.right = on ? '3px' : ''; knob.style.left = on ? '' : '3px';
+    }
+    $$('[data-notif]', root).forEach(paint);
+    root.addEventListener('click', function (ev) {
+      var row = ev.target.closest('[data-notif]'); if (!row) return;
+      prefs[row.dataset.notif] = prefs[row.dataset.notif] === false;
+      remember('notifPush', prefs);
+      paint(row);
+    });
+  })();
+
   ACT.toggleLocation = function () {
     setLocation(!locationOn);
     toast(locationOn ? 'Location on' : 'Location off — jobs can’t be started until it is back on',
