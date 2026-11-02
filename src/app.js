@@ -364,6 +364,7 @@
     if (pid === 'est-draft' && typeof paintDraftAction === 'function') paintDraftAction();
     if (pid === 'est-customer' && typeof paintCustomerOptions === 'function') paintCustomerOptions();
     if (pid === 'est-customer' && typeof paintCustomerEstNo === 'function') paintCustomerEstNo();
+    if (pid === 'history' && typeof paintHistTags === 'function') paintHistTags();
     // while a job is In Progress, Home shows it, whichever job was opened from the list
     if ((pid === 'home' || pid === 'home-active') && state.onsite && typeof runIdx !== 'undefined' && runIdx > -1 && jobIdx !== runIdx) {
       jobIdx = runIdx; loadJob(); paintJob(); paintEnroute(); paintStartButtons();
@@ -379,7 +380,7 @@
       remember('jobIdx', viewPast ? viewPast.idx : jobIdx);   // a job being looked at is not the job
       remember('jobs', JOBS.map(function (j) {
         return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
+          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
       }));
     }
     paintDash();
@@ -1221,6 +1222,7 @@
 
     rcSave: function (el) {
       var scr = el.closest('.screen');
+      if (JOBS[jobIdx]) { JOBS[jobIdx].rcFilled = true; saveJobs(); }   // M8-1: no Report Card hint once it is filled
       if (scr) hideSaveBar(scr.id);
       queued('Report Card');
       // the sections open where they are now, so saving one is not a way out
@@ -1363,6 +1365,23 @@
        nothing owed (warranty, free maintenance) closes without payment. */
     complete: function () {
       closeOverlays(true);
+      /* M8-1 (#52, #75): hints that never block — "Before you complete"
+         lists what is usually missing, each with Go to; Complete anyway or
+         Back. With no hint, one tap completes. */
+      var hj = JOBS[jobIdx] || {}, hints = [];
+      var jp0 = hj.plan;
+      if (!(jp0 && jp0.prepaid) && state.inv === 'none' && invoiceTotal() > 0) hints.push(['This job needs an invoice', function () { go(finScreen(), 'push'); }]);
+      if (!hj.rcFilled) hints.push(['AC Report Card not filled in', function () { go('rc-overview', 'push'); }]);
+      if (installMissing().length) hints.push(['Install template not filled in', function () { go('closeout', 'push'); }]);
+      function completeNow() {
+        if (SIGNOFF_REQUIRED) { openSignoff(); return; }
+        var no = jobNo(hj);
+        if (finishJob()) toast(no + ' completed · Undo', 'task_alt');
+      }
+      if (!hints.length) { completeNow(); return; }
+      beforeComplete(hints, completeNow);
+    },
+    completeOld: function () {
       var due = payAmount || 0;
       var lines = [];
       var jp = (JOBS[jobIdx] || {}).plan;
@@ -1393,10 +1412,12 @@
        who is there signs on this device; one who isn't gets the emailed
        link, and the job waits on it as "Awaiting sign-off". */
     signoffDone: function () {
-      if (!signoffPad || !signoffPad.isSigned()) { toast('The customer signs first', 'draw'); return; }
+      if (!signoffPad || !signoffPad.isSigned()) { toast('Please sign in the box', 'draw'); return; }
       var j = JOBS[jobIdx];
-      if (j) j.signoff = { state: 'signed', at: stamp(), via: 'device' };
-      if (finishJob() && j) toast('Signed off by ' + j.name + ' on the device · job completed', 'task_alt');
+      var who = norm((byId('soSigner') || {}).value || '') || (j && j.name) || 'the customer';
+      var at = stamp();
+      if (j) j.signoff = { state: 'signed', at: at, via: 'device', signer: who };
+      if (finishJob() && j) toast('Signed off by ' + who + ' · ' + at + ' · on the technician’s device', 'task_alt');
     },
     signoffLink: function () {
       var j = JOBS[jobIdx];
@@ -3733,15 +3754,18 @@
     // the controls that would change the job look locked, not just refuse
     if (viewPast) phone.dataset.readonly = '1'; else delete phone.dataset.readonly;
     if (typeof paintStartButtons === 'function') paintStartButtons();
+    var so0 = viewPast && !viewPast.visit && (JOBS[jobIdx] || {}).signoff;
     var back = $('[data-act="reopenRequest"]', viewBar);
-    if (back) toggleDisplay(back, !!viewPast && !viewPast.visit);
+    // asked once is asked: no second request while one waits (M8-7); none on Awaiting sign-off (M8-4)
+    if (back) toggleDisplay(back, !!viewPast && !viewPast.visit && !(JOBS[jobIdx] || {}).reopenReq && !(so0 && so0.state === 'awaiting'));
     var label = viewBar.children[1];
     var so = viewPast && !viewPast.visit && (JOBS[jobIdx] || {}).signoff;
     // M4-16 (#56): his own completed job says when — "Completed Oct 29, 2026, 4:32 PM · read-only"
     var cj = JOBS[jobIdx] || {};
     if (label) label.textContent = viewPast && viewPast.visit ? 'Past visit · read only'
-      : so && so.state === 'awaiting' ? 'Awaiting sign-off · read only'
+      : so && so.state === 'awaiting' ? 'Awaiting sign-off · link sent ' + so.at + ' to ' + custEmail(cj)
       : so && so.state === 'signed' ? 'Completed · signed off on the device'
+      : cj.reopenReq ? 'Reopen requested · ' + cj.reopenReq.at + ' · waiting'
       : 'Completed ' + (cj.completedAt || 'Oct 29, 2026, 4:32 PM') + ' · read-only';
     /* M4-14 (#57): another technician's past visit shows General, its Job
        and Field notes, photos and files — no Report Card, Estimate,
@@ -3782,8 +3806,15 @@
     }
   })();
   ACT.reopenRequest = function () {
-    var who = histJob || (JOBS[jobIdx] || {}).name || 'this job';
+    var who0 = histJob || (JOBS[jobIdx] || {}).name || 'this job';
     closeOverlays(true);
+    // M8-7 (#55): the manager is told why first
+    reasonSheet(who0, function (why) { ACT.reopenRequestSend(who0, why); });
+  };
+  ACT.reopenRequestSend = function (who, why) {
+    var rj = null; for (var i = 0; i < JOBS.length; i++) if (JOBS[i].name === who) rj = JOBS[i];
+    if (rj) { rj.reopenReq = { at: stamp(), why: why }; saveJobs(); }
+    paintView();
     queued('Reopen request');
     toast(net.online ? 'Reopen request for ' + who + ' sent to your manager' : 'Reopen request will go to your manager with signal', 'outgoing_mail');
     if (!net.online) return;
@@ -3794,7 +3825,7 @@
       for (var i = 0; i < JOBS.length; i++) if (JOBS[i].name === who) at = i;
       var j = JOBS[at];
       if (!j || !j.done) return;
-      j.done = false; j.reopened = true;
+      j.done = false; j.reopened = true; j.reopenReq = null;
       saveJobs();
       paintJob();
       toast(jobNo(j) + ' was reopened by Helen Smith', 'lock_open');
@@ -6627,7 +6658,7 @@
   function saveJobs() {
     remember('jobs', JOBS.map(function (j) {
       return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
+        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
     }));
   }
 
@@ -7634,7 +7665,7 @@
     if (s.sold !== undefined) JOBS[i].sold = s.sold;
     if (s.expenses) JOBS[i].expenses = s.expenses;
     if (s.estNo) { JOBS[i].estNo = s.estNo; JOBS[i].estTmp = !!s.estTmp; }
-    JOBS[i].reopened = !!s.reopened; JOBS[i].paused = !!s.paused; JOBS[i].cancelled = !!s.cancelled; JOBS[i].completedAt = s.completedAt || ''; JOBS[i].pausedAt = s.pausedAt || 0; JOBS[i].pausedFrom = s.pausedFrom || '';
+    JOBS[i].reopened = !!s.reopened; JOBS[i].paused = !!s.paused; JOBS[i].cancelled = !!s.cancelled; JOBS[i].completedAt = s.completedAt || ''; JOBS[i].rcFilled = !!s.rcFilled; JOBS[i].reopenReq = s.reopenReq || null; JOBS[i].pausedAt = s.pausedAt || 0; JOBS[i].pausedFrom = s.pausedFrom || '';
     JOBS[i].startReq = s.startReq || null; JOBS[i].officeStartAt = s.officeStartAt || '';
     if (s.sentAt) JOBS[i].sentAt = s.sentAt;
     if (s.estType) JOBS[i].estType = s.estType;
@@ -10255,6 +10286,88 @@
     new MutationObserver(function () { if (root.classList.contains('on')) paint(); }).observe(root, { attributes: true, attributeFilter: ['class'] });
   })();
 
+  /* M8-1 (#52, #75): the "Before you complete" sheet — the hints, each
+     with Go to, then Complete anyway or Back. Nothing is greyed or blocked. */
+  function sheetEl(id) {
+    var el = byId(id);
+    if (el) return el;
+    el = document.createElement('div');
+    el.className = 'overlay'; el.id = id;
+    el.innerHTML = '<div style="position:absolute;inset:0;background:rgba(28,43,58,.40)" data-back></div>' +
+      '<div data-sheetbody style="position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:22px 22px 0 0;padding:10px 16px 18px;box-shadow:0 -8px 30px rgba(26,35,50,.22)"></div>';
+    ovLayer.appendChild(el);
+    INFO[id] = { id: id, title: id, section: 'app', tabs: false, overlay: true };
+    return el;
+  }
+  function beforeComplete(hints, completeNow) {
+    var el = sheetEl('ov-before'), b = $('[data-sheetbody]', el);
+    b.innerHTML = '<div style="display:flex;justify-content:center;padding:0 0 10px"><div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div></div>' +
+      '<div style="font:600 18px/1.25 Geist;margin-bottom:12px">Before you complete</div>' +
+      hints.map(function (h, i) {
+        return '<div style="display:flex;align-items:center;gap:10px;padding:12px 0;border-top:1px solid #EDF0F5">' +
+          '<span class="mi" style="font-size:20px;color:#D97706">info</span><span style="flex:1;font:500 14.5px/1.35 Geist">' + h[0] + '</span>' +
+          '<span data-tap="1" data-hint="' + i + '" style="font:600 14px/1 Geist;color:#4A6FA5;white-space:nowrap">Go to</span></div>';
+      }).join('') +
+      '<div data-tap="1" data-anyway style="height:52px;display:flex;align-items:center;justify-content:center;margin-top:12px;border-radius:11px;background:#16A34A;color:#fff;font:600 16px/1 Geist">Complete anyway</div>' +
+      '<div data-back data-tap="1" style="height:44px;display:flex;align-items:center;justify-content:center;font:500 14.5px/1 Geist;color:#546478;margin-top:4px">Back</div>';
+    b.onclick = function (ev) {
+      var h = ev.target.closest('[data-hint]');
+      if (h) { closeOverlays(true); hints[+h.dataset.hint][1](); return; }
+      if (ev.target.closest('[data-anyway]')) { closeOverlays(true); completeNow(); }
+    };
+    go('ov-before', 'overlay');
+  }
+  // M8-7 (#55): "Tell the manager why" — required, up to 500 characters
+  function reasonSheet(who, send) {
+    var el = sheetEl('ov-reason'), b = $('[data-sheetbody]', el);
+    b.innerHTML = '<div style="display:flex;justify-content:center;padding:0 0 10px"><div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div></div>' +
+      '<div style="font:600 18px/1.25 Geist">Ask manager to reopen</div>' +
+      '<div style="font:400 13.5px/1.45 Geist;color:#546478;margin:5px 0 12px"></div>' +
+      '<textarea data-why class="inp" rows="4" placeholder="Tell the manager why" style="width:100%;height:auto;padding:11px 12px;font:400 15px/1.5 Geist;resize:none"></textarea>' +
+      '<div style="display:flex;justify-content:space-between;font:500 12.5px/1 Geist;color:#8A97A8;margin-top:7px"><span data-whyhint>Tell the manager why</span><span data-whycount>0 / 500</span></div>' +
+      '<div data-tap="1" data-send style="height:52px;display:flex;align-items:center;justify-content:center;margin-top:12px;border-radius:11px;background:#4A6FA5;color:#fff;font:600 16px/1 Geist">Send</div>' +
+      '<div data-back data-tap="1" style="height:44px;display:flex;align-items:center;justify-content:center;font:500 14.5px/1 Geist;color:#546478;margin-top:4px">Cancel</div>';
+    b.children[2].textContent = 'Only a manager or team leader puts ' + who + '’s job back to In Progress.';
+    var ta = $('[data-why]', b), sendBtn = $('[data-send]', b), hint = $('[data-whyhint]', b), cnt = $('[data-whycount]', b);
+    function paint() {
+      var n = ta.value.length, empty = !norm(ta.value), long = n > 500;
+      cnt.textContent = n + ' / 500';
+      hint.textContent = empty ? 'Tell the manager why' : long ? 'Up to 500 characters' : '';
+      sendBtn.style.opacity = empty || long ? '.45' : '';
+      return !(empty || long);
+    }
+    ta.addEventListener('input', paint); paint();
+    b.onclick = function (ev) {
+      if (!ev.target.closest('[data-send]') || !paint()) return;
+      var why = norm(ta.value);
+      closeOverlays(true);
+      send(why);
+    };
+    go('ov-reason', 'overlay');
+    setTimeout(function () { ta.focus(); }, 60);
+  }
+  function custEmail(j) {
+    var p = String((j && j.name) || 'customer').toLowerCase().split(' ');
+    return p.join('.') + '@example.com';
+  }
+  /* M8-4 (#54): a job waiting on its emailed sign-off says so on History */
+  function paintHistTags() {
+    $$('#history [data-act="histDetails"]').forEach(function (l) {
+      var j = null; for (var i = 0; i < JOBS.length; i++) if (JOBS[i].name === l.dataset.job) j = JOBS[i];
+      var card = l.closest('.sc > div'); if (!card) return;
+      var tag = $('[data-awaittag]', card);
+      var on = !!(j && j.signoff && j.signoff.state === 'awaiting');
+      if (on && !tag) {
+        tag = document.createElement('span'); tag.dataset.awaittag = '1';
+        tag.setAttribute('style', 'display:inline-block;margin-top:8px;font:600 11.5px/1 Geist;color:#B45309;background:#FEF3E2;border-radius:5px;padding:4px 7px');
+        tag.textContent = 'Awaiting sign-off';
+        card.insertBefore(tag, card.children[2] || null);
+      }
+      if (tag) tag.style.display = on ? '' : 'none';
+    });
+  }
+  setTimeout(paintHistTags, 0);
+
   ACT.toggleLocation = function () {
     setLocation(!locationOn);
     toast(locationOn ? 'Location on' : 'Location off — jobs can’t be started until it is back on',
@@ -10508,8 +10621,18 @@
     if (signoffPad) signoffPad.clear();
     var btn = byId('soDone'); if (btn) { btn.style.background = '#EDF0F5'; btn.style.color = '#A9B4C2'; }
     var w = byId('soWhen'); if (w) w.textContent = 'Not signed';
-    var nm = byId('soJob'); if (nm) nm.textContent = j.name || 'Job';
-    var wt = byId('soWhat'); if (wt) wt.textContent = [j.brief, j.addr].filter(Boolean).join(' · ');
+    var nm = byId('soJob'); if (nm) nm.textContent = (jobNo(j) ? jobNo(j) + ' · ' : '') + (j.name || 'Job');
+    var wt = byId('soWhat'); if (wt) wt.textContent = [stamp().split(',').slice(0, 2).join(','), j.addr, 'Technician: Marek Stroz'].filter(Boolean).join(' · ');
+    // M8-3 (#53): the work done — the job's lines — and its total
+    var ls = byId('soLines');
+    if (ls) {
+      var rows = invoiceRows(j);
+      ls.innerHTML = rows.map(function (r) {
+        return '<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 0;font:400 13.5px/1.35 Geist;color:#546478"><span>' +
+          r.name.replace(/[<>&]/g, '') + '</span><span style="font-weight:600;color:#1A2332;white-space:nowrap">' + (r.price < 0 ? '−' + fmt(-r.price) : fmt(r.price)) + '</span></div>';
+      }).join('') + '<div style="display:flex;justify-content:space-between;padding:8px 0 0;margin-top:4px;border-top:1px solid #EDF0F5;font:600 15px/1 Geist"><span>Total</span><span>' + fmt(jobAmount(j)) + '</span></div>';
+    }
+    var sg = byId('soSigner'); if (sg) sg.value = j.name || '';
     go('signoff', 'push');
   }
 
@@ -10978,6 +11101,25 @@
       }
       paintNextList();
       paintReqBar(j);
+      // M8-5 (#67): a Paused card offers "Add field note" — why it can't be finished
+      var pn = $('[data-pausednote]', jobCard);
+      if (!pn && chip.parentNode) {
+        pn = document.createElement('div'); pn.dataset.pausednote = '1'; pn.dataset.tap = '1';
+        pn.setAttribute('style', 'display:inline-flex;align-items:center;gap:5px;margin:8px 0 0;font:600 13px/1 Geist;color:#4A6FA5;cursor:pointer');
+        pn.innerHTML = '<span class="mi" style="font-size:17px">edit_note</span>Add field note';
+        pn.addEventListener('click', function (ev) {
+          ev.stopPropagation();
+          go('job-general', 'push');
+          setTimeout(function () {
+            go('ov-note-tech', 'overlay');
+            setTimeout(function () { var a = $$('#ov-note-tech [data-tap]').filter(function (e) { return /Add field note$/.test(norm(e.textContent)); })[0]; if (a) a.click(); }, 250);
+          }, 300);
+        });
+      }
+      if (pn) {
+        if (chip.parentNode && pn.parentNode !== chip.parentNode.parentNode) chip.parentNode.parentNode.insertBefore(pn, chip.parentNode.nextSibling);
+        pn.style.display = j && j.paused ? 'inline-flex' : 'none';
+      }
       if (!stateBox.hidden) {
         jobCard.hidden = true;
         var em = $('[data-homeempty]', home); if (em) em.hidden = true;
