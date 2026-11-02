@@ -10117,9 +10117,18 @@
      So the technician's expenses live on the job, under General: what it
      was, what it cost, and the receipt.
      ========================================================= */
+  /* M4-12 (#49): the web's expense fields — vendor from the company's
+     list (no free typing), category, vendor invoice no., date, amount with
+     tax, description and a receipt photo. Vendor, category, date and amount
+     are required; Save waits for them and says what is missing. */
+  var VENDORS = ['Ferguson', 'Johnstone Supply', 'Carrier Enterprise', 'The Home Depot', 'Lowe’s'];
+  var EXP_CATS = ['Materials', 'Equipment rental', 'Permits', 'Fuel', 'Tools', 'Other'];
   var expRefs = null;
   (function () {
     if (!jobItemsRefs) return;
+    var FLD = 'width:100%;height:46px;padding:0 12px;border:1px solid #DDE3EE;border-radius:10px;background:#fff;font:400 14.5px/1 Geist;color:#1A2332';
+    var LBL = 'display:block;font:500 12px/1 Geist;color:#546478;margin:10px 0 6px';
+    function opts(list, ph) { return '<option value="">' + ph + '</option>' + list.map(function (v) { return '<option>' + v + '</option>'; }).join(''); }
     var card = document.createElement('div');
     card.setAttribute('style', jobItemsRefs.card.getAttribute('style') || 'background:#fff;border:1px solid #DDE3EE;border-radius:12px;padding:14px');
     card.style.marginTop = '12px';
@@ -10127,44 +10136,87 @@
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">' +
       '<span style="font:600 16px/1 Geist">Expenses</span><span data-expsum style="font:600 14px/1 Geist;color:#546478"></span></div>' +
       '<div data-explist></div>' +
-      '<div data-expform style="display:none;padding-top:12px;border-top:1px solid #EDF0F5;margin-top:8px">' +
-      '<input data-expdesc class="inp" placeholder="What was it — e.g. permit, parts run" style="width:100%;height:46px;padding:0 13px;border:1px solid #DDE3EE;border-radius:10px;font:400 14.5px/1 Geist">' +
-      '<div style="display:flex;gap:9px;margin-top:9px">' +
-      '<div style="flex:1;display:flex;align-items:center;gap:6px;height:46px;padding:0 13px;border:1px solid #DDE3EE;border-radius:10px">' +
-      '<span style="font:600 15px/1 Geist;color:#8A97A8">$</span><input data-expamt class="inp" inputmode="decimal" placeholder="0.00" style="flex:1;height:auto;border:0;padding:0;background:transparent;font:500 15px/1 Geist"></div>' +
-      '<div data-expphoto data-tap="1" style="display:flex;align-items:center;gap:6px;height:46px;padding:0 13px;border:1px dashed #C8D5E8;border-radius:10px;font:500 13.5px/1 Geist;color:#4A6FA5">' +
-      '<span class="mi" style="font-size:19px">receipt_long</span><span data-expphototx>Receipt</span></div></div>' +
-      '<div style="display:flex;gap:9px;margin-top:11px">' +
+      '<div data-expform style="display:none;padding-top:4px;border-top:1px solid #EDF0F5;margin-top:8px">' +
+      '<label style="' + LBL + '">Vendor *</label><select data-expf="vendor" style="' + FLD + '">' + opts(VENDORS, 'Pick from the company’s vendors') + '</select>' +
+      '<label style="' + LBL + '">Category *</label><select data-expf="cat" style="' + FLD + '">' + opts(EXP_CATS, 'Pick a category') + '</select>' +
+      '<div style="display:flex;gap:9px"><div style="flex:1"><label style="' + LBL + '">Date *</label><input data-expf="date" type="date" style="' + FLD + '"></div>' +
+      '<div style="flex:1"><label style="' + LBL + '">Amount with tax *</label><input data-expf="amt" inputmode="decimal" placeholder="$0.00" style="' + FLD + '"></div></div>' +
+      '<label style="' + LBL + '">Vendor invoice no.</label><input data-expf="vinv" placeholder="e.g. INV-55821" style="' + FLD + '">' +
+      '<label style="' + LBL + '">Description</label><input data-expf="desc" placeholder="e.g. 2 × 45/5 µF capacitor" style="' + FLD + '">' +
+      '<div data-expphoto data-tap="1" style="display:flex;align-items:center;gap:7px;height:44px;padding:0 13px;margin-top:12px;border:1px dashed #C8D5E8;border-radius:10px;font:500 13.5px/1 Geist;color:#4A6FA5">' +
+      '<span class="mi" style="font-size:19px">receipt_long</span><span data-expphototx>Add a receipt photo</span></div>' +
+      '<div data-expmiss style="font:500 12.5px/1.4 Geist;color:#B45309;margin-top:10px"></div>' +
+      '<div style="display:flex;gap:9px;margin-top:10px">' +
       '<div data-expcancel data-tap="1" style="flex:1;height:44px;display:flex;align-items:center;justify-content:center;border:1px solid #DDE3EE;border-radius:10px;font:600 14px/1 Geist;color:#546478">Cancel</div>' +
       '<div data-expsave data-tap="1" style="flex:1;height:44px;display:flex;align-items:center;justify-content:center;background:#4A6FA5;color:#fff;border-radius:10px;font:600 14px/1 Geist">Save expense</div></div></div>' +
       '<div data-expadd data-tap="1" style="height:44px;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:12px;background:#fff;border:1px solid #C8D5E8;color:#4A6FA5;border-radius:10px;font:600 14px/1 Geist">' +
-      '<span class="mi" style="font-size:19px">add</span>Add expense</div>';
+      '<span class="mi" style="font-size:19px">add</span>Add expense</div>' +
+      '<div style="font:400 12px/1.45 Geist;color:#8A97A8;margin-top:9px">To remove an expense, ask the office.</div>';
     jobItemsRefs.card.insertAdjacentElement('afterend', card);
+    var F = function (k) { return $('[data-expf="' + k + '"]', card); };
     expRefs = { card: card, list: $('[data-explist]', card), sum: $('[data-expsum]', card), form: $('[data-expform]', card),
-      add: $('[data-expadd]', card), desc: $('[data-expdesc]', card), amt: $('[data-expamt]', card), photoTx: $('[data-expphototx]', card), photo: false };
+      add: $('[data-expadd]', card), photoTx: $('[data-expphototx]', card), miss: $('[data-expmiss]', card), save: $('[data-expsave]', card), photo: false };
     var R = expRefs;
+    // "86,40" reads as $86.40; more than two decimals, $0 or less is not an amount
+    function amount() {
+      var t = String(F('amt').value || '').trim().replace(/\$/g, '').replace(',', '.');
+      if (!/^\d+(\.\d{1,2})?$/.test(t)) return NaN;
+      var v = parseFloat(t);
+      return v > 0 ? Math.round(v * 100) / 100 : NaN;
+    }
+    function missing() {
+      var m = [];
+      if (!F('vendor').value) m.push('vendor');
+      if (!F('cat').value) m.push('category');
+      if (!F('date').value) m.push('date');
+      if (!isFinite(amount())) m.push(F('amt').value ? 'an amount over $0 with two decimals at most' : 'amount');
+      return m;
+    }
+    function paintSave() {
+      var m = missing();
+      R.miss.textContent = m.length ? 'Missing: ' + m.join(', ') : '';
+      R.save.style.opacity = m.length ? '.45' : '';
+    }
     function openForm(on) {
       R.form.style.display = on ? '' : 'none';
       R.add.style.display = on ? 'none' : 'flex';
-      if (on) { R.desc.value = ''; R.amt.value = ''; R.photo = false; R.photoTx.textContent = 'Receipt'; R.desc.focus(); }
+      if (on) {
+        ['vendor', 'cat', 'amt', 'vinv', 'desc'].forEach(function (k) { F(k).value = ''; });
+        var d = new Date();
+        F('date').value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        R.photo = false; R.photoTx.textContent = 'Add a receipt photo';
+        paintSave();
+      }
     }
+    card.addEventListener('input', paintSave);
+    card.addEventListener('change', paintSave);
     card.addEventListener('click', function (ev) {
       if (ev.target.closest('[data-expadd]')) { openForm(true); return; }
       if (ev.target.closest('[data-expcancel]')) { openForm(false); return; }
-      if (ev.target.closest('[data-expphoto]')) { R.photo = true; R.photoTx.textContent = 'Receipt ✓'; return; }
+      if (ev.target.closest('[data-expphoto]')) { R.photo = true; R.photoTx.textContent = 'Receipt photo attached ✓'; return; }
       if (ev.target.closest('[data-expsave]')) {
-        var amt = parseFloat(String(R.amt.value).replace(/[^0-9.]/g, ''));
-        if (!norm(R.desc.value) || !isFinite(amt) || amt <= 0) { toast('Say what it was and how much it cost', 'info'); return; }
+        if (missing().length) { paintSave(); return; }
         var j = JOBS[jobIdx]; if (!j) return;
-        (j.expenses = j.expenses || []).push({ desc: norm(R.desc.value), amount: Math.round(amt * 100) / 100, receipt: R.photo, at: stamp() });
+        var dd = F('date').value.split('-');
+        var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        (j.expenses = j.expenses || []).push({
+          vendor: F('vendor').value, cat: F('cat').value, vinv: norm(F('vinv').value), desc: norm(F('desc').value),
+          date: MON[+dd[1] - 1] + ' ' + (+dd[2]) + ', ' + dd[0], amount: amount(), receipt: R.photo,
+          // the X-#### number is the server's, given at sync (pending until then)
+          no: net.online ? nextExpenseNo() : ''
+        });
         saveJobs();
         openForm(false);
         renderExpenses();
-        queued('Expense');
+        queued('Expense', 'Expense ' + fmt(amount()) + ' · ' + F('vendor').value);
         toast('Expense added to ' + j.name + '’s job', 'receipt_long');
       }
     });
   })();
+  function nextExpenseNo() {
+    var n = recall('expSeq', 1203) + 1; remember('expSeq', n);
+    return 'X-' + n;
+  }
   function renderExpenses() {
     var R = expRefs; if (!R) return;
     var j = JOBS[jobIdx] || {}, ex = j.expenses || [];
@@ -10178,8 +10230,10 @@
       d.innerHTML = '<span class="mi" style="font-size:19px;color:' + (e.receipt ? '#16A34A' : '#A9B4C2') + '">' + (e.receipt ? 'receipt_long' : 'receipt') + '</span>' +
         '<div style="flex:1;min-width:0"><div style="font:500 14px/1.25 Geist"></div><div style="font:400 12px/1.3 Geist;color:#8A97A8;margin-top:3px"></div></div>' +
         '<span style="font:600 14px/1 Geist;white-space:nowrap"></span>';
-      d.children[1].children[0].textContent = e.desc;
-      d.children[1].children[1].textContent = (e.receipt ? 'Receipt attached' : 'No receipt') + ' · ' + e.at;
+      // M4-12: "Pending number · Ferguson · Materials · $86.40", numbered at sync
+      d.children[1].children[0].textContent = (e.no || 'Pending number') + ' · ' + (e.vendor || e.desc) + (e.cat ? ' · ' + e.cat : '');
+      d.children[1].children[1].textContent = [e.desc && e.vendor ? e.desc : '', e.vinv ? 'Vendor inv. ' + e.vinv : '', e.date || e.at,
+        e.receipt ? 'Receipt attached' : 'No receipt'].filter(Boolean).join(' · ');
       d.children[2].textContent = fmt(e.amount);
       R.list.appendChild(d);
     });
@@ -10607,6 +10661,9 @@
       if (typeof paintPayScreens === 'function') paintPayScreens();
     }
     JOBS.forEach(function (j) {
+      (j.expenses || []).forEach(function (e) { if (!e.no) { e.no = nextExpenseNo(); done.push('Expense ' + e.no + ' recorded'); } });
+    });
+    JOBS.forEach(function (j) {
       if (!j.estTmp) return;
       var was = j.estNo;
       j.estNo = nextDocNo(j, 'E'); j.estTmp = false;
@@ -10614,6 +10671,7 @@
     });
     if (!done.length) return;
     saveJobs();
+    renderExpenses();
     paintEstStatus();
     paintCustomerEstNo();
     setTimeout(function () { toast(done.join(' · '), 'tag'); }, 2400);
