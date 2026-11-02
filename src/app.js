@@ -379,7 +379,7 @@
       remember('jobIdx', viewPast ? viewPast.idx : jobIdx);   // a job being looked at is not the job
       remember('jobs', JOBS.map(function (j) {
         return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
+          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
       }));
     }
     paintDash();
@@ -1452,7 +1452,7 @@
       paintEnroute();
       // the queue can be browsed now, so a finished job is struck off it
       // rather than left behind a cursor
-      if (JOBS[jobIdx]) JOBS[jobIdx].done = true;
+      if (JOBS[jobIdx]) { JOBS[jobIdx].done = true; JOBS[jobIdx].completedAt = stamp(); }
       var left = openJobs();
       jobIdx = left.length ? left[0] : JOBS.length;
       loadJob();
@@ -2148,7 +2148,8 @@
       meta.textContent = p.mine ? 'Today · Marek Stroz' : 'Nov 12, 2025 · Peter Johnson';
       var mayEdit = p.mine && !viewPast;
       tools.forEach(function (t) {
-        var keep = norm(t.textContent) === 'download';
+        // M4-14: another technician's past visit is viewed only — no download either
+        var keep = norm(t.textContent) === 'download' && !(viewPast && viewPast.visit);
         toggleDisplay(t, keep || mayEdit);
       });
     }
@@ -3732,9 +3733,21 @@
     if (back) toggleDisplay(back, !!viewPast && !viewPast.visit);
     var label = viewBar.children[1];
     var so = viewPast && !viewPast.visit && (JOBS[jobIdx] || {}).signoff;
+    // M4-16 (#56): his own completed job says when — "Completed Oct 29, 2026, 4:32 PM · read-only"
+    var cj = JOBS[jobIdx] || {};
     if (label) label.textContent = viewPast && viewPast.visit ? 'Past visit · read only'
       : so && so.state === 'awaiting' ? 'Awaiting sign-off · read only'
-      : so && so.state === 'signed' ? 'Completed · signed off on the device' : 'Completed job · read only';
+      : so && so.state === 'signed' ? 'Completed · signed off on the device'
+      : 'Completed ' + (cj.completedAt || 'Oct 29, 2026, 4:32 PM') + ' · read-only';
+    /* M4-14 (#57): another technician's past visit shows General, its Job
+       and Field notes, photos and files — no Report Card, Estimate,
+       Finance, Internal notes or expenses */
+    var other = !!(viewPast && viewPast.visit);
+    $$('[data-act="jobRC"],[data-act="jobEst"],[data-act="jobFin"]').forEach(function (t) { toggleDisplay(t, !other); });
+    $$('#job-notes div').forEach(function (d) {
+      if (!d.children.length && /^Internal \d/.test(norm(d.textContent)) && d.dataset.tap) toggleDisplay(d, !other);
+    });
+    if (typeof expRefs !== 'undefined' && expRefs) toggleDisplay(expRefs.card, !other);
     jobHeaderBtns.forEach(function (b) { toggleDisplay(b, !viewPast); });
   }
   function leaveView() {
@@ -4928,35 +4941,60 @@
     card.removeChild(card.children[2]);
     card.removeChild(card.children[1]);
 
-    var MIN = 0, MAX = 30000;
+    /* M4-15b (#66): a two-handle slider, as in Figma, from $0 to the
+       largest amount of the period rounded up to the next $1,000 */
+    function periodMax() {
+      var top = 0;
+      $$('#history [data-money]').forEach(function (e) {
+        if (e.closest('[hidden]')) return;
+        (norm(e.textContent).match(/\$[\d,]+(\.\d\d)?/g) || []).forEach(function (m) { top = Math.max(top, parseFloat(m.replace(/[$,]/g, ''))); });
+      });
+      return Math.max(1000, Math.ceil(top / 1000) * 1000);
+    }
+    var MIN = 0, MAX = periodMax();
     var row = document.createElement('div');
-    row.setAttribute('style', 'display:flex;align-items:center;gap:10px');
-    row.innerHTML =
-      '<label style="flex:1;display:block;background:#EDF0F5;border-radius:10px 10px 0 0;' +
-      'border-bottom:1.5px solid #8A97A8;padding:8px 12px 7px">' +
-      '<span style="display:block;font:400 11.5px/1 Geist;color:#546478">From</span>' +
-      '<input data-pmin class="inp" type="number" inputmode="numeric" min="0" ' +
-      'style="height:26px;padding:0;border:0;background:transparent;font:600 16px/1.3 Geist"></label>' +
-      '<span style="font:500 14px/1 Geist;color:#8A97A8">–</span>' +
-      '<label style="flex:1;display:block;background:#EDF0F5;border-radius:10px 10px 0 0;' +
-      'border-bottom:1.5px solid #8A97A8;padding:8px 12px 7px">' +
-      '<span style="display:block;font:400 11.5px/1 Geist;color:#546478">To</span>' +
-      '<input data-pmax class="inp" type="number" inputmode="numeric" min="0" ' +
-      'style="height:26px;padding:0;border:0;background:transparent;font:600 16px/1.3 Geist"></label>';
+    row.setAttribute('style', 'position:relative;height:36px;margin:6px 4px 2px');
+    var RANGE = 'position:absolute;left:0;right:0;top:8px;width:100%;margin:0;background:none;pointer-events:none;-webkit-appearance:none;appearance:none;accent-color:#4A6FA5';
+    row.innerHTML = '<div style="position:absolute;left:0;right:0;top:16px;height:4px;border-radius:2px;background:#DDE3EE"></div>' +
+      '<div data-pfill style="position:absolute;top:16px;height:4px;border-radius:2px;background:#4A6FA5"></div>' +
+      '<input data-pmin type="range" step="100" style="' + RANGE + '">' +
+      '<input data-pmax type="range" step="100" style="' + RANGE + '">' +
+      '<style>#hist-filters input[type=range]::-webkit-slider-thumb{pointer-events:auto;-webkit-appearance:none;width:22px;height:22px;border-radius:11px;background:#fff;border:2px solid #4A6FA5;box-shadow:0 1px 3px rgba(0,0,0,.2)}' +
+      '#hist-filters input[type=range]::-moz-range-thumb{pointer-events:auto;width:18px;height:18px;border-radius:9px;background:#fff;border:2px solid #4A6FA5}</style>';
     card.appendChild(row);
+    var ends = document.createElement('div');
+    ends.setAttribute('style', 'display:flex;justify-content:space-between;font:500 12px/1 Geist;color:#8A97A8;margin:2px 4px 0');
+    card.appendChild(ends);
 
-    var lo = $('[data-pmin]', row), hi = $('[data-pmax]', row);
+    var lo = $('[data-pmin]', row), hi = $('[data-pmax]', row), fill = $('[data-pfill]', row);
     function money(n) { return '$' + Number(n).toLocaleString('en-US'); }
-    function paint() {
-      var a = lo.value === '' ? MIN : Math.max(MIN, +lo.value);
-      var b = hi.value === '' ? MAX : Math.min(MAX, +hi.value);
-      // a range that reads backwards is a typo, not a filter
-      value.textContent = b < a ? 'To is below From' : money(a) + ' – ' + money(b);
-      value.style.color = b < a ? '#DC2626' : '#4A6FA5';
+    function setMax() {
+      MAX = periodMax();
+      [lo, hi].forEach(function (e) { e.min = MIN; e.max = MAX; });
+      ends.innerHTML = '<span>' + money(MIN) + '</span><span>' + money(MAX) + '</span>';
+    }
+    function paint(ev) {
+      var a = +lo.value, b = +hi.value;
+      // the handles never cross: the one being dragged stops at the other
+      if (a > b) { if (ev && ev.target === lo) lo.value = a = b; else hi.value = b = a; }
+      value.textContent = money(a) + ' – ' + money(b);
+      value.style.color = '#4A6FA5';
+      fill.style.left = (a / MAX * 100) + '%'; fill.style.right = (100 - b / MAX * 100) + '%';
     }
     [lo, hi].forEach(function (e) { e.addEventListener('input', paint); });
-    resetPrice = function () { lo.value = '6000'; hi.value = '15000'; paint(); };
+    resetPrice = function () { setMax(); lo.value = MIN; hi.value = MAX; paint(); };
     resetPrice();
+    // the period on History sets the top, so it is read again on the way in
+    var hf = byId('hist-filters');
+    new MutationObserver(function () {
+      if (!hf.classList.contains('on')) return;
+      var was = MAX, keepLo = +lo.value, atTop = +hi.value >= was;
+      setMax();
+      lo.value = Math.min(keepLo, MAX);
+      hi.value = atTop ? MAX : Math.min(+hi.value, MAX);   // a handle left at the top stays at the top
+      paint();
+    })
+      .observe(hf, { attributes: true, attributeFilter: ['class'] });
   })();
 
   /* the header says what Reset does, and leaves the way it came */
@@ -6560,7 +6598,7 @@
   function saveJobs() {
     remember('jobs', JOBS.map(function (j) {
       return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
+        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
     }));
   }
 
@@ -7567,7 +7605,7 @@
     if (s.sold !== undefined) JOBS[i].sold = s.sold;
     if (s.expenses) JOBS[i].expenses = s.expenses;
     if (s.estNo) { JOBS[i].estNo = s.estNo; JOBS[i].estTmp = !!s.estTmp; }
-    JOBS[i].reopened = !!s.reopened; JOBS[i].paused = !!s.paused; JOBS[i].cancelled = !!s.cancelled; JOBS[i].pausedAt = s.pausedAt || 0; JOBS[i].pausedFrom = s.pausedFrom || '';
+    JOBS[i].reopened = !!s.reopened; JOBS[i].paused = !!s.paused; JOBS[i].cancelled = !!s.cancelled; JOBS[i].completedAt = s.completedAt || ''; JOBS[i].pausedAt = s.pausedAt || 0; JOBS[i].pausedFrom = s.pausedFrom || '';
     JOBS[i].startReq = s.startReq || null; JOBS[i].officeStartAt = s.officeStartAt || '';
     if (s.sentAt) JOBS[i].sentAt = s.sentAt;
     if (s.estType) JOBS[i].estType = s.estType;
@@ -10545,6 +10583,10 @@
       tel.setAttribute('style', 'color:#4A6FA5;text-decoration:none');
       tel.textContent = lastFirst(j.name);
       refs.contact.appendChild(tel);
+      // M4-13 (#58): the row names whose history it opens
+      var hrow = $$('[data-go="cust-jobs"]', root).filter(function (e) { return byIcon(e, 'history').length; })[0], hsub = hrow && $('span span', hrow);
+      if (hsub) hsub.textContent = '12 jobs for ' + j.name;
+      paintCustHead(j);
       // More → Current job names the job in hand by its number
       var cur = byId('moreCurJob'), live = viewPast ? JOBS[viewPast.idx] : j;
       if (cur && live) cur.textContent = live.name + ' · ' + jobNo(live);
@@ -10911,6 +10953,64 @@
     window.addEventListener('online', function () { setTimeout(paintJob, 50); });
     paintHomeState();
   })();
+
+  /* M4-13 (#58) / M4-13b (#59): the customer's history — "Jobs – Randy
+     Johnson" over the summary "12 visits · 3 technicians · last on Dec 13,
+     2025 · Total spent: $8,420.00"; the magnifier searches this customer's
+     job titles, with a filter by job type — not other customers. */
+  var custHead = null;
+  (function () {
+    var root = byId('cust-jobs'); if (!root) return;
+    var t = sel(root, 'Jobs')[0], sub = t && t.nextElementSibling;
+    if (!t || !sub) { MISS.push('cust-jobs :: head'); return; }
+    custHead = { title: t, sub: sub };
+    sub.style.whiteSpace = 'normal'; sub.style.lineHeight = '1.35';
+    var list = $('.sc', root);
+    var bar = document.createElement('div');
+    bar.hidden = true;
+    bar.setAttribute('style', 'padding:10px 16px 2px;background:#fff;border-bottom:1px solid #EDF0F5;flex:none');
+    bar.innerHTML = '<input data-cjq class="inp" placeholder="Search this customer\u2019s jobs" style="width:100%;height:42px;padding:0 12px;border:1px solid #DDE3EE;border-radius:10px;font:400 14.5px/1 Geist">' +
+      '<div data-cjtypes style="display:flex;gap:6px;flex-wrap:wrap;padding:9px 0 8px"></div>';
+    list.parentElement.insertBefore(bar, list);
+    var TYPES = ['All', 'Install', 'Demand Service', 'Maintenance', 'Estimate'], pick = 'All';
+    var CH = 'font:600 12.5px/1 Geist;padding:7px 10px;border-radius:14px;border:1px solid #C8D5E8;';
+    function paintChips() {
+      $('[data-cjtypes]', bar).innerHTML = TYPES.map(function (x) {
+        return '<span data-tap="1" data-cjtype="' + x + '" style="' + CH + (x === pick ? 'background:#4A6FA5;color:#fff;border-color:#4A6FA5' : 'background:#fff;color:#4A6FA5') + '">' + x + '</span>';
+      }).join('');
+    }
+    function filter() {
+      var q = norm($('[data-cjq]', bar).value).toLowerCase(), shown = 0;
+      $$(':scope > div', list).forEach(function (row) {
+        if (row.dataset.cjempty) return;
+        var line = row.children[1], title = line && line.children[0], type = line && line.children[1];
+        var ok = (!q || norm(title ? title.textContent : '').toLowerCase().indexOf(q) > -1) &&
+          (pick === 'All' || norm(type ? type.textContent : '') === pick);
+        row.hidden = !ok; if (ok) shown++;
+      });
+      var none = $('[data-cjempty]', list);
+      if (!none) { none = document.createElement('div'); none.dataset.cjempty = '1'; none.setAttribute('style', 'padding:28px 10px;text-align:center;font:400 14px/1.5 Geist;color:#8A97A8'); none.textContent = 'No jobs of this customer match'; list.appendChild(none); }
+      none.hidden = shown > 0;
+    }
+    paintChips();
+    bar.addEventListener('input', filter);
+    bar.addEventListener('click', function (ev) {
+      var c = ev.target.closest('[data-cjtype]'); if (!c) return;
+      pick = c.dataset.cjtype; paintChips(); filter();
+    });
+    var mag = byIcon(root, 'search')[0];
+    if (mag) mag.addEventListener('click', function (ev) {
+      ev.stopPropagation(); ev.preventDefault();
+      bar.hidden = !bar.hidden;
+      if (!bar.hidden) setTimeout(function () { $('[data-cjq]', bar).focus(); }, 30);
+      else { $('[data-cjq]', bar).value = ''; pick = 'All'; paintChips(); filter(); }
+    }, true);
+  })();
+  function paintCustHead(j) {
+    if (!custHead || !j) return;
+    custHead.title.textContent = 'Jobs \u2013 ' + j.name;
+    custHead.sub.textContent = '12 visits \u00b7 3 technicians \u00b7 last on Dec 13, 2025 \u00b7 Total spent: $8,420.00';
+  }
 
   function boot() {
     mvpTrim();
