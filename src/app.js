@@ -3818,6 +3818,21 @@
   ACT.confirmOk = function () { var cb = confirmCb.ok; closeOverlays(true); confirmCb = {}; if (cb) cb(); };
   ACT.confirmAlt = function () { var cb = confirmCb.alt; closeOverlays(true); confirmCb = {}; if (cb) cb(); };
 
+  /* M3-7: the driving distance reads with two decimals ("3.92 miles away",
+     "11.40 miles away"), and without decimals from 100 miles. */
+  function awayText(away) {
+    var m = String(away || '').match(/([\d.]+)\s*miles?/);
+    if (!m) return away || '';
+    var n = parseFloat(m[1]);
+    return (n >= 100 ? String(Math.round(n)) : n.toFixed(2)) + ' miles away';
+  }
+  /* M3-7: the address opens Google Maps with directions to it — the
+     Google Maps app on the phone, maps.google.com without it; the app
+     stays on the same screen. */
+  function openMaps(addr) {
+    if (!addr) return;
+    window.open('https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(addr), '_blank', 'noopener');
+  }
   function jobAwayMiles() {
     var m = String((JOBS[jobIdx] || {}).away || '').match(/([\d.]+)\s*miles?/);
     return m ? parseFloat(m[1]) : 0;
@@ -7411,7 +7426,7 @@
       refs.type.textContent = j.type;
       setPhone(refs.phone, j.phone);
       addr.childNodes[0].nodeValue = j.addr;
-      awaySpan.textContent = j.away;
+      awaySpan.textContent = awayText(j.away);
     };
   }
 
@@ -10167,6 +10182,11 @@
       addr: valueFor(root, 'Work address') || valueFor(root, 'Service address')
     };
     if (!nameEl || !refs.contact || !refs.addr) { MISS.push('job-general :: customer'); return; }
+    // M3-7: the service address opens Google Maps, here as on the card
+    refs.addr.dataset.tap = '1';
+    refs.addr.style.cursor = 'pointer'; refs.addr.style.color = '#4A6FA5';
+    refs.addr.setAttribute('role', 'link');
+    refs.addr.addEventListener('click', function (ev) { ev.stopPropagation(); openMaps((JOBS[jobIdx] || {}).addr); }, true);
     var lastFirst = function (n) { var p = String(n || '').split(' '); return p.length > 1 ? p.slice(1).join(' ') + ', ' + p[0] : n; };
     var paintGeneral = function () {
       var j = JOBS[jobIdx]; if (!j) return;
@@ -10230,7 +10250,7 @@
       var far = miles < 0.2 ? Math.round(miles * 5280) + ' ft' : (Math.round(miles * 10) / 10) + ' miles';
       confirmSheet({ title: 'You’re ' + far + ' from the address. Start works within ' + START_RADIUS_FT + ' ft.',
         text: (j.addr || '') + '.', ok: 'Open in Maps', alt: null,
-        onOk: function () { toast('Opens Google Maps at ' + (j.addr || 'the address'), 'map'); } });
+        onOk: function () { openMaps(j.addr); } });
     }, noFix ? 30000 : 1400);
   }
 
@@ -10519,6 +10539,15 @@
     paintJob = function () { prev(); paintEnroute(); paintHomeState(); };
     setInterval(function () { if (state.enroute) paintHomeState(); }, 30000);
     setInterval(function () { var j = JOBS[jobIdx]; if (j && j.paused && curPage() === 'home') paintHomeState(); }, 1000);
+    // M3-7: the address on the card opens Google Maps
+    (function () {
+      // the address block is the one carrying "… miles away" under the street
+      var away = $$('span', jobCard).filter(function (e) { return /miles away$/.test(norm(e.textContent)); })[0];
+      var row = away && away.parentElement; if (!row) { MISS.push('home :: address'); return; }
+      row.dataset.tap = '1'; row.style.cursor = 'pointer';
+      row.setAttribute('role', 'link'); row.setAttribute('aria-label', 'Open the address in Google Maps');
+      row.addEventListener('click', function (ev) { ev.stopPropagation(); openMaps((JOBS[jobIdx] || {}).addr); }, true);
+    })();
     // a first start offline downloads the day as soon as there is signal
     window.addEventListener('online', function () { setTimeout(paintJob, 50); });
     paintHomeState();
