@@ -10282,6 +10282,7 @@
     var refs = {
       contact: valueFor(root, 'Contact'), when: valueFor(root, 'Start date & time'),
       brief: valueFor(root, 'Brief description'), type: valueFor(root, 'Type'),
+      callback: valueFor(root, 'Callback'),
       addr: valueFor(root, 'Work address') || valueFor(root, 'Service address')
     };
     if (!nameEl || !refs.contact || !refs.addr) { MISS.push('job-general :: customer'); return; }
@@ -10304,6 +10305,11 @@
       if (refs.when) refs.when.textContent = c ? c.when + ', ' + time : j.when;
       if (refs.brief) refs.brief.textContent = c ? c.brief : j.brief;
       if (refs.type) refs.type.textContent = c ? c.type : j.type;
+      // M4-1 / M4-17: "Yes" when the company's Callback item is on the job,
+      // otherwise "No" — the design's "N/A" is not used
+      if (refs.callback) refs.callback.textContent = (j.items || []).some(function (it) {
+        return it.sku === 'CALLBACK' || /^callback$/i.test(norm(it.name || ''));
+      }) ? 'Yes' : 'No';
       var cut = j.addr.indexOf(', ');
       refs.addr.textContent = '';
       refs.addr.appendChild(document.createTextNode(cut > 0 ? j.addr.slice(0, cut + 1) : j.addr));
