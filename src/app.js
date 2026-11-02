@@ -2136,6 +2136,35 @@
     // and not the value, so read the store rather than the variable
     $('[data-mediapage]', pill).textContent = '1/' + recall('photoCount', 24);
     paintPhotoType();
+
+    /* M4-8 (#45, #46): the page shows the photo that was tapped — its type
+       as its tile shows it, and who uploaded it. His own photos (taken on
+       this phone) offer description, draw, download and delete; a photo
+       from someone else, or any photo of a completed job, offers download
+       only. */
+    function paintViewed(p) {
+      var tools = $$('.mi,.mif', bar);
+      photoType = p.type;
+      paintPhotoType();
+      meta.textContent = p.mine ? 'Today · Marek Stroz' : 'Nov 12, 2025 · Peter Johnson';
+      var mayEdit = p.mine && !viewPast;
+      tools.forEach(function (t) {
+        var keep = norm(t.textContent) === 'download';
+        toggleDisplay(t, keep || mayEdit);
+      });
+    }
+    var TYPE_OF = { B: 'Before', A: 'After', O: 'Other' };
+    document.addEventListener('click', function (ev) {
+      var scr = ev.target.closest('#photos, #job-general'); if (!scr) return;
+      var tile = ev.target.closest('[data-photomine], #photos .sc > div[style*="grid-template-columns"] > div, #job-general [data-go="photo-detail"]');
+      if (!tile) return;
+      if (!tile.matches('[data-photomine]') && !tile.parentElement.matches('[style*="grid-template-columns"]')) {
+        tile = tile.closest('div[style*="border-radius"]') || tile;
+      }
+      var badge = $$('span,div', tile).filter(function (e) { return !e.children.length && /^(BEFORE|AFTER|OTHER|B|A|O)$/.test(norm(e.textContent)); })[0];
+      var key = badge ? norm(badge.textContent).charAt(0) : 'A';
+      paintViewed({ type: TYPE_OF[key] || 'After', mine: tile.dataset.photomine === '1' });
+    }, true);
   })();
 
   /* =========================================================
@@ -5992,6 +6021,7 @@
         // no type was asked for on a batch, so the tile does not claim one
         if (type) badge.textContent = type.toUpperCase(); else badge.remove();
       }
+      t.dataset.photomine = '1';                  // taken on this phone — his own
       grid.insertBefore(t, grid.firstElementChild);
     }
   }
@@ -6046,6 +6076,22 @@
     descBox.innerHTML = '<div style="font:400 12px/1 Geist;color:#546478">Image description</div>' +
       '<div data-descval style="font:400 16px/1.45 Geist;color:#1A2332;margin-top:5px"></div>';
     $('[data-descval]', descBox).textContent = norm(dv);
+    /* M4-8 (#47): the description is typed here, up to 500 characters, and
+       the counter under it reads what is there — "27 / 500", "500 / 500" */
+    var dvEl = $('[data-descval]', descBox);
+    dvEl.contentEditable = 'plaintext-only';
+    dvEl.style.outline = 'none';
+    var counter = $$('div', sc).filter(function (e) { return !e.children.length && /^\d+ \/ \d+$/.test(norm(e.textContent)); })[0];
+    function paintCount() {
+      var t = dvEl.textContent;
+      if (t.length > 500) { dvEl.textContent = t.slice(0, 500); t = dvEl.textContent; }
+      if (counter) counter.textContent = t.length + ' / 500';
+    }
+    dvEl.addEventListener('input', paintCount);
+    dvEl.addEventListener('beforeinput', function (ev) {
+      if (/^insert/.test(ev.inputType) && dvEl.textContent.length >= 500) ev.preventDefault();
+    });
+    paintCount();
   })();
 
   /* the three rows of the type sheet */
