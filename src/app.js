@@ -1299,8 +1299,9 @@
     useCamera: function () {
       mediaBatch = 1;
       mediaEditing = false;
-      closeOverlays(false);
-      go('image-desc', 'modal');
+      closeOverlays(true);
+      // M4-6 (#44): one type for the batch before anything is filed
+      batchTypeStep('camera', function () { go('image-desc', 'modal'); }, function () { });
     },
     mediaDescribe: function () { mediaEditing = true; go('image-desc', 'modal'); },
     mediaMarkup: function () { toast('Markup opens in the phone\'s photo editor', 'gesture'); },
@@ -1309,7 +1310,9 @@
       if (!galPicked.length) return;
       mediaBatch = galPicked.length;
       mediaEditing = false;
-      go('image-desc', 'replace');
+      // M4-6 (#44): one type for the whole pick; Cancel adds none of it
+      batchTypeStep('gallery', function () { go('image-desc', 'replace'); },
+        function () { galClear(); mediaBatch = 1; back(); toast('Nothing added', 'photo_library'); });
     },
     mediaSaved: function () {
       var bound = pendingSlot;
@@ -1321,8 +1324,8 @@
         pendingSlot = null;
       }
       addMediaThumbs(n);
-      // only a single photo was asked for a type, so only it carries one
-      var typed = (wasEditing || n === 1) ? photoType : '';
+      // the batch was typed in its own step, so every photo of it carries it
+      var typed = photoType;
       addPhotoTiles(n, typed);
       // Other is a real answer and has no chip of its own, so it moves only
       // the total — the three chips never claim a photo they do not have
@@ -6088,15 +6091,16 @@
     if (mediaCaption) {
       var n = Math.max(1, mediaBatch);
       mediaCaption.hidden = n < 2;
-      mediaCaption.textContent = n + ' ' + plural(n) +
-        ' — one description for all of them, and a type each afterwards';
+      mediaCaption.textContent = n + ' ' + plural(n) + ' · ' + photoType +
+        ' — one description for all of them; one photo can be changed later';
     }
     /* The type belongs to a photo. What could not be asked was one type
        for a batch of four — but a single shot is one photo, so it is asked
        the moment there is only one to ask about: straight off the camera,
        a gallery pick of one, or a photo being described later. A batch of
        several is typed per photo afterwards, in the viewer. */
-    if (mediaTypeField) toggleDisplay(mediaTypeField, mediaEditing || Math.max(1, mediaBatch) === 1);
+    // a new batch was typed in its own step; the field is for changing one photo later
+    if (mediaTypeField) toggleDisplay(mediaTypeField, mediaEditing);
     if (mediaHeading) {
       mediaHeading.textContent = mediaEditing
         ? 'Change image description'
@@ -10001,6 +10005,59 @@
     });
   }
   setTimeout(paintNoteChips, 0);
+
+  /* =========================================================
+     M4-6 (#44) — the batch type step: right after "Use camera" or
+     "Choose from gallery", one choice — Before · After · Other — for every
+     photo of the batch. Cancel adds nothing. One photo's type is changed
+     later on its own page.
+     ========================================================= */
+  var batchEl = document.createElement('div');
+  batchEl.className = 'overlay'; batchEl.id = 'ov-batchtype';
+  batchEl.innerHTML = '<div style="position:absolute;inset:0;background:rgba(28,43,58,.40)" data-back></div>' +
+    '<div style="position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:22px 22px 0 0;padding:10px 16px 18px;box-shadow:0 -8px 30px rgba(26,35,50,.22)">' +
+    '<div style="display:flex;justify-content:center;padding:0 0 10px"><div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div></div>' +
+    '<div data-bttitle style="font:600 18px/1.25 Geist"></div>' +
+    '<div data-btsub style="font:400 13.5px/1.45 Geist;color:#546478;margin:5px 0 14px"></div>' +
+    '<div data-btlist></div>' +
+    '<div data-back data-tap="1" style="height:44px;display:flex;align-items:center;justify-content:center;font:500 14.5px/1 Geist;color:#546478;margin-top:6px">Cancel</div></div>';
+  ovLayer.appendChild(batchEl);
+  INFO['ov-batchtype'] = { id: 'ov-batchtype', title: 'Photo type', section: 'app', tabs: false, overlay: true };
+  var batchCb = null;
+  ['Before', 'After', 'Other'].forEach(function (t) {
+    var r = document.createElement('div');
+    r.dataset.tap = '1'; r.dataset.bt = t;
+    r.setAttribute('style', 'display:flex;align-items:center;gap:12px;height:54px;padding:0 14px;margin-bottom:8px;' +
+      'border:1px solid #DDE3EE;border-radius:12px;font:600 15.5px/1 Geist');
+    r.innerHTML = '<span class="mi" style="font-size:21px;color:#4A6FA5">' +
+      ({ Before: 'history', After: 'task_alt', Other: 'photo_library' })[t] + '</span><span></span>';
+    r.children[1].textContent = t;
+    $('[data-btlist]', batchEl).appendChild(r);
+  });
+  batchEl.addEventListener('click', function (ev) {
+    var r = ev.target.closest('[data-bt]');
+    if (r) {
+      ev.stopPropagation();
+      photoType = r.dataset.bt; remember('photoType', photoType);
+      var cb = batchCb; batchCb = null;
+      closeOverlays(true);
+      if (cb) cb.ok();
+      return;
+    }
+    if (ev.target.closest('[data-back]') && batchCb) {
+      var c = batchCb; batchCb = null;
+      setTimeout(function () { c.cancel(); }, 0);
+    }
+  }, true);
+  function batchTypeStep(from, ok, cancel) {
+    var n = Math.max(1, mediaBatch);
+    $('[data-bttitle]', batchEl).textContent = 'What are these photos?';
+    $('[data-btsub]', batchEl).textContent = from === 'camera'
+      ? 'One type for every shot you take now. You can change one photo later.'
+      : n + ' ' + plural(n) + ' selected · one type for all of them. You can change one photo later.';
+    batchCb = { ok: ok, cancel: cancel };
+    go('ov-batchtype', 'overlay');
+  }
 
   ACT.toggleLocation = function () {
     setLocation(!locationOn);
