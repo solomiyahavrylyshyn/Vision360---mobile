@@ -1378,7 +1378,7 @@
       batchTypeStep('camera', function () { go('image-desc', 'modal'); }, function () { });
     },
     mediaDescribe: function () { mediaEditing = true; go('image-desc', 'modal'); },
-    mediaMarkup: function () { toast('Markup opens in the phone\'s photo editor', 'gesture'); },
+    mediaMarkup: function () { toast('Draw opens the phone\'s photo editor · the drawing is saved as a new photo next to the original', 'gesture'); },
     // M4-8b (#60): Download hands the photo to the system share sheet as a
     // JPEG (the drawn copy if any), with no location inside the file
     mediaDownload: function () {
@@ -1446,8 +1446,15 @@
       if (!hj.rcFilled) hints.push(['AC Report Card not filled in', function () { formsList(false); go('rc-overview', 'push'); }]);
       if (installMissing().length) hints.push(['Install template not filled in', function () { go('closeout', 'push'); }]);
       function completeNow() {
-        if (SIGNOFF_REQUIRED) { openSignoff(); return; }
         var no = jobNo(hj);
+        /* 05.11: the completion sign-off goes only by the emailed link
+           (Marek, Jul 17); no signing on the device and no separate
+           "Awaiting sign-off" status — the job is Completed at once. */
+        if (SIGNOFF_REQUIRED) {
+          hj.signoff = { state: 'sent', at: stamp(), via: 'link' };
+          if (finishJob()) toast(no + ' completed · sign-off link emailed to ' + (hj.name || 'the customer'), 'mark_email_read');
+          return;
+        }
         if (finishJob()) toast(no + ' completed · Undo', 'task_alt');
       }
       if (!hints.length) { completeNow(); return; }
@@ -1471,11 +1478,12 @@
       confirmSheet({
         title: 'Complete the job?',
         text: lines.join(' '),
-        ok: SIGNOFF_REQUIRED ? 'Continue to sign-off' : 'Complete job', alt: (state.inv === 'none' || due > 0) ? 'Go to Finance' : null,
+        ok: 'Complete job', alt: (state.inv === 'none' || due > 0) ? 'Go to Finance' : null,
         danger: due > 0,
         onOk: function () {
-          if (SIGNOFF_REQUIRED) { openSignoff(); return; }
-          finishJob();
+          var fj = JOBS[jobIdx];
+          if (SIGNOFF_REQUIRED && fj) fj.signoff = { state: 'sent', at: stamp(), via: 'link' };
+          if (finishJob() && SIGNOFF_REQUIRED && fj) toast('Completed · sign-off link emailed to ' + fj.name, 'mark_email_read');
         },
         onAlt: function () { go(finScreen(), 'push'); }
       });
@@ -3872,6 +3880,7 @@
     if (label) label.textContent = viewPast && viewPast.visit ? 'Past visit · read only'
       : so && so.state === 'awaiting' ? 'Awaiting sign-off · link sent ' + so.at + ' to ' + custEmail(cj)
       : so && so.state === 'signed' ? 'Completed · signed off on the device'
+      : so && so.state === 'sent' ? 'Completed ' + (cj.completedAt || so.at) + ' · sign-off link sent to ' + custEmail(cj)
       : cj.reopenReq ? 'Reopen requested · ' + cj.reopenReq.at + ' · waiting'
       : 'Completed ' + (cj.completedAt || 'Oct 29, 2026, 4:32 PM') + ' · read-only';
     /* M4-14 (#57): another technician's past visit shows General, its Job
