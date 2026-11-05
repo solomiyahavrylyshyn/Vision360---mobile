@@ -244,3 +244,8 @@ body.dev #indexBtn{display:flex}
   opacity: .45;
   pointer-events: none;
 }
+
+/* Nov 5: More → Price book is a look-up — no Add, no custom item, no "items added" footer */
+body[data-pb="1"] #est-catalog [data-qty],
+body[data-pb="1"] #est-catalog [data-go="est-custom-item"],
+body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }

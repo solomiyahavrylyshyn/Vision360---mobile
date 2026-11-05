@@ -260,6 +260,11 @@ body.dev #indexBtn{display:flex}
   opacity: .45;
   pointer-events: none;
 }
+
+/* Nov 5: More → Price book is a look-up — no Add, no custom item, no "items added" footer */
+body[data-pb="1"] #est-catalog [data-qty],
+body[data-pb="1"] #est-catalog [data-go="est-custom-item"],
+body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
 </style>
 </head>
 <body>
@@ -593,7 +598,7 @@ body.dev #indexBtn{display:flex}
 
             <div class="card" style="overflow:hidden;margin-bottom:14px">
               <!-- Marek, Oct 21: inventory, truck stock and equipment are not in the MVP -->
-              <div class="rowi" data-go="est-catalog" data-mode="push"><span class="mi">menu_book</span><span class="t">Price book</span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="est-catalog" data-mode="push" data-pbbrowse="1"><span class="mi">menu_book</span><span class="t">Price book</span><span class="mi ch">chevron_right</span></div>
             </div>
 
             <!-- PRD 776: English and Spanish in the first release, chosen on the
@@ -625,7 +630,7 @@ body.dev #indexBtn{display:flex}
             <div class="rowi" data-act="demoEstimate" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">request_quote</span>Demo: draft estimate with 3 options</div>
             <div class="rowi" data-act="demoWarranty" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">verified_user</span><span id="warrantyNote">Demo: show as a warranty technician</span></div>
             <!-- demo only: shows Home as a salaried technician sees it (OD-16) -->
-            <div class="rowi" data-act="toggleSalaried" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">badge</span><span id="salariedNote">Demo: show as a salaried technician</span></div>
+            <div class="rowi" data-act="toggleSalaried" style="display:none;justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">badge</span><span id="salariedNote">Demo: show as a salaried technician</span></div>
             <div style="text-align:center;font:400 12px/1 Geist;color:#8A97A8;padding:20px 0 6px">Vision 360 v2.4.1 &middot; build 2411</div>
           </div>
         </div>
@@ -5969,6 +5974,33 @@ body.dev #indexBtn{display:flex}
   function inputsOf(id) {
     return $$('input', byId(id) || document.createElement('div')).map(function (i) { return norm(i.value); });
   }
+  /* Marek, Nov 2: financing — the lender pays weeks later; the invoice says
+     "Financing pending", shows the customer no Pay button and never goes overdue */
+  var invFinancing = recall('invFinancing', false);
+  function paintFinChip() {
+    var root = byId('inv-paid'); if (!root) return;
+    var chip = $$('span', root).filter(function (e) { return !e.children.length && /^(PAID|FINANCING PENDING)$/.test(norm(e.textContent)); })[0];
+    if (!chip) return;
+    chip.textContent = invFinancing ? 'FINANCING PENDING' : 'PAID';
+    chip.style.background = invFinancing ? '#D97706' : '#16A34A';
+    // the rest of the card says the same thing: not paid yet, the lender pays later
+    var FIN_AMT = 'Financed — the lender pays later';
+    // text nodes: the timeline line is an icon plus a bare text node
+    $$('span,div', root).forEach(function (e) {
+      [].forEach.call(e.childNodes, function (n) {
+        if (n.nodeType !== 3) return;
+        var t = norm(n.nodeValue); if (!t) return;
+        if (invFinancing) {
+          if (/^Paid [A-Z][a-z]{2} \d/.test(t)) n.nodeValue = t.replace(/^Paid/, 'Financing recorded');
+          else if (t === 'Amount paid') n.nodeValue = FIN_AMT;
+        } else {
+          if (/^Financing recorded /.test(t)) n.nodeValue = t.replace(/^Financing recorded/, 'Paid');
+          else if (t === FIN_AMT) n.nodeValue = 'Amount paid';
+        }
+      });
+    });
+  }
+  setTimeout(paintFinChip, 0);
   function paintReceipt(page) {
     if (page) {
       var r = page === 'inline' ? inlineReceipt() : { icon: 'credit_card', title: payMethod, sub: '' };
@@ -6560,7 +6592,8 @@ body.dev #indexBtn{display:flex}
      the company picks the payment methods it applies to. AND Services has
      it on for card, check and financing; not for cash or app transfers. */
   // a function, not a var: the pay panel is built before this line runs
-  function dlRequired(m) { return { card: 1, check: 1, financing: 1 }[m.id] === 1; }
+  // Marek, Nov 2: the licence photo on payment is Pro — not in the first release
+  function dlRequired(m) { return false; }
   function dlSlotHtml(m) {
     if (!dlRequired(m)) return '';
     var got = !!(pay.dl && pay.dl[m.id]);
@@ -6689,8 +6722,12 @@ body.dev #indexBtn{display:flex}
     payPanels.forEach(function (P) { P.rendered = ''; });
     paintPayScreens();
     closeOverlays(true);
+    invFinancing = m.id === 'financing'; remember('invFinancing', invFinancing);
+    paintFinChip();
     go('inv-paid', 'root');
     queued('Payment', 'Payment ' + fmt(paidNow) + ' ' + m.name.toLowerCase());
+    setTimeout(paintFinChip, 60);   // after the paid card has painted its own lines
+    if (invFinancing) { toast('Financing pending · no Pay button for the customer, and the invoice won’t go overdue', 'account_balance'); return; }
     toast(net.online ? 'Payment received · ' + fmt(paidNow)
       : 'Payment recorded offline · will post when you have signal');
   };
@@ -6739,8 +6776,8 @@ body.dev #indexBtn{display:flex}
       '<div style="font:600 21px/1.25 Geist;letter-spacing:-.01em;margin-bottom:9px">No invoice yet</div>' +
       '<div data-finhelp style="font:400 15px/1.55 Geist;color:#546478;text-wrap:pretty">Create the invoice for this job. Items, the approved estimate and payment are added to it.</div>' +
       // M7-1 / M7-1b / M7-4 (#87): not every job is invoiced
-      '<div data-invneed data-tap="1" style="display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;margin-top:22px;padding:13px 14px;background:#fff;border:1px solid #DDE3EE;border-radius:11px;text-align:left">' +
-      '<div><div data-invneedt style="font:600 14.5px/1.25 Geist">Invoice needed</div><div data-invneeds style="font:400 12.5px/1.35 Geist;color:#8A97A8;margin-top:3px"></div></div><span data-invneedsw></span></div>';
+      '<div data-invneed data-tap="1" style="display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;box-sizing:border-box;margin-top:22px;padding:13px 14px;background:#fff;border:1px solid #DDE3EE;border-radius:11px;text-align:left">' +
+      '<div><div data-invneedt style="font:600 14.5px/1.25 Geist">Invoice needed</div><div data-invneeds style="font:400 12.5px/1.35 Geist;color:#8A97A8;margin-top:3px"></div></div><span data-invneedsw style="flex:none"></span></div>';
     var foot = document.createElement('div');
     foot.setAttribute('style', 'padding:14px 16px 16px;background:#fff;border-top:1px solid #DDE3EE;flex:none');
     foot.dataset.finfoot = '1';
@@ -7590,8 +7627,26 @@ body.dev #indexBtn{display:flex}
     periodRefs = { qualifier: qualifier };
   })();
 
+  /* Nov 5: with Call dispatch in the Overview row, "(This month)" and
+     "All work types" broke onto two lines each. The period now sits on its
+     own line under "Overview", and the work-type chip never wraps. */
+  function tidyOverviewRow() {
+    $$('[data-go="ov-worktype"]').forEach(function (chip) {
+      chip.style.whiteSpace = 'nowrap'; chip.style.flex = 'none';
+      var row = chip.parentElement; if (!row) return;
+      var title = row.firstElementChild; if (!title || title === chip) return;
+      title.style.flexWrap = 'wrap'; title.style.minWidth = '0'; title.style.rowGap = '2px';
+      $$('span', title).forEach(function (s) {
+        if (s.children.length || !/^\(.*\)$/.test(norm(s.textContent))) return;
+        s.style.order = '3'; s.style.flexBasis = '100%'; s.style.marginLeft = '0';
+        s.style.fontSize = '13px'; s.style.whiteSpace = 'nowrap';
+      });
+    });
+  }
+  setTimeout(tidyOverviewRow, 0);
   function paintPeriod() {
     if (periodRefs && periodRefs.qualifier) periodRefs.qualifier.textContent = '(' + period + ')';
+    tidyOverviewRow();
     // the segment only speaks in four words; a custom range is none of them
     var m = /^This (week|month|quarter|year)$/.exec(period);
     if (m && setHomeSeg) setHomeSeg(['week', 'month', 'quarter', 'year'].indexOf(m[1]));
@@ -7615,11 +7670,17 @@ body.dev #indexBtn{display:flex}
     if (dpKind === 'month') return MONTHS;
     if (dpKind === 'quarter') return QUARTERS;
     if (dpKind === 'week') {
-      var w = []; for (var i = 1; i <= 52; i++) w.push('Week ' + i); return w;
+      // Nov 5 (Marek): dates, not week numbers — technicians don't know week numbers; week 1 is Jan 1 – 7
+      var w = []; for (var i = 1; i <= 52; i++) w.push(weekSpan(i, dpYear)); return w;
     }
     var y = [], now = new Date().getFullYear();
     for (var k = 0; k < 8; k++) y.push(String(now - k));
     return y;
+  }
+  function weekSpan(i, year) {
+    var M3 = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    var a = new Date(year, 0, 1 + 7 * (i - 1)), b = new Date(year, 0, 7 + 7 * (i - 1));
+    return M3[a.getMonth()] + ' ' + a.getDate() + ' – ' + (b.getMonth() === a.getMonth() ? '' : M3[b.getMonth()] + ' ') + b.getDate();
   }
   function dpLabel(row) {
     if (dpKind === 'year') return row;
@@ -8392,9 +8453,20 @@ body.dev #indexBtn{display:flex}
     var p = pickState['period-week']; if (!p) return;
     p.pick = 'Week 13';
     p.label = function () { var y = p.year(); return p.pick + (y ? ' · ' + y : ''); };
-    seg('period-week', ['Week 11^1', 'Week 12^1', 'Week 13^1', 'Week 14^1', 'Week 15^1', 'Week 16^1',
-      'Week 17^1', 'Week 18^1', 'Week 19^1', 'Week 20^1', 'Week 21^1', 'Week 22^1'], 2,
-      function (i, label) { p.pick = label.split('^')[0]; paintApply('period-week'); });
+    var wkLabels = ['Week 11^1', 'Week 12^1', 'Week 13^1', 'Week 14^1', 'Week 15^1', 'Week 16^1',
+      'Week 17^1', 'Week 18^1', 'Week 19^1', 'Week 20^1', 'Week 21^1', 'Week 22^1'];
+    var wkRoot = byId('period-week');
+    var wkEls = wkLabels.map(function (l) { return wkRoot && sel(wkRoot, l)[0]; });
+    seg('period-week', wkLabels, 2,
+      function (i) { p.pick = wkEls[i] ? norm(wkEls[i].textContent) : p.pick; paintApply('period-week'); });
+    /* Nov 5 (Marek): show the dates, not week numbers — "Mar 25 – 31", not "Week 13" */
+    wkEls.forEach(function (e, i) {
+      if (!e || !e.nextElementSibling) return;
+      e.textContent = norm(e.nextElementSibling.textContent);
+      e.style.minWidth = '0';
+      e.nextElementSibling.style.display = 'none';
+      if (i === 2) p.pick = e.textContent;
+    });
     paintApply('period-week');
   })();
   // every Good / Attention / Immediate row on every Report Card screen — the
@@ -12786,6 +12858,12 @@ body.dev #indexBtn{display:flex}
       tech: noteSeed('ov-note-tech'),
       private: noteSeed('ov-note-private')
     };
+    /* Nov 5 (Jean): newest note on top — the seeded ones get older times
+       down the list, so the order reads at a glance */
+    var OLDER = ['Oct 28, 2026 – 9:15 AM', 'Oct 27, 2026 – 4:40 PM', 'Oct 24, 2026 – 11:05 AM'];
+    Object.keys(notes).forEach(function (k) {
+      (notes[k] || []).forEach(function (r, i) { if (r && 'stamp' in r) r.stamp = OLDER[Math.min(i, OLDER.length - 1)]; });
+    });
     remember('notes.v2', notes);
   } else {
     noteSeed('ov-note-detailed');          // still need the card template
@@ -13692,6 +13770,9 @@ body.dev #indexBtn{display:flex}
     var root = byId('history'); if (!root) return;
     var list = $('.sc', root); if (!list) return;
     var card = $('[data-followups]', list);
+    /* Marek, Nov 5: "just the history, no follow-up feature" — follow-ups are Pro */
+    if (card) card.parentNode.removeChild(card);
+    return;
     if (!card) {
       card = document.createElement('div');
       card.dataset.followups = '1';
@@ -14611,7 +14692,7 @@ body.dev #indexBtn{display:flex}
   function paintDay() {
     var running = !!day.start && !day.end;
     dayCards.forEach(function (c) {
-      toggleDisplay(c, salaried);
+      toggleDisplay(c, false);   // Nov 5: Start day / End day belongs to the timesheet — Pro
       $('[data-daysub]', c).textContent = running ? 'Day started ' + day.start + ' · salaried'
         : day.end ? 'Day ended ' + day.end + ' · started ' + day.start : 'Salaried · start your day when you begin work';
       var b = $('[data-daybtn]', c);
@@ -15024,10 +15105,16 @@ body.dev #indexBtn{display:flex}
       } else if (j && state.onsite && runIdx === jobIdx && j.officeStartAt) {
         txt = 'Started by the office · ' + j.officeStartAt; tone = 'brand';
       } else if (j && j.paused && j.pausedFrom === 'drive') { txt = 'Paused · on the way'; tone = 'grey';
-      } else if (j && j.paused) { txt = (j.pauseReason || 'Paused') + ' · ' + hhmmss(Math.max(0, (Date.now() - (j.pausedAt || Date.now())) / 1000)).replace(/^0(\d)/, '$1'); tone = 'grey'; }
+      } else if (j && j.paused) { txt = 'Paused' + (j.pauseReason ? ' · ' + j.pauseReason : ''); tone = 'grey'; }   // short: the timer did not fit the card
       else if (j && j.reopened) { txt = 'Reopened · Start'; tone = 'warn'; }
       if (whenEl && txt) {
-        if (chip.previousSibling !== whenEl) whenEl.parentNode.insertBefore(chip, whenEl.nextSibling);
+        /* Nov 5: the chip sits on its own line under the name and time —
+           "Paused · Picking up material" did not fit next to the time */
+        var headRow = whenEl.parentNode && whenEl.parentNode.parentNode;
+        if (headRow && headRow.parentNode && chip.previousSibling !== headRow) {
+          headRow.parentNode.insertBefore(chip, headRow.nextSibling);
+          chip.style.margin = '8px 0 2px';
+        }
         chip.textContent = txt;
         chip.style.color = tone === 'brand' ? '#4A6FA5' : tone === 'warn' ? '#B45309' : '#546478';
         chip.style.background = tone === 'brand' ? '#EBF0F8' : tone === 'warn' ? '#FEF3E2' : '#EDF0F5';
@@ -15288,7 +15375,9 @@ body.dev #indexBtn{display:flex}
       if (!isFinite(taking) || taking <= 0) taking = payAmount;
       if (pad) pad.clear();
       $('[data-csgo]', b).style.opacity = '.45';
-      $('[data-csamt]', b).textContent = fmt(Math.min(taking, payAmount)) + ' · ' + m.name.toLowerCase() + ' received';
+      // financing is not money in hand — the lender pays later (Financing pending)
+      $('[data-csamt]', b).textContent = fmt(Math.min(taking, payAmount)) + ' · ' +
+        (m.id === 'financing' ? 'financing — the lender pays later' : m.name.toLowerCase() + ' received');
       go('ov-cardsign', 'overlay');
     };
     ACT.stripePay = function () {
@@ -15381,6 +15470,17 @@ body.dev #indexBtn{display:flex}
       if (broken.length) console.warn('[proto] icon names with no glyph:\n' + broken.join('\n'));
     });
   }
+  /* Nov 5: More → Price book is for looking prices up, not for adding to an
+     estimate — same list, titled "Price book", without Add, custom item or
+     the "items added" footer. Any tap outside the catalog ends that mode. */
+  document.addEventListener('click', function (ev) {
+    var t = ev.target;
+    if (t.closest && t.closest('[data-pbbrowse]')) document.body.dataset.pb = '1';
+    else if (!(t.closest && t.closest('#est-catalog'))) delete document.body.dataset.pb;
+    var cat = byId('est-catalog'); if (!cat) return;
+    var ttl = $$('span', cat.firstElementChild || cat).filter(function (e) { return !e.children.length && /^(Add new item|Price book)$/.test(norm(e.textContent)); })[0];
+    if (ttl) ttl.textContent = document.body.dataset.pb ? 'Price book' : 'Add new item';
+  }, true);
   window.__proto = { go: go, back: back, state: state, miss: MISS };
 })();
 </script>
