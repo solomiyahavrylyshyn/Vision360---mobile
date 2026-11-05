@@ -11349,6 +11349,21 @@
     var n = byId('warrantyNote');
     if (n) n.textContent = warrantyTech ? 'Demo: showing a warranty technician · tap to undo' : 'Demo: show as a warranty technician';
   }
+  /* Nov 5: for the demo — a draft estimate with the three ready options
+     (A, B, C) on the current job, so the options list can be shown without
+     building one first. Gone once a real option was saved; Reset demo data
+     brings it back. */
+  ACT.demoEstimate = function () {
+    if (recall('seedCleared', false)) { toast('The demo options are gone — Reset demo data brings them back', 'info'); return; }
+    var j = JOBS[jobIdx];
+    if (j && !j.estType) { j.estType = 'Repair'; }
+    if (j && !j.estNo) { j.estNo = nextDocNo(j, 'E'); }
+    saveJobs();
+    if (state.est === 'none') { state.est = 'draft'; remember('state', state); }
+    paintOptions();
+    go('est-draft', 'root');
+    toast('Draft estimate with 3 options on ' + (j ? jobNo(j) : 'the job'), 'request_quote');
+  };
   ACT.demoWarranty = function () {
     warrantyTech = !warrantyTech; remember('warrantyTech', warrantyTech);
     paintUpcoming();
