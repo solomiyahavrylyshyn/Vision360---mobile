@@ -611,8 +611,8 @@
   }
 
   /* ---------- catalog Add / Added pills ---------- */
-  function money(s) { var m = String(s).replace(/[^0-9.]/g, ''); return parseFloat(m) || 0; }
-  function fmt(n) { return '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+  function money(s) { var t = String(s); var m = t.replace(/[^0-9.]/g, ''); var v = parseFloat(m) || 0; return /^\s*[−-]/.test(t) ? -v : v; }
+  function fmt(n) { return (n < 0 ? '−' : '') + '$' + Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 
   function catalog(id) {
     var root = byId(id); if (!root) return null;
@@ -629,7 +629,7 @@
       if (/^Subtotal \$/.test(t) && !sEl) sEl = e;
     });
     function priceOf(p) {
-      var box = p.parentElement, d = $$('div,span', box).filter(function (x) { return /^\$[\d,]+\.\d\d$/.test(norm(x.textContent)); })[0];
+      var box = p.parentElement, d = $$('div,span', box).filter(function (x) { return /^[−-]?\$[\d,]+\.\d\d$/.test(norm(x.textContent)); })[0];
       return d ? money(d.textContent) : 0;
     }
     // start from the numbers in the accepted design and move by deltas,
@@ -640,7 +640,7 @@
     };
     function render() {
       if (cEl) cEl.textContent = base.n + (base.n === 1 ? ' item added' : ' items added');
-      if (sEl) sEl.textContent = 'Subtotal ' + fmt(Math.max(0, base.sum));
+      if (sEl) sEl.textContent = 'Subtotal ' + fmt(base.sum);
     }
     /* Add / Added answered the wrong question. Four filters is a quantity,
        and the only place to say four was the option screen, two taps back —
@@ -4491,7 +4491,11 @@
   /* R-006.1: the price book's categories are the company's own, kept in
      the web app's settings and synced down — not a list this app owns.
      These are AND Services' five. */
-  var CATALOG_CATEGORIES = ['Repairs', 'Equipment', 'Ductwork', 'IAQ', 'Others'];
+  /* Marek, Nov 5: Admin items are a category of the web app's price book
+     too, and they can carry a minus — a discount, a coupon. Whether every
+     technician sees them or only those allowed to adjust the price is his
+     open question; here every technician does. */
+  var CATALOG_CATEGORIES = ['Repairs', 'Equipment', 'Ductwork', 'IAQ', 'Others', 'Admin items'];
   var CATALOG_ROWS = [
     ['AC Tune-Up', 'Routine inspection and cleaning of air conditioning system', 129, 'Repairs'],
     ['Blower Motor Repair', 'Diagnose and repair blower motor malfunction', 350, 'Repairs'],
@@ -4508,7 +4512,10 @@
     ['HVAC Filter Replacement', 'Replace standard air filter', 40, 'IAQ'],
     ['Attic Insulation Top-Up', 'Add insulation to attic to improve efficiency', 1800, 'IAQ'],
     ['Thermostat Calibration', 'Adjust and calibrate thermostat for accurate temperature control', 90, 'Others'],
-    ['Emergency HVAC Call', '24/7 emergency service visit fee', 150, 'Others']
+    ['Emergency HVAC Call', '24/7 emergency service visit fee', 150, 'Others'],
+    ['Manager discount', 'Price reduction approved by the office — shows as a minus line', -50, 'Admin items'],
+    ['Coupon — $25 off', 'Marketing coupon redeemed on the visit', -25, 'Admin items'],
+    ['Permit fee', 'County permit, passed through at cost', 175, 'Admin items']
   ];
 
   /* The additional-items catalog is the same shelf as the estimate's, so it
@@ -4607,10 +4614,19 @@
       empty.textContent = q ? 'Nothing matches “' + norm(search.value) + '”.' : 'Nothing in this category yet.';
     };
 
+    (function () {
+      var last = sel(root, 'Others')[0]; if (!last) return;
+      var chip = last.cloneNode(true); chip.textContent = 'Admin items';
+      last.insertAdjacentElement('afterend', chip);
+    })();
     seg('est-catalog', CATALOG_CATEGORIES, 0, function (i, label) {
       cat = label;
       if (search) search.value = '';
       catalogFilter();
+      var note = $('[data-catnote]', root);
+      if (note) note.textContent = label === 'Admin items'
+        ? 'Admin items can carry a minus — a discount or a coupon shows as its own line on the estimate and the invoice'
+        : 'Categories from your company’s price book settings';
     });
     catalogFilter();
   })();
@@ -5512,6 +5528,9 @@
     ['MT-3106', 'Register & vent sanitiser', 'material', 'Maintenance', 45, 0, 22],
     ['EQ-3201', 'Air handler, variable speed', 'equipment', 'Installation', 1450, 0, 980],
     ['AD-3301', 'County permit fee', 'admin', 'Installation', 175, 0, 175],
+    ['AD-3302', 'Manager discount', 'admin', 'Repair', -50, 0, 0],
+    ['AD-3303', 'Coupon — $25 off', 'admin', 'Repair', -25, 0, 0],
+    ['AD-3304', 'Permit fee', 'admin', 'Installation', 175, 0, 175],
     ['AS-3401', 'Crane, 1 hour', 'asset', 'Installation', 320, 0, 210],
     ['AS-3402', 'Negative-air machine, 3 hours', 'asset', 'Maintenance', 135, 0, 60]
   ].forEach(function (r) {
@@ -10219,11 +10238,44 @@
     a.classList.toggle('bad', !!miss.length);
     b.classList.toggle('bad', !ok && !miss.length);
     if (!ok) return;
+    a.value = ''; b.value = '';
+    if (recall('signedIn', false)) {           // opened from Settings while signed in
+      back();
+      toast('Password changed', 'lock_reset');
+      return;
+    }
     // FR-1.4: a successful reset signs in
     remember('signedIn', true);
     go(homeScreen(), 'root');
     toast('Password updated — you’re signed in', 'lock_reset');
   });
+
+  /* Marek, Nov 5: Delete account is Google Play's requirement, and the
+     account is the company's — the technician asks, the manager or the
+     owner removes it. One request; the screen then says it is pending. */
+  (function () {
+    var note = byId('delReqNote'), txt = byId('delReqText'), btn = byId('delReqBtn');
+    if (!note || !btn) return;
+    function paint() {
+      var at = recall('delReqAt', '');
+      note.style.display = at ? 'flex' : 'none';
+      toggleDisplay(btn, !at);
+      if (at) txt.textContent = 'Deletion requested · ' + at + ' — your manager or the company owner confirms it';
+    }
+    ACT.requestDeletion = function () {
+      confirmSheet({
+        title: 'Request account deletion?',
+        text: 'An email goes to your manager and the company owner. Jobs, invoices and payments you recorded stay with AND Services.',
+        ok: 'Send the request', danger: true, alt: null,
+        onOk: function () {
+          remember('delReqAt', stamp());
+          paint();
+          toast('Request sent to your manager', 'mark_email_read');
+        }
+      });
+    };
+    paint();
+  })();
 
   /* Nov 5: signing out with something still waiting to sync asks first.
      The waiting items stay on the phone either way and go up on the
@@ -10527,6 +10579,7 @@
       var first = sel(root, CATALOG_CATEGORIES[0])[0];
       var strip = first && first.parentElement; if (!strip) return;
       var note = document.createElement('div');
+      note.dataset.catnote = '1';
       note.setAttribute('style', 'padding:0 16px 10px;margin-top:-4px;background:#fff;font:400 12px/1.35 Geist;color:#8A97A8;flex:none');
       note.textContent = 'Categories from your company’s price book settings';
       strip.insertAdjacentElement('afterend', note);

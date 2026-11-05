@@ -376,6 +376,7 @@
           <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
             <div class="card" style="overflow:hidden;margin-bottom:14px">
               <div class="rowi" data-go="more-profile" data-mode="push"><span class="mi">person</span><span class="t">Profile<small>Marek Stroz &middot; Senior Technician &middot; AND Services</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="newpass" data-mode="push"><span class="mi">lock_reset</span><span class="t">Change password<small>The same rule as the web</small></span><span class="mi ch">chevron_right</span></div>
             </div>
 
             <div class="card" style="overflow:hidden;margin-bottom:14px">
@@ -478,9 +479,10 @@
             <div class="card" style="padding:18px 16px;text-align:center">
               <span class="mi" style="font-size:40px;color:#DC2626">person_remove</span>
               <div style="font:600 17px/1.35 Geist;margin-top:10px">Your account belongs to AND Services</div>
-              <div style="font:400 14px/1.55 Geist;color:#546478;margin-top:8px">Your company admin removes it. You can also request deletion on the web, at the Vision 360 web app&rsquo;s <b style="font-weight:600;color:#1A2332">/account-deletion</b> page &mdash; the request goes to your company&rsquo;s owner and to Vision 360 support.</div>
+              <div style="font:400 14px/1.55 Geist;color:#546478;margin-top:8px">Your company admin removes it. Request deletion here and your manager or the company owner gets the request by email.</div>
             </div>
-            <button class="btn-o" data-toast="Opens /account-deletion in the browser" style="margin-top:14px"><span class="mi" style="font-size:19px">open_in_new</span>Request deletion on the web</button>
+            <div id="delReqNote" style="display:none;align-items:center;gap:9px;margin-top:14px;padding:12px 13px;background:#FEF3E2;border:1px solid #F5D9A8;border-radius:11px;font:500 13.5px/1.4 Geist;color:#B45309"><span class="mi" style="font-size:20px">hourglass_top</span><span id="delReqText">Deletion requested</span></div>
+            <button class="btn-o" id="delReqBtn" data-act="requestDeletion" style="margin-top:14px;color:#DC2626;border-color:#DC2626"><span class="mi" style="font-size:19px">person_remove</span>Request deletion</button>
             <div style="font:400 12px/1.5 Geist;color:#8A97A8;margin-top:12px">Jobs, invoices and payments you recorded stay with your company.</div>
           </div>
         </div>
