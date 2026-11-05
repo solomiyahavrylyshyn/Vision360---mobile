@@ -13499,6 +13499,37 @@ body.dev #indexBtn{display:flex}
     toast('Password updated — you’re signed in', 'lock_reset');
   });
 
+  /* Marek, Nov 5 (#16): Call dispatch was buried in Help & support. One
+     tap from the header of every job screen and from Home's own heading. */
+  ACT.callDispatch = function () { toast('Calling dispatch — (813) 555-0100', 'call'); };
+  (function () {
+    var ICON = 'font-size:22px;color:#4A6FA5;padding:6px;margin:-6px -2px -6px 0';
+    function icon() {
+      var c = document.createElement('span');
+      c.className = 'mi'; c.textContent = 'call';
+      c.dataset.tap = '1'; c.dataset.act = 'callDispatch';
+      c.setAttribute('aria-label', 'Call dispatch');
+      c.setAttribute('style', ICON);
+      return c;
+    }
+    // every job screen: the header reads "Job" with the back arrow before it
+    $$('.screen', phone).forEach(function (scr) {
+      var hdr = scr.firstElementChild; if (!hdr) return;
+      var title = $$('span', hdr).filter(function (e) { return !e.children.length && norm(e.textContent) === 'Job' && /flex:1/.test(e.getAttribute('style') || ''); })[0];
+      if (!title || !byIcon(hdr, 'arrow_back').length) return;
+      title.insertAdjacentElement('afterend', icon());
+    });
+    // Home: next to the Overview heading, so it is there on site too
+    var home = byId('home');
+    var ov = home && sel(home, '~Overview')[0];
+    var row = ov && ov.parentElement;
+    if (row) {
+      var c = icon();
+      c.style.marginLeft = 'auto'; c.style.marginRight = '8px';
+      ov.insertAdjacentElement('afterend', c);
+    }
+  })();
+
   /* Marek, Nov 5: Delete account is Google Play's requirement, and the
      account is the company's — the technician asks, the manager or the
      owner removes it. One request; the screen then says it is pending. */
