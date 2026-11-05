@@ -383,7 +383,7 @@
       remember('jobIdx', viewPast ? viewPast.idx : jobIdx);   // a job being looked at is not the job
       remember('jobs', JOBS.map(function (j) {
         return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, estDeclined: j.estDeclined || null, invNeeded: typeof j.invNeeded === 'boolean' ? j.invNeeded : null, paperApproved: j.paperApproved || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
+          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, estDeclined: j.estDeclined || null, invNeeded: typeof j.invNeeded === 'boolean' ? j.invNeeded : null, paperApproved: j.paperApproved || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', pauseReason: j.pauseReason || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
       }));
     }
     paintDash();
@@ -2250,7 +2250,7 @@
       var tools = $$('.mi,.mif', bar);
       photoType = p.type;
       paintPhotoType();
-      meta.textContent = p.mine ? 'Today · Marek Stroz' : 'Nov 12, 2025 · Peter Johnson';
+      meta.textContent = p.mine ? 'Today · Marek Stroz' : 'Nov 12, 2026 · Peter Johnson';
       var mayEdit = p.mine && !viewPast;
       tools.forEach(function (t) {
         // M4-14: another technician's past visit is viewed only — no download either
@@ -4441,7 +4441,31 @@
     period = 'This ' + ['week', 'month', 'quarter', 'year'][i];
     paintPeriod();
   });
-  seg('photos', ['All 24', 'Before 4', 'After 20'], 0);
+  /* Nov 5 (Marek, "as we agreed"): the chips filter the grid — All, Before,
+     After, Other. The third type had no chip; it is cloned from After. */
+  (function () {
+    var ph = byId('photos'); if (!ph) return;
+    var after = sel(ph, 'After 20')[0]; if (!after) return;
+    var other = after.cloneNode(true); other.textContent = 'Other 0';
+    after.insertAdjacentElement('afterend', other);
+    function grid() { return $$('.sc > div', ph).filter(function (e) { return /grid-template-columns/.test(e.getAttribute('style') || ''); })[0]; }
+    function typeOf(tile) {
+      var b = $$('span', tile).filter(function (e) { return /position:absolute/.test(e.getAttribute('style') || '') && /^(BEFORE|AFTER|OTHER)$/.test(norm(e.textContent)); })[0];
+      return b ? norm(b.textContent) : '';
+    }
+    var want = 'ALL';
+    function apply() {
+      var g = grid(); if (!g) return;
+      $$(':scope > div', g).forEach(function (t) {
+        var addTile = !typeOf(t) && norm(t.textContent).toLowerCase() === 'add add';
+        toggleDisplay(t, want === 'ALL' || addTile || typeOf(t) === want);
+      });
+    }
+    seg('photos', ['All 24', 'Before 4', 'After 20', 'Other 0'], 0, function (i, label) {
+      want = label.split(' ')[0].toUpperCase(); apply();
+    });
+    document.addEventListener('click', function (ev) { if (ev.target.closest('#photos')) setTimeout(apply, 0); }, true);
+  })();
   seg('job-notes', ['Detailed 2', "Technician's 2", 'Private 1'], 0, function (i) {
     tabNoteKind = NOTE_ORDER[i];
     paintNotes();
@@ -6121,7 +6145,8 @@
          saying four. Each chip counts its own. */
       var typeChips = {
         Before: sel(ph, 'Before 4')[0],
-        After: sel(ph, 'After 20')[0]
+        After: sel(ph, 'After 20')[0],
+        Other: sel(ph, 'Other 0')[0]
       };
       if (!typeChips.Before || !typeChips.After) MISS.push('photos :: type chips');
       paintTypeCounts = function () {
@@ -6986,7 +7011,7 @@
   function saveJobs() {
     remember('jobs', JOBS.map(function (j) {
       return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, estDeclined: j.estDeclined || null, invNeeded: typeof j.invNeeded === 'boolean' ? j.invNeeded : null, paperApproved: j.paperApproved || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
+        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, estDeclined: j.estDeclined || null, invNeeded: typeof j.invNeeded === 'boolean' ? j.invNeeded : null, paperApproved: j.paperApproved || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', pauseReason: j.pauseReason || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
     }));
   }
 
@@ -8014,7 +8039,7 @@
     if (s.sold !== undefined) JOBS[i].sold = s.sold;
     if (s.expenses) JOBS[i].expenses = s.expenses;
     if (s.estNo) { JOBS[i].estNo = s.estNo; JOBS[i].estTmp = !!s.estTmp; }
-    JOBS[i].reopened = !!s.reopened; JOBS[i].paused = !!s.paused; JOBS[i].cancelled = !!s.cancelled; JOBS[i].completedAt = s.completedAt || ''; JOBS[i].rcFilled = !!s.rcFilled; JOBS[i].reopenReq = s.reopenReq || null; JOBS[i].estDeclined = s.estDeclined || null; JOBS[i].paperApproved = s.paperApproved || null; if (typeof s.invNeeded === 'boolean') JOBS[i].invNeeded = s.invNeeded; JOBS[i].pausedAt = s.pausedAt || 0; JOBS[i].pausedFrom = s.pausedFrom || '';
+    JOBS[i].reopened = !!s.reopened; JOBS[i].paused = !!s.paused; JOBS[i].cancelled = !!s.cancelled; JOBS[i].completedAt = s.completedAt || ''; JOBS[i].rcFilled = !!s.rcFilled; JOBS[i].reopenReq = s.reopenReq || null; JOBS[i].estDeclined = s.estDeclined || null; JOBS[i].paperApproved = s.paperApproved || null; if (typeof s.invNeeded === 'boolean') JOBS[i].invNeeded = s.invNeeded; JOBS[i].pausedAt = s.pausedAt || 0; JOBS[i].pausedFrom = s.pausedFrom || ''; JOBS[i].pauseReason = s.pauseReason || '';
     JOBS[i].startReq = s.startReq || null; JOBS[i].officeStartAt = s.officeStartAt || '';
     if (s.sentAt) JOBS[i].sentAt = s.sentAt;
     if (s.estType) JOBS[i].estType = s.estType;
@@ -8204,11 +8229,20 @@
        style the first button no longer wears. */
     paintEnroute = function () {
       var mine = mineRunning();
+      var pj = JOBS[jobIdx] || {};
+      // Jean, Nov 5: the button says what it does — "Pause · 0:08"; paused,
+      // it is grey and says Paused, and a tap resumes with the clock going on
+      var heldHere = !state.onsite && !(state.enroute && mine) && pj.paused && pj.pausedFrom !== 'drive' && !pj.done;
       if (state.onsite && mine) {
         enroute.dataset.act = 'pauseJob';
-        enroute.setAttribute('style', state.paused ? PAUSED : ONSITE);
-        enroute.innerHTML = '<span class="mif" style="font-size:18px">' +
-          (state.paused ? 'play_arrow' : 'pause') + '</span><span data-jobtime>0:00</span>';
+        // the word stands in for the glyph — "Pause · 1:12:05" has to fit a third of the row
+        enroute.setAttribute('style', (state.paused ? PAUSED : ONSITE) + ';min-width:0;white-space:nowrap;font-size:15px;gap:0');
+        enroute.innerHTML = 'Pause ·&nbsp;<span data-jobtime>0:00</span>';
+      } else if (heldHere) {
+        enroute.dataset.act = 'start';
+        enroute.setAttribute('style', PAUSED + ';flex-direction:column;gap:3px');
+        enroute.innerHTML = '<span style="display:flex;align-items:center;gap:5px"><span class="mif" style="font-size:17px">pause</span>Paused</span>' +
+          '<span style="font:500 11.5px/1 Geist;opacity:.85">Tap to resume</span>';
       } else if (state.enroute && mine) {
         enroute.dataset.act = 'enroute';
         enroute.setAttribute('style', DRIVING);
@@ -8221,7 +8255,7 @@
       }
 
       start.dataset.cardbtn = '1';
-      var done = state.onsite && mine;
+      var done = (state.onsite && mine) || heldHere;
       start.dataset.act = done ? 'complete' : 'start';
       start.setAttribute('style', OUTLINE);
       // 'Complete' plus an icon is the widest this row ever gets: at 375px
@@ -10829,6 +10863,8 @@
       var r = ev.target.closest('[data-form]'); if (!r) return;
       ev.stopPropagation();
       if (r.dataset.form === 'rc') formsList(false);
+      else if (r.dataset.form === 'plumbing' || r.dataset.form === 'electrical')
+        toast('Shown for the industries — only the AC Report Card is built in this demo', 'info');
       else go('closeout', 'push');
     }, true);
   })();
@@ -10842,7 +10878,10 @@
     };
     var gaps = typeof installMissing === 'function' ? installMissing() : [];
     formsBox.innerHTML = row('rc', 'AC Report Card', j.rcFilled ? 'Latest change: today (Marek Stroz)' : 'Not started', 'assignment') +
-      (j.type === 'Install' ? row('install', 'AC install template', gaps.length ? 'Not filled in' : 'Filled in', 'handyman') : '');
+      (j.type === 'Install' ? row('install', 'AC install template', gaps.length ? 'Not filled in' : 'Filled in', 'handyman') : '') +
+      // Nov 5: AC, plumbing and electrical — the other two are placeholders in this demo
+      row('plumbing', 'Plumbing Report Card', 'Not started', 'plumbing') +
+      row('electrical', 'Electrical Report Card', 'Not started', 'electrical_services');
     var ws = $('[data-wsigner]'); if (ws) ws.value = j.name || '';   // the waiver's signer is this job's customer
     formsBox.style.display = on ? '' : 'none';
     rcParts.forEach(function (e) { e.style.display = on ? 'none' : ''; });
@@ -11377,12 +11416,15 @@
      M3-4 — the start check. "Getting your location…" with Cancel; a good
      fix within 100 ft (+50 ft GPS slack, A8) starts the job; a good fix
      further away is blocked with only Open in Maps; no fix in 30 s, or an
-     address with no map location, offers Ask office to start (M3-5).
+     address with no map location, offers Call your manager (Ask office to start is Pro).
      The demo: Start right after En route has arrived; without it the phone
      is where the card says; Joseph Lane's street never gives a fix; Maria
      Gomez's address has no point on the map.
      ========================================================= */
   var locToken = 0;
+  /* Nov 5: "Ask office to start" is Pro. In MVP the tech calls the manager,
+     who starts the job on the board. */
+  function callManagerToStart() { closeOverlays(true); toast('Calling your manager — they start the job on the board', 'call'); }
   function clockNow() { return new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); }
   function locateThenStart() {
     var j = JOBS[jobIdx] || {}, token = ++locToken;
@@ -11397,14 +11439,14 @@
       if (token !== locToken) return;
       if (noMap) {
         confirmSheet({ title: 'This address has no map location',
-          text: 'Start checks where you are against the service address, and this one has no point on the map. The office can start the job for you.',
-          ok: 'Ask office to start', alt: null, onOk: function () { ACT.askOfficeStart('no map location'); } });
+          text: 'Start checks where you are against the service address, and this one has no point on the map. Call your manager — they start the job on the board.',
+          ok: 'Call your manager', alt: null, onOk: callManagerToStart });
         return;
       }
       if (noFix) {
         confirmSheet({ title: 'No GPS fix',
-          text: 'The phone could not tell closely enough where you are. The office can start the job for you.',
-          ok: 'Ask office to start', alt: null, onOk: function () { ACT.askOfficeStart('No GPS fix'); } });
+          text: 'The phone could not tell closely enough where you are. Call your manager — they start the job on the board.',
+          ok: 'Call your manager', alt: null, onOk: callManagerToStart });
         return;
       }
       if (arrived) { closeOverlays(true); beginJob(); return; }
@@ -11602,7 +11644,7 @@
     jobCard.parentElement.insertBefore(stateBox, jobCard);
     var chip = document.createElement('span');
     chip.dataset.statuschip = '1';
-    chip.setAttribute('style', 'display:inline-block;margin-left:8px;font:600 11.5px/1 Geist;border-radius:5px;padding:4px 7px;white-space:nowrap;vertical-align:middle');
+    chip.setAttribute('style', 'display:inline-block;margin-left:8px;font:600 11.5px/1.25 Geist;border-radius:5px;padding:4px 7px;vertical-align:middle;max-width:100%');
     function paintHomeState() {
       var j = JOBS[jobIdx];
       // the job's state, next to its time
@@ -11614,7 +11656,7 @@
       } else if (j && state.onsite && runIdx === jobIdx && j.officeStartAt) {
         txt = 'Started by the office · ' + j.officeStartAt; tone = 'brand';
       } else if (j && j.paused && j.pausedFrom === 'drive') { txt = 'Paused · on the way'; tone = 'grey';
-      } else if (j && j.paused) { txt = 'Paused · ' + hhmmss(Math.max(0, (Date.now() - (j.pausedAt || Date.now())) / 1000)).replace(/^0(\d)/, '$1'); tone = 'grey'; }
+      } else if (j && j.paused) { txt = (j.pauseReason || 'Paused') + ' · ' + hhmmss(Math.max(0, (Date.now() - (j.pausedAt || Date.now())) / 1000)).replace(/^0(\d)/, '$1'); tone = 'grey'; }
       else if (j && j.reopened) { txt = 'Reopened · Start'; tone = 'warn'; }
       if (whenEl && txt) {
         if (chip.previousSibling !== whenEl) whenEl.parentNode.insertBefore(chip, whenEl.nextSibling);
@@ -11685,7 +11727,7 @@
         var r = document.createElement('div');
         r.dataset.tap = '1'; r.dataset.act = 'openNextJob'; r.dataset.idx = String(i);
         r.setAttribute('style', 'display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #DDE3EE;border-radius:12px;padding:12px 14px;margin-bottom:8px');
-        var tag = j.paused ? 'Paused' : j.reopened ? 'Reopened · Start' : '';
+        var tag = j.paused ? 'Paused' + (j.pauseReason ? ' · ' + j.pauseReason : '') : j.reopened ? 'Reopened · Start' : '';
         r.innerHTML = '<div style="flex:1;min-width:0"><div style="font:600 15px/1.25 Geist"></div>' +
           '<div style="font:400 12.5px/1.35 Geist;color:#546478;margin-top:3px"></div></div>' +
           (tag ? '<span style="font:600 11.5px/1 Geist;color:#546478;background:#EDF0F5;border-radius:5px;padding:4px 7px;white-space:nowrap"></span>' : '') +
@@ -11793,8 +11835,135 @@
   function paintCustHead(j) {
     if (!custHead || !j) return;
     custHead.title.textContent = 'Jobs \u2013 ' + j.name;
-    custHead.sub.textContent = '12 visits \u00b7 3 technicians \u00b7 last on Dec 13, 2025 \u00b7 Total spent: $8,420.00';
+    custHead.sub.textContent = '12 visits \u00b7 3 technicians \u00b7 last on Dec 13, 2026 \u00b7 Total spent: $8,420.00';
   }
+
+
+  /* Marek, Nov 5: Pause asks why — one tap on the reason and the job is
+     paused, no Save. A handful of reasons to start; a note only for Other.
+     The office sees the reason with the Paused status. */
+  var PAUSE_REASONS = [['restaurant', 'Lunch'], ['coffee', 'Break'], ['local_shipping', 'Picking up material'],
+    ['hourglass_top', 'Waiting for the customer'], ['more_horiz', 'Other']];
+  (function () {
+    var plainPause = ACT.pauseJob;
+    function applyPause(reason) {
+      var j = JOBS[jobIdx];
+      closeOverlays(true);
+      plainPause();
+      if (j && j.paused) {
+        j.pauseReason = reason; saveJobs();
+        var q = syncQ[syncQ.length - 1]; if (q && /Paused/.test(q.what || '')) q.what = 'Status: Paused · ' + reason;
+        toast('Paused · ' + reason + ' — the clock has stopped', 'pause_circle');
+      }
+    }
+    ACT.pauseJob = function () {
+      if (!state.onsite || !mineRunning()) return;
+      var el = sheetEl('ov-pause'), b = $('[data-sheetbody]', el);
+      b.innerHTML = '<div style="display:flex;justify-content:center;padding:0 0 10px"><div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div></div>' +
+        '<div style="font:600 18px/1.25 Geist">Pause the job</div>' +
+        '<div style="font:400 13.5px/1.45 Geist;color:#546478;margin:5px 0 8px">Pick the reason — the clock stops right away. The office sees it.</div>' +
+        PAUSE_REASONS.map(function (r) {
+          return '<div data-tap="1" data-preason="' + r[1] + '" style="display:flex;align-items:center;gap:12px;padding:14px 2px;border-top:1px solid #EDF0F5;font:500 16px/1.2 Geist">' +
+            '<span class="mi" style="font-size:21px;color:#4A6FA5">' + r[0] + '</span>' + r[1] + '</div>';
+        }).join('') +
+        '<div data-pother hidden style="padding:4px 0 2px"><textarea data-pnote class="inp" rows="2" placeholder="What is the pause for?" style="width:100%;height:auto;padding:11px 12px;font:400 15px/1.5 Geist;resize:none"></textarea>' +
+        '<div data-tap="1" data-pgo style="height:50px;display:flex;align-items:center;justify-content:center;margin-top:10px;border-radius:11px;background:#4A6FA5;color:#fff;font:600 16px/1 Geist">Pause</div></div>' +
+        '<div data-back data-tap="1" style="height:44px;display:flex;align-items:center;justify-content:center;font:500 14.5px/1 Geist;color:#546478;margin-top:4px">Cancel</div>';
+      b.onclick = function (ev) {
+        var r = ev.target.closest('[data-preason]');
+        if (r && r.dataset.preason !== 'Other') { applyPause(r.dataset.preason); return; }
+        var other = $('[data-pother]', b);
+        if (r) { other.hidden = false; $('[data-pnote]', b).focus(); return; }
+        if (ev.target.closest('[data-pgo]')) {
+          var note = norm($('[data-pnote]', b).value);
+          applyPause(note ? 'Other — ' + note : 'Other');
+        }
+      };
+      go('ov-pause', 'overlay');
+    };
+    // starting again clears the reason
+    var plainBegin = ACT.start;
+    ACT.start = function () { var j = JOBS[jobIdx]; if (j && j.pauseReason) { j.pauseReason = ''; saveJobs(); } return plainBegin.apply(this, arguments); };
+  })();
+
+  /* Nov 5: a card payment ends with the customer signing the receipt with a
+     finger, as on a card terminal. The signature goes on the invoice PDF. */
+  var cardSig = recall('cardSig', '');
+  (function () {
+    var el = sheetEl('ov-cardsign'), b = $('[data-sheetbody]', el);
+    // the charge has gone through — the sheet does not close on a stray tap
+    el.firstElementChild.removeAttribute('data-back');
+    b.innerHTML = '<div style="display:flex;justify-content:center;padding:0 0 10px"><div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div></div>' +
+      '<div style="display:flex;align-items:center;gap:8px;font:600 18px/1.25 Geist"><span class="mi" style="font-size:22px;color:#16A34A">check_circle</span><span data-csamt>Approved</span></div>' +
+      '<div style="font:400 13.5px/1.45 Geist;color:#546478;margin:5px 0 12px">Hand the phone to the customer. Their signature goes on the receipt and the invoice PDF.</div>' +
+      '<div style="height:170px;border:1.5px dashed #C9D3E1;border-radius:12px;background:#F8FAFD;display:flex;align-items:center;justify-content:center">' +
+      '<span style="font:500 15px/1 Geist;color:#8A97A8;pointer-events:none">Customer signs here</span></div>' +
+      '<div data-tap="1" data-csclear style="text-align:right;font:500 13.5px/1 Geist;color:#4A6FA5;padding:10px 2px 0">Clear</div>' +
+      '<div data-tap="1" data-csgo style="height:52px;display:flex;align-items:center;justify-content:center;margin-top:10px;border-radius:11px;background:#4A6FA5;color:#fff;font:600 16px/1 Geist;opacity:.45">Done</div>';
+    var pad = signaturePad('ov-cardsign', 'Customer signs here', function () { $('[data-csgo]', b).style.opacity = ''; });
+    b.onclick = function (ev) {
+      if (ev.target.closest('[data-csclear]')) { if (pad) pad.clear(); $('[data-csgo]', b).style.opacity = '.45'; return; }
+      if (!ev.target.closest('[data-csgo]')) return;
+      if (pad && !pad.isSigned()) { toast('The customer signs first', 'draw'); return; }
+      var cv = $('canvas', b);
+      cardSig = cv ? cv.toDataURL('image/png') : '';
+      remember('cardSig', cardSig);
+      closeOverlays(true);
+      ACT.payInline();
+      paintCardSig();
+    };
+    ACT.stripePay = function () {
+      var amt = $('#ov-stripe [data-stripeamt]');
+      var btn = $('#ov-stripe [data-stripebtn]');
+      if (btn) btn.textContent = 'Processing…';
+      setTimeout(function () {
+        closeOverlays(true);
+        stripeApproved = true;
+        if (pad) pad.clear();
+        $('[data-csgo]', b).style.opacity = '.45';
+        $('[data-csamt]', b).textContent = (amt ? amt.textContent : '') + ' approved';
+        go('ov-cardsign', 'overlay');
+      }, 900);
+    };
+  })();
+  // the paid invoice shows the signature the PDF carries
+  function paintCardSig() {
+    var R = receiptRefs(); if (!R) return;
+    var card = R.title.closest('div[style*="border-radius"]') || R.title.parentElement.parentElement;
+    var box = $('[data-cardsig]', byId('inv-paid'));
+    if (!box) {
+      box = document.createElement('div'); box.dataset.cardsig = '1';
+      box.setAttribute('style', 'margin-top:10px;padding:10px 12px;border:1px solid #DDE3EE;border-radius:10px;background:#fff');
+      card.insertAdjacentElement('afterend', box);
+    }
+    var show = !!cardSig && receipt && /card/i.test(receipt.icon + ' ' + receipt.title);
+    box.hidden = !show;
+    if (!show) return;
+    var j = JOBS[jobIdx] || {};
+    box.innerHTML = '<div style="font:500 12px/1.3 Geist;color:#8A97A8">Customer signature · on the invoice PDF</div>' +
+      '<img alt="Customer signature" src="' + cardSig + '" style="display:block;height:64px;max-width:100%;margin:4px 0">' +
+      '<div style="font:400 12.5px/1.3 Geist;color:#546478">' + (j.name || 'Customer') + ' · ' + (invPaidAt || '') + '</div>';
+  }
+  paintCardSig();
+
+  /* Jean, Nov 5: Start and Pause swap Home for its running twin, and the
+     page jumped to the top. The job card stays where the thumb left it. */
+  (function () {
+    var plainGo = go;
+    go = function (id, mode) {
+      var from = curPage();
+      var swap = from !== id && /^home(-active)?$/.test(from || '') && /^home(-active)?$/.test(id || '');
+      var y = swap && jobCard && jobCard.isConnected ? jobCard.getBoundingClientRect().top : null;
+      plainGo(id, mode);
+      if (y === null) return;
+      function settle() {
+        var sc = $('.sc', byId(id));
+        if (sc && jobCard && sc.contains(jobCard)) sc.scrollTop += jobCard.getBoundingClientRect().top - y;
+      }
+      settle(); requestAnimationFrame(settle); setTimeout(settle, 80);
+    };
+    window.__proto && (window.__proto.go = go);
+  })();
 
   function boot() {
     mvpTrim();
