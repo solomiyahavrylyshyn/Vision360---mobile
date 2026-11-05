@@ -584,17 +584,6 @@ body.dev #indexBtn{display:flex}
         <div class="screen" id="more" data-tabs="on">
           <div class="hdr" style="padding:12px 16px"><span class="ttl" style="font-size:21px">More</span></div>
           <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
-            <div class="card" style="display:flex;align-items:center;gap:13px;padding:15px;margin-bottom:16px" data-tap data-go="more-profile" data-mode="push">
-              <div style="width:52px;height:52px;border-radius:26px;background:#1C2B3A;color:#fff;font:600 18px/52px Geist;text-align:center;flex:none">MS</div>
-              <div style="flex:1">
-                <div style="font:600 17px/1.2 Geist">Marek Stroz</div>
-                <!-- M1-1: name, email, role and company -->
-                <div style="font:400 13px/1.4 Geist;color:#546478;margin-top:3px">m.stroz@andservices.com</div>
-                <div style="font:400 13px/1.4 Geist;color:#546478">Senior Technician &middot; AND Services &middot; Tampa</div>
-              </div>
-              <span class="mi" style="font-size:20px;color:#A9B4C2">chevron_right</span>
-            </div>
-
             <!-- M2-8: the same state as the strip; the card opens the Sync screen -->
             <div data-tap data-go="sync" data-mode="push" style="display:flex;align-items:center;gap:10px;background:#EBF0F8;border:1px solid #C8D5E8;border-radius:11px;padding:12px 13px;margin-bottom:16px">
               <span class="mi" id="moreSyncIcon" style="font-size:20px;color:#4A6FA5">cloud_done</span>
@@ -603,31 +592,19 @@ body.dev #indexBtn{display:flex}
             </div>
 
             <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <div class="rowi" data-go="job-general" data-mode="push"><span class="mi">assignment</span><span class="t">Current job<small id="moreCurJob">Randy Johnson &middot; 10512-J13</small></span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-go="history" data-mode="tab"><span class="mi">history</span><span class="t">Jobs history</span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-go="files" data-mode="push"><span class="mi">folder_open</span><span class="t">Files</span><span class="mi ch">chevron_right</span></div>
-            </div>
-
-            <div class="card" style="overflow:hidden;margin-bottom:14px">
               <!-- Marek, Oct 21: inventory, truck stock and equipment are not in the MVP -->
               <div class="rowi" data-go="est-catalog" data-mode="push"><span class="mi">menu_book</span><span class="t">Price book</span><span class="mi ch">chevron_right</span></div>
-            </div>
-
-            <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <div class="rowi" data-act="toggleLocation"><span class="mi">my_location</span><span class="t">Location services<small id="locNote">On &middot; needed to start a job</small></span><span id="locSw" style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none"><span style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span></span></div>
             </div>
 
             <!-- PRD 776: English and Spanish in the first release, chosen on the
                  phone; the devices signed in. No PIN of the app's own: the
                  phone's screen lock protects it (decision 29.10, M1-9). -->
+            <!-- Marek, Nov 5: "all settings only in one place", as in the web app -->
             <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <div class="rowi" data-go="more-language" data-mode="push"><span class="mi">language</span><span class="t">Language<small id="langNote">English</small></span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-go="more-devices" data-mode="push"><span class="mi">devices</span><span class="t">My devices<small>2 signed in</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-settings" data-mode="push"><span class="mi">settings</span><span class="t">Settings<small>Profile, location, language, notifications, offline</small></span><span class="mi ch">chevron_right</span></div>
             </div>
 
             <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <div class="rowi" data-go="more-notifications" data-mode="push"><span class="mi">notifications_none</span><span class="t">Notifications</span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-go="more-offline" data-mode="push"><span class="mi">wifi_off</span><span class="t">Offline mode<small>Always on &middot; completed jobs kept 7 days</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-go="more-help" data-mode="push"><span class="mi">help_outline</span><span class="t">Help &amp; support</span><span class="mi ch">chevron_right</span></div>
             </div>
 
@@ -650,6 +627,32 @@ body.dev #indexBtn{display:flex}
             <!-- demo only: shows Home as a salaried technician sees it (OD-16) -->
             <div class="rowi" data-act="toggleSalaried" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">badge</span><span id="salariedNote">Demo: show as a salaried technician</span></div>
             <div style="text-align:center;font:400 12px/1 Geist;color:#8A97A8;padding:20px 0 6px">Vision 360 v2.4.1 &middot; build 2411</div>
+          </div>
+        </div>
+
+        <!-- ============ SETTINGS (Marek, Nov 5: one place for every setting) ============ -->
+        <div class="screen" id="more-settings" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Settings</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div class="card" style="overflow:hidden;margin-bottom:14px">
+              <div class="rowi" data-go="more-profile" data-mode="push"><span class="mi">person</span><span class="t">Profile<small>Marek Stroz &middot; Senior Technician &middot; AND Services</small></span><span class="mi ch">chevron_right</span></div>
+            </div>
+
+            <div class="card" style="overflow:hidden;margin-bottom:14px">
+              <div class="rowi" data-act="toggleLocation"><span class="mi">my_location</span><span class="t">Location services<small id="locNote">On &middot; needed to start a job</small></span><span id="locSw" style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none"><span style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span></span></div>
+            </div>
+
+            <!-- PRD 776: English and Spanish in the first release, chosen on the
+                 phone; the devices signed in. -->
+            <div class="card" style="overflow:hidden;margin-bottom:14px">
+              <div class="rowi" data-go="more-language" data-mode="push"><span class="mi">language</span><span class="t">Language<small id="langNote">English</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-devices" data-mode="push"><span class="mi">devices</span><span class="t">My devices<small>2 signed in</small></span><span class="mi ch">chevron_right</span></div>
+            </div>
+
+            <div class="card" style="overflow:hidden;margin-bottom:14px">
+              <div class="rowi" data-go="more-notifications" data-mode="push"><span class="mi">notifications_none</span><span class="t">Notifications</span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-offline" data-mode="push"><span class="mi">wifi_off</span><span class="t">Offline mode<small>Always on &middot; completed jobs kept 7 days</small></span><span class="mi ch">chevron_right</span></div>
+            </div>
           </div>
         </div>
 
@@ -3596,7 +3599,7 @@ body.dev #indexBtn{display:flex}
      not Home (M1-1). */
   var TABOF = {
     home: 'home', 'home-active': 'home',
-    'more-profile': 'more', 'more-terms': 'more', 'more-privacy': 'more', 'more-delete': 'more', 'more-equipment': 'more', 'more-assets': 'more',
+    'more-profile': 'more', 'more-settings': 'more', 'more-terms': 'more', 'more-privacy': 'more', 'more-delete': 'more', 'more-equipment': 'more', 'more-assets': 'more',
     'more-notifications': 'more', 'more-offline': 'more', 'more-help': 'more',
     'more-language': 'more', 'more-lock': 'more', 'more-devices': 'more',
     history: 'history', 'hist-filters': 'history', 'hist-search': 'history',
@@ -6633,6 +6636,8 @@ body.dev #indexBtn{display:flex}
 
   ACT.payInline = function () {
     var m = payMethodDef();
+    if (m.id === 'card' && !stripeApproved) { cardSig = ''; }
+    if (m.id !== 'card' && !paySigned) { cardSig = ''; }
     var miss = [];
     m.fields.forEach(function (row) { row.forEach(function (fd) { if (fd.req && !norm(pay.values[m.id + '|' + fd.l] || '')) miss.push(fd.l); }); });
     if (miss.length) { toast('Enter the ' + miss[0].toLowerCase() + ' first', 'edit'); return; }
@@ -6647,6 +6652,10 @@ body.dev #indexBtn{display:flex}
     // the card is typed on Stripe's sheet; it comes back here once Stripe says yes
     if (m.id === 'card' && !stripeApproved) { openStripeSheet(); return; }
     stripeApproved = false;
+    /* Marek, Nov 5: cash and check too — the customer signs the receipt
+       with a finger, and the signature goes on the invoice PDF */
+    if (m.id !== 'card' && !paySigned) { openPaySign(m); return; }
+    paySigned = false;
     // money against nothing is an invoice made on the spot
     if (state.inv === 'none') ACT.createInvoice();
     /* Marek, Oct 12: partial payments are supported. Less than the balance
@@ -15162,6 +15171,7 @@ body.dev #indexBtn{display:flex}
   /* Nov 5: a card payment ends with the customer signing the receipt with a
      finger, as on a card terminal. The signature goes on the invoice PDF. */
   var cardSig = recall('cardSig', '');
+  var paySigned = false, openPaySign = function () { };
   (function () {
     var el = sheetEl('ov-cardsign'), b = $('[data-sheetbody]', el);
     // the charge has gone through — the sheet does not close on a stray tap
@@ -15182,8 +15192,18 @@ body.dev #indexBtn{display:flex}
       cardSig = cv ? cv.toDataURL('image/png') : '';
       remember('cardSig', cardSig);
       closeOverlays(true);
+      paySigned = true;
       ACT.payInline();
       paintCardSig();
+    };
+    openPaySign = function (m) {
+      var amtEl = $$('[data-payamt]').filter(function (e) { return e.offsetParent; })[0];
+      var taking = amtEl ? parseFloat(String(amtEl.value).replace(/[^0-9.]/g, '')) : NaN;
+      if (!isFinite(taking) || taking <= 0) taking = payAmount;
+      if (pad) pad.clear();
+      $('[data-csgo]', b).style.opacity = '.45';
+      $('[data-csamt]', b).textContent = fmt(Math.min(taking, payAmount)) + ' · ' + m.name.toLowerCase() + ' received';
+      go('ov-cardsign', 'overlay');
     };
     ACT.stripePay = function () {
       var amt = $('#ov-stripe [data-stripeamt]');
@@ -15209,7 +15229,7 @@ body.dev #indexBtn{display:flex}
       box.setAttribute('style', 'margin-top:10px;padding:10px 12px;border:1px solid #DDE3EE;border-radius:10px;background:#fff');
       card.insertAdjacentElement('afterend', box);
     }
-    var show = !!cardSig && receipt && /card/i.test(receipt.icon + ' ' + receipt.title);
+    var show = !!cardSig && !!receipt;
     box.hidden = !show;
     if (!show) return;
     var j = JOBS[jobIdx] || {};

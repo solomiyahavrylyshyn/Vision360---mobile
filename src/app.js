@@ -352,7 +352,7 @@
      not Home (M1-1). */
   var TABOF = {
     home: 'home', 'home-active': 'home',
-    'more-profile': 'more', 'more-terms': 'more', 'more-privacy': 'more', 'more-delete': 'more', 'more-equipment': 'more', 'more-assets': 'more',
+    'more-profile': 'more', 'more-settings': 'more', 'more-terms': 'more', 'more-privacy': 'more', 'more-delete': 'more', 'more-equipment': 'more', 'more-assets': 'more',
     'more-notifications': 'more', 'more-offline': 'more', 'more-help': 'more',
     'more-language': 'more', 'more-lock': 'more', 'more-devices': 'more',
     history: 'history', 'hist-filters': 'history', 'hist-search': 'history',
@@ -3389,6 +3389,8 @@
 
   ACT.payInline = function () {
     var m = payMethodDef();
+    if (m.id === 'card' && !stripeApproved) { cardSig = ''; }
+    if (m.id !== 'card' && !paySigned) { cardSig = ''; }
     var miss = [];
     m.fields.forEach(function (row) { row.forEach(function (fd) { if (fd.req && !norm(pay.values[m.id + '|' + fd.l] || '')) miss.push(fd.l); }); });
     if (miss.length) { toast('Enter the ' + miss[0].toLowerCase() + ' first', 'edit'); return; }
@@ -3403,6 +3405,10 @@
     // the card is typed on Stripe's sheet; it comes back here once Stripe says yes
     if (m.id === 'card' && !stripeApproved) { openStripeSheet(); return; }
     stripeApproved = false;
+    /* Marek, Nov 5: cash and check too — the customer signs the receipt
+       with a finger, and the signature goes on the invoice PDF */
+    if (m.id !== 'card' && !paySigned) { openPaySign(m); return; }
+    paySigned = false;
     // money against nothing is an invoice made on the spot
     if (state.inv === 'none') ACT.createInvoice();
     /* Marek, Oct 12: partial payments are supported. Less than the balance
@@ -11918,6 +11924,7 @@
   /* Nov 5: a card payment ends with the customer signing the receipt with a
      finger, as on a card terminal. The signature goes on the invoice PDF. */
   var cardSig = recall('cardSig', '');
+  var paySigned = false, openPaySign = function () { };
   (function () {
     var el = sheetEl('ov-cardsign'), b = $('[data-sheetbody]', el);
     // the charge has gone through — the sheet does not close on a stray tap
@@ -11938,8 +11945,18 @@
       cardSig = cv ? cv.toDataURL('image/png') : '';
       remember('cardSig', cardSig);
       closeOverlays(true);
+      paySigned = true;
       ACT.payInline();
       paintCardSig();
+    };
+    openPaySign = function (m) {
+      var amtEl = $$('[data-payamt]').filter(function (e) { return e.offsetParent; })[0];
+      var taking = amtEl ? parseFloat(String(amtEl.value).replace(/[^0-9.]/g, '')) : NaN;
+      if (!isFinite(taking) || taking <= 0) taking = payAmount;
+      if (pad) pad.clear();
+      $('[data-csgo]', b).style.opacity = '.45';
+      $('[data-csamt]', b).textContent = fmt(Math.min(taking, payAmount)) + ' · ' + m.name.toLowerCase() + ' received';
+      go('ov-cardsign', 'overlay');
     };
     ACT.stripePay = function () {
       var amt = $('#ov-stripe [data-stripeamt]');
@@ -11965,7 +11982,7 @@
       box.setAttribute('style', 'margin-top:10px;padding:10px 12px;border:1px solid #DDE3EE;border-radius:10px;background:#fff');
       card.insertAdjacentElement('afterend', box);
     }
-    var show = !!cardSig && receipt && /card/i.test(receipt.icon + ' ' + receipt.title);
+    var show = !!cardSig && !!receipt;
     box.hidden = !show;
     if (!show) return;
     var j = JOBS[jobIdx] || {};
