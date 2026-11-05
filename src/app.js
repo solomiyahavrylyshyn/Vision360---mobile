@@ -9056,6 +9056,17 @@
     closeOverlays(true);
     editOption(n);
   }, true);
+  // only Option A's header carried the tap; any option card opens its own edit
+  document.addEventListener('click', function (ev) {
+    if (!optList || state.est === 'declined' || curPage() !== 'est-draft') return;
+    var t = ev.target;
+    if (!t.closest || !optList.contains(t) || t.closest('[data-go], [data-act], [data-tap], input, button')) return;
+    var card = $$(':scope > div', optList).filter(function (c) { return c.contains(t); })[0];
+    var n = card ? optionName(card) : '';
+    if (!n) return;
+    ev.stopPropagation(); ev.preventDefault();
+    editOption(n);
+  }, true);
 
   function clearSeedOptions() {
     if (!optList) return;
