@@ -10219,7 +10219,21 @@
     toast('Password updated — you’re signed in', 'lock_reset');
   });
 
-  byId('logout').addEventListener('click', function () { ACT.logout(); });
+  /* Nov 5: signing out with something still waiting to sync asks first.
+     The waiting items stay on the phone either way and go up on the
+     next sign-in; the question is so he does not lose track of them. */
+  byId('logout').addEventListener('click', function () {
+    var n = typeof waitingTotal === 'function' ? waitingTotal() : 0;
+    if (!n) { ACT.logout(); return; }
+    confirmSheet({
+      title: n + (n === 1 ? ' item is' : ' items are') + ' waiting to sync — sign out anyway?',
+      text: net.online ? 'The upload is still going. What is waiting stays on this phone and goes up when you sign in again.'
+        : 'No signal — nothing has been sent yet. What is waiting stays on this phone and goes up when you sign in again.',
+      ok: 'Sign out anyway', danger: true, alt: 'Wait for sync',
+      onOk: function () { ACT.logout(); },
+      onAlt: function () { go('sync', 'push'); }
+    });
+  });
 
   /* chat compose */
   function send() {
