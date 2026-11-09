@@ -354,7 +354,7 @@
     home: 'home', 'home-active': 'home',
     'more-profile': 'more', 'more-settings': 'more', 'more-terms': 'more', 'more-privacy': 'more', 'more-delete': 'more', 'more-equipment': 'more', 'more-assets': 'more',
     'more-notifications': 'more', 'more-offline': 'more', 'more-help': 'more',
-    'more-language': 'more', 'more-lock': 'more', 'more-devices': 'more',
+    'more-language': 'more', 'more-lock': 'more', 'more-devices': 'more', 'more-sops': 'more', 'more-training': 'more',
     history: 'history', 'hist-filters': 'history', 'hist-search': 'history',
     'period-quarter': 'home', 'period-week': 'home',
     chat: 'chat', 'chat-thread': 'chat', timesheet: 'timesheet', more: 'more'
@@ -4138,7 +4138,7 @@
     var no = estNoOf(j);
     estBadgeLine.textContent = (no ? (j.estTmp ? no + ' · final number after sync' : no) + ' · ' : '') +
       (declined ? 'Declined by the customer' + (j.estDeclined && j.estDeclined.reason ? ' — ' + j.estDeclined.reason : '') + ' · read-only'
-      : sent ? 'Presented on the device · ' + j.sentAt.split(', ').slice(-1)[0]
+      : sent ? 'Presented on this phone by Marek Stroz · ' + j.sentAt.split(', ').slice(-1)[0]
       : changes ? 'Revise and resend for approval' : 'Autosaved 2 min ago');
   }
 
@@ -5203,16 +5203,20 @@
       'Week 17^1', 'Week 18^1', 'Week 19^1', 'Week 20^1', 'Week 21^1', 'Week 22^1'];
     var wkRoot = byId('period-week');
     var wkEls = wkLabels.map(function (l) { return wkRoot && sel(wkRoot, l)[0]; });
-    seg('period-week', wkLabels, 2,
-      function (i) { p.pick = wkEls[i] ? norm(wkEls[i].textContent) : p.pick; paintApply('period-week'); });
-    /* Nov 5 (Marek): show the dates, not week numbers — "Mar 25 – 31", not "Week 13" */
-    wkEls.forEach(function (e, i) {
-      if (!e || !e.nextElementSibling) return;
-      e.textContent = norm(e.nextElementSibling.textContent);
-      e.style.minWidth = '0';
-      e.nextElementSibling.style.display = 'none';
-      if (i === 2) p.pick = e.textContent;
+    /* Nov 5 (Marek): show the dates, not week numbers — "Mar 25 – 31", not
+       "Week 13". Each entry is the whole row (the ^1); its first span is the
+       week number, the second the dates. */
+    function datesOf(row) { return row && row.children[1] ? norm(row.children[1].textContent) : ''; }
+    seg('period-week', wkLabels, 2, function (i) {
+      p.pick = datesOf(wkEls[i]) || p.pick;
+      // the design set the picked row's dates in bold; the bold follows the pick
+      wkEls.forEach(function (row, k) {
+        if (row && row.children[1]) { row.children[1].style.fontWeight = k === i ? '600' : '500'; row.children[1].style.color = k === i ? '#1A2332' : '#546478'; }
+      });
+      paintApply('period-week');
     });
+    wkEls.forEach(function (row) { if (row && row.firstElementChild) row.firstElementChild.style.display = 'none'; });
+    p.pick = datesOf(wkEls[2]) || p.pick;
     paintApply('period-week');
   })();
   // every Good / Attention / Immediate row on every Report Card screen — the
@@ -12169,6 +12173,9 @@
       var swap = from !== id && /^home(-active)?$/.test(from || '') && /^home(-active)?$/.test(id || '');
       var y = swap && jobCard && jobCard.isConnected ? jobCard.getBoundingClientRect().top : null;
       plainGo(id, mode);
+      // the Sync screen was painted only when the connection changed — opened
+      // with nothing waiting, it was a title and a button
+      if (id === 'sync') paintSync();
       if (y === null) return;
       function settle() {
         var sc = $('.sc', byId(id));

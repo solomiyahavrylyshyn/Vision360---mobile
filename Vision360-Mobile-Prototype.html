@@ -599,6 +599,9 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
             <div class="card" style="overflow:hidden;margin-bottom:14px">
               <!-- Marek, Oct 21: inventory, truck stock and equipment are not in the MVP -->
               <div class="rowi" data-go="est-catalog" data-mode="push" data-pbbrowse="1"><span class="mi">menu_book</span><span class="t">Price book</span><span class="mi ch">chevron_right</span></div>
+              <!-- Marek, 05.11: More is where the tools go, like the nine dots in Google — SOPs, training videos. Settings stay in Settings. -->
+              <div class="rowi" data-go="more-sops" data-mode="push"><span class="mi">fact_check</span><span class="t">SOPs &amp; procedures<small>Field walkthrough, safety, warranty</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-training" data-mode="push"><span class="mi">smart_display</span><span class="t">Training videos<small>From your company</small></span><span class="mi ch">chevron_right</span></div>
             </div>
 
             <!-- PRD 776: English and Spanish in the first release, chosen on the
@@ -606,7 +609,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
                  phone's screen lock protects it (decision 29.10, M1-9). -->
             <!-- Marek, Nov 5: "all settings only in one place", as in the web app -->
             <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <div class="rowi" data-go="more-settings" data-mode="push"><span class="mi">settings</span><span class="t">Settings<small>Profile, location, language, notifications, offline</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-settings" data-mode="push"><span class="mi">settings</span><span class="t">Settings<small>Profile, password, location, language</small></span><span class="mi ch">chevron_right</span></div>
             </div>
 
             <div class="card" style="overflow:hidden;margin-bottom:14px">
@@ -640,7 +643,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
           <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Settings</span></div>
           <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
             <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <div class="rowi" data-go="more-profile" data-mode="push"><span class="mi">person</span><span class="t">Profile<small>Marek Stroz &middot; Senior Technician &middot; AND Services</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-profile" data-mode="push"><span class="mi">person</span><span class="t">Profile<small>Marek Stroz &middot; Senior Technician</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-go="newpass" data-mode="push"><span class="mi">lock_reset</span><span class="t">Change password<small>The same rule as the web</small></span><span class="mi ch">chevron_right</span></div>
             </div>
 
@@ -652,12 +655,41 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
                  phone; the devices signed in. -->
             <div class="card" style="overflow:hidden;margin-bottom:14px">
               <div class="rowi" data-go="more-language" data-mode="push"><span class="mi">language</span><span class="t">Language<small id="langNote">English</small></span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-go="more-devices" data-mode="push"><span class="mi">devices</span><span class="t">My devices<small>2 signed in</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-devices" data-mode="push"><span class="mi">devices</span><span class="t">My device<small>This phone &middot; signed in for 30 days</small></span><span class="mi ch">chevron_right</span></div>
             </div>
 
             <div class="card" style="overflow:hidden;margin-bottom:14px">
               <div class="rowi" data-go="more-notifications" data-mode="push"><span class="mi">notifications_none</span><span class="t">Notifications</span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-go="more-offline" data-mode="push"><span class="mi">wifi_off</span><span class="t">Offline mode<small>Always on &middot; completed jobs kept 7 days</small></span><span class="mi ch">chevron_right</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ SOPs (Marek, 05.11: tools in More) ============ -->
+        <div class="screen" id="more-sops" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">SOPs &amp; procedures</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div style="font:400 12.5px/1.5 Geist;color:#8A97A8;margin-bottom:12px">Your company&rsquo;s documents, kept in the web app. They open on this phone and work offline once opened.</div>
+            <div class="card" style="overflow:hidden;margin-bottom:14px">
+              <div class="rowi" data-toast="Opening Field SOP · 17 steps"><span class="mi">checklist</span><span class="t">Field SOP<small>The 17-step job walkthrough &middot; PDF &middot; 12 pages</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Opening Safety procedures"><span class="mi">health_and_safety</span><span class="t">Safety procedures<small>Electrical, attic, refrigerant handling &middot; PDF &middot; 8 pages</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Opening Warranty policy"><span class="mi">verified_user</span><span class="t">Warranty policy<small>What the company covers and for how long &middot; PDF &middot; 4 pages</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Opening Estimate presentation guide"><span class="mi">present_to_all</span><span class="t">Presenting an estimate<small>Four options, most expensive first &middot; PDF &middot; 3 pages</small></span><span class="mi ch">chevron_right</span></div>
+            </div>
+            <div style="font:400 12px/1.5 Geist;color:#8A97A8">Updated by the office &middot; last change Nov 3, 2026</div>
+          </div>
+        </div>
+
+        <!-- ============ TRAINING VIDEOS ============ -->
+        <div class="screen" id="more-training" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Training videos</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div style="font:400 12.5px/1.5 Geist;color:#8A97A8;margin-bottom:12px">Short videos your company added in the web app. They stream, so they need signal.</div>
+            <div class="card" style="overflow:hidden;margin-bottom:14px">
+              <div class="rowi" data-toast="Playing · Your first day with Vision 360 · 4:12"><span class="mi">play_circle</span><span class="t">Your first day with Vision 360<small>4:12 &middot; En route, Start, Pause, Complete</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Playing · Building and presenting an estimate · 6:40"><span class="mi">play_circle</span><span class="t">Building and presenting an estimate<small>6:40 &middot; options, price, the customer signs</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Playing · Taking a payment · 3:05"><span class="mi">play_circle</span><span class="t">Taking a payment<small>3:05 &middot; card, cash, check, the signature</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Playing · The AC Report Card · 5:18"><span class="mi">play_circle</span><span class="t">The AC Report Card<small>5:18 &middot; ratings, photos, the waiver</small></span><span class="mi ch">chevron_right</span></div>
             </div>
           </div>
         </div>
@@ -711,7 +743,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
               <div style="font:600 15px/1.3 Geist;margin-bottom:6px">1. Who the service is for</div>
               <div style="color:#546478;margin-bottom:14px">Vision 360 is used by home-service companies and the people they employ. Your account is created by your company and belongs to it.</div>
               <div style="font:600 15px/1.3 Geist;margin-bottom:6px">2. Using the app</div>
-              <div style="color:#546478;margin-bottom:14px">You use the app for your company&rsquo;s work: jobs, estimates, invoices, payments and time. Keep your sign-in to yourself.</div>
+              <div style="color:#546478;margin-bottom:14px">You use the app for your company&rsquo;s work: jobs, estimates, invoices and payments. Keep your sign-in to yourself.</div>
               <div style="font:600 15px/1.3 Geist;margin-bottom:6px">3. Payments</div>
               <div style="color:#546478">Card payments are taken for your company&rsquo;s services through its payment processor. The app never stores a card number or CVV.</div>
             </div>
@@ -888,16 +920,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
           <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
             <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">Get a person</div>
             <div class="card" style="overflow:hidden;margin-bottom:16px">
-              <div class="rowi" data-go="chat-thread" data-mode="push"><span class="mi">headset_mic</span><span class="t">Message dispatch<small>Usually replies in a couple of minutes</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-toast="Calling dispatch — (813) 555-0100"><span class="mi">call</span><span class="t">Call dispatch<small>(813) 555-0100</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-toast="Calling the support line — (813) 555-0142"><span class="mi">support_agent</span><span class="t">App support line<small>(813) 555-0142 &middot; 7am&ndash;7pm</small></span><span class="mi ch">chevron_right</span></div>
-            </div>
-
-            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">Look it up</div>
-            <div class="card" style="overflow:hidden;margin-bottom:16px">
-              <div class="rowi" data-toast="Opening the field SOP"><span class="mi">menu_book</span><span class="t">Field SOP<small>The 17-step job walkthrough</small></span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-toast="Opening safety procedures"><span class="mi">health_and_safety</span><span class="t">Safety procedures</span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-toast="Opening warranty policy"><span class="mi">verified_user</span><span class="t">Warranty policy</span><span class="mi ch">chevron_right</span></div>
             </div>
 
             <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">Something&rsquo;s wrong</div>
@@ -1314,15 +1338,20 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
 
 <!-- ============ MY DEVICES ============ -->
         <div class="screen" id="more-devices" data-tabs="on">
-          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">My devices</span></div>
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">My device</span></div>
           <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <!-- Call 05.11: one device, one technician; signed in for 30 days -->
             <div class="card" style="overflow:hidden;margin-bottom:12px">
-              <div class="rowi"><span class="mi">smartphone</span><span class="t">This phone<small>Samsung Galaxy S23 &middot; active now</small></span><span style="font:600 11px/1 Geist;color:#16A34A;background:#E8F6ED;border-radius:5px;padding:4px 7px">THIS DEVICE</span></div>
-              <div class="rowi"><span class="mi">tablet_android</span><span class="t">Truck tablet<small>Samsung Galaxy Tab A8 &middot; last active Oct 27, 2026</small></span></div>
+              <div class="rowi"><span class="mi">smartphone</span><span class="t">This phone<small>Samsung Galaxy S23 &middot; active now</small></span><span style="font:600 11px/1 Geist;color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6;border-radius:5px;padding:4px 7px">SIGNED IN</span></div>
+              <div class="rowi"><span class="mi">event_available</span><span class="t">Signed in until Dec 9, 2026<small>30 days from your last sign-in &middot; then the password again</small></span></div>
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px;margin-bottom:10px">
+              <span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">phonelink_lock</span>
+              <div style="font:400 12.5px/1.45 Geist;color:#546478">One technician, one device. Signing in on another phone signs this one out &mdash; anything not sent yet is sent first.</div>
             </div>
             <div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px">
               <span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">admin_panel_settings</span>
-              <div style="font:400 12.5px/1.45 Geist;color:#546478">Lost a device? Your admin signs it out and erases its data in the web app.</div>
+              <div style="font:400 12.5px/1.45 Geist;color:#546478">Lost the phone? Your admin signs it out and erases its data in the web app.</div>
             </div>
           </div>
         </div>
@@ -3608,7 +3637,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     home: 'home', 'home-active': 'home',
     'more-profile': 'more', 'more-settings': 'more', 'more-terms': 'more', 'more-privacy': 'more', 'more-delete': 'more', 'more-equipment': 'more', 'more-assets': 'more',
     'more-notifications': 'more', 'more-offline': 'more', 'more-help': 'more',
-    'more-language': 'more', 'more-lock': 'more', 'more-devices': 'more',
+    'more-language': 'more', 'more-lock': 'more', 'more-devices': 'more', 'more-sops': 'more', 'more-training': 'more',
     history: 'history', 'hist-filters': 'history', 'hist-search': 'history',
     'period-quarter': 'home', 'period-week': 'home',
     chat: 'chat', 'chat-thread': 'chat', timesheet: 'timesheet', more: 'more'
@@ -7392,7 +7421,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     var no = estNoOf(j);
     estBadgeLine.textContent = (no ? (j.estTmp ? no + ' · final number after sync' : no) + ' · ' : '') +
       (declined ? 'Declined by the customer' + (j.estDeclined && j.estDeclined.reason ? ' — ' + j.estDeclined.reason : '') + ' · read-only'
-      : sent ? 'Presented on the device · ' + j.sentAt.split(', ').slice(-1)[0]
+      : sent ? 'Presented on this phone by Marek Stroz · ' + j.sentAt.split(', ').slice(-1)[0]
       : changes ? 'Revise and resend for approval' : 'Autosaved 2 min ago');
   }
 
@@ -8457,16 +8486,20 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       'Week 17^1', 'Week 18^1', 'Week 19^1', 'Week 20^1', 'Week 21^1', 'Week 22^1'];
     var wkRoot = byId('period-week');
     var wkEls = wkLabels.map(function (l) { return wkRoot && sel(wkRoot, l)[0]; });
-    seg('period-week', wkLabels, 2,
-      function (i) { p.pick = wkEls[i] ? norm(wkEls[i].textContent) : p.pick; paintApply('period-week'); });
-    /* Nov 5 (Marek): show the dates, not week numbers — "Mar 25 – 31", not "Week 13" */
-    wkEls.forEach(function (e, i) {
-      if (!e || !e.nextElementSibling) return;
-      e.textContent = norm(e.nextElementSibling.textContent);
-      e.style.minWidth = '0';
-      e.nextElementSibling.style.display = 'none';
-      if (i === 2) p.pick = e.textContent;
+    /* Nov 5 (Marek): show the dates, not week numbers — "Mar 25 – 31", not
+       "Week 13". Each entry is the whole row (the ^1); its first span is the
+       week number, the second the dates. */
+    function datesOf(row) { return row && row.children[1] ? norm(row.children[1].textContent) : ''; }
+    seg('period-week', wkLabels, 2, function (i) {
+      p.pick = datesOf(wkEls[i]) || p.pick;
+      // the design set the picked row's dates in bold; the bold follows the pick
+      wkEls.forEach(function (row, k) {
+        if (row && row.children[1]) { row.children[1].style.fontWeight = k === i ? '600' : '500'; row.children[1].style.color = k === i ? '#1A2332' : '#546478'; }
+      });
+      paintApply('period-week');
     });
+    wkEls.forEach(function (row) { if (row && row.firstElementChild) row.firstElementChild.style.display = 'none'; });
+    p.pick = datesOf(wkEls[2]) || p.pick;
     paintApply('period-week');
   })();
   // every Good / Attention / Immediate row on every Report Card screen — the
@@ -15423,6 +15456,9 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       var swap = from !== id && /^home(-active)?$/.test(from || '') && /^home(-active)?$/.test(id || '');
       var y = swap && jobCard && jobCard.isConnected ? jobCard.getBoundingClientRect().top : null;
       plainGo(id, mode);
+      // the Sync screen was painted only when the connection changed — opened
+      // with nothing waiting, it was a title and a button
+      if (id === 'sync') paintSync();
       if (y === null) return;
       function settle() {
         var sc = $('.sc', byId(id));
