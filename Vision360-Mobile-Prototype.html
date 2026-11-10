@@ -724,6 +724,23 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
           </div>
         </div>
 
+        <!-- ============ MY SCHEDULE (Marek 10.11, 63–65 min: a calendar, as in Workiz; past days are the history) ============ -->
+        <div class="screen" id="more-schedule" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">My schedule</span><span data-tap data-act="schedToday" style="margin-left:auto;font:600 14px/1 Geist;color:#4A6FA5;padding:6px 2px">Today</span></div>
+          <div style="background:#fff;border-bottom:1px solid #DDE3EE;padding:4px 12px 12px;flex:none">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 4px 10px">
+              <span class="mi" data-tap data-act="schedWeek" data-step="-1" style="font-size:24px;color:#4A6FA5;padding:4px">chevron_left</span>
+              <span id="schedMonth" style="font:600 15.5px/1 Geist">November 2026</span>
+              <span class="mi" data-tap data-act="schedWeek" data-step="1" style="font-size:24px;color:#4A6FA5;padding:4px">chevron_right</span>
+            </div>
+            <div id="schedWeekStrip" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px"></div>
+          </div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:14px 16px 20px">
+            <div id="schedDay" style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">Today</div>
+            <div id="schedList"></div>
+          </div>
+        </div>
+
         <!-- ============ PROFILE ============ -->
         <div class="screen" id="more-profile" data-tabs="on">
           <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Profile</span></div>
@@ -3699,7 +3716,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     home: 'home', 'home-active': 'home',
     'more-profile': 'more', 'more-settings': 'more', 'more-terms': 'more', 'more-privacy': 'more', 'more-delete': 'more', 'more-equipment': 'more', 'more-assets': 'more',
     'more-notifications': 'more', 'more-offline': 'more', 'more-help': 'more',
-    'more-language': 'more', 'more-lock': 'more', 'more-devices': 'more', 'more-perm': 'more', 'more-legal': 'more', 'more-safety': 'more', 'more-tutorials': 'more', 'more-storage': 'more', 'more-appearance': 'more', 'more-security': 'more', 'more-permissions': 'more',
+    'more-language': 'more', 'more-lock': 'more', 'more-devices': 'more', 'more-perm': 'more', 'more-legal': 'more', 'more-schedule': 'more', 'more-safety': 'more', 'more-tutorials': 'more', 'more-storage': 'more', 'more-appearance': 'more', 'more-security': 'more', 'more-permissions': 'more',
     history: 'history', 'hist-filters': 'history', 'hist-search': 'history',
     'period-quarter': 'home', 'period-week': 'home',
     chat: 'chat', 'chat-thread': 'chat', timesheet: 'timesheet', more: 'more'
@@ -13726,7 +13743,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
      ========================================================= */
   var demoManager = recall('demoManager', false);
   var PERMS = [
-    { key: 'schedule', icon: 'calendar_month', name: 'My schedule', sub: 'Your jobs, on Home', all: true },
+    { key: 'schedule', icon: 'calendar_month', name: 'My schedule', sub: 'Your jobs, day by day', all: true },
     { key: 'pricebook', icon: 'menu_book', name: 'Price book items', sub: 'Customer prices, no cost', all: true },
     { key: 'estimates', icon: 'request_quote', name: 'Estimates', sub: 'Every estimate you made' },
     { key: 'invoices', icon: 'receipt_long', name: 'Invoices', sub: 'Unpaid, partially paid, paid' },
@@ -13813,7 +13830,80 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   };
   /* My schedule is not a screen of its own (Solomiia, 10.11): the day's
      jobs are on Home, so the row takes him there */
-  ACT.openSchedule = function () { go(homeScreen(), 'tab'); };
+  /* Marek 10.11 (63–65 min): My schedule is a calendar, as in Workiz —
+     pick a day; today has the jobs dispatched to him, earlier days what he
+     did (read-only, the same cards History opens), later days what is
+     already dispatched. */
+  var schedSel = null;
+  var SCHED_AHEAD = [
+    [1, 'Maria Lopez', '9:00 AM', 'Maintenance', '10531-J02', 'Seasonal tune-up'],
+    [1, 'Daniel Ruiz', '1:30 PM', 'Demand Service', '10533-J01', 'No heat upstairs'],
+    [2, 'Karen Webb', '10:00 AM', 'Estimate', '10536-J01', 'Replace 15-year-old system'],
+    [7, 'Tom Alvarez', '8:00 AM', 'Install', '10529-J03', 'Heat pump install, day 1']
+  ];
+  var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  var DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  function dayStart(d) { var x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+  function sameDay(a, b) { return dayStart(a).getTime() === dayStart(b).getTime(); }
+  function schedItems(day) {
+    var today = dayStart(new Date()), d = dayStart(day), out = [];
+    var diff = Math.round((d - today) / 86400000);
+    if (diff === 0) openJobs().forEach(function (i) {
+      var j = JOBS[i];
+      out.push({ kind: 'open', idx: i, name: j.name, time: j.when.replace(/^Today, /, ''), type: j.type, no: jobNo(j), brief: j.brief });
+    });
+    // done visits are the history's own cards
+    $$('#history [data-act="histDetails"]').forEach(function (l) {
+      var w = new Date(l.dataset.when);
+      // a customer whose job is still open today is not also done today
+      var openNow = diff === 0 && out.some(function (o) { return o.kind === 'open' && o.name === l.dataset.job; });
+      if (!isNaN(w) && sameDay(w, d) && !openNow) out.push({ kind: 'done', el: l, name: l.dataset.job, time: 'Completed', type: l.dataset.type, brief: l.dataset.brief });
+    });
+    SCHED_AHEAD.forEach(function (a) {
+      if (a[0] === diff) out.push({ kind: 'ahead', name: a[1], time: a[2], type: a[3], no: a[4], brief: a[5] });
+    });
+    return out;
+  }
+  function paintSchedule() {
+    if (!schedSel) schedSel = dayStart(new Date());
+    var strip = byId('schedWeekStrip'), list = byId('schedList'); if (!strip || !list) return;
+    var mon = dayStart(schedSel); mon.setDate(mon.getDate() - ((mon.getDay() + 6) % 7));
+    var today = dayStart(new Date());
+    byId('schedMonth').textContent = MONTHS[schedSel.getMonth()] + ' ' + schedSel.getFullYear();
+    var html = '';
+    for (var k = 0; k < 7; k++) {
+      var d = new Date(mon); d.setDate(mon.getDate() + k);
+      var on = sameDay(d, schedSel), isToday = sameDay(d, today), has = schedItems(d).length > 0;
+      html += '<div data-tap="1" data-act="schedPick" data-day="' + d.getTime() + '" style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:8px 0 7px;border-radius:10px;' +
+        (on ? 'background:#4A6FA5;color:#fff' : isToday ? 'background:#EBF0F8;color:#1A2332' : 'color:#1A2332') + '">' +
+        '<span style="font:500 11.5px/1 Geist;' + (on ? 'color:#DCE6F5' : 'color:#8A97A8') + '">' + DOW[d.getDay()] + '</span>' +
+        '<span style="font:600 16px/1 Geist">' + d.getDate() + '</span>' +
+        '<span style="width:5px;height:5px;border-radius:3px;background:' + (has ? (on ? '#fff' : '#4A6FA5') : 'transparent') + '"></span></div>';
+    }
+    strip.innerHTML = html;
+    var diff = Math.round((schedSel - today) / 86400000);
+    byId('schedDay').textContent = (diff === 0 ? 'Today · ' : diff === 1 ? 'Tomorrow · ' : diff === -1 ? 'Yesterday · ' : '') +
+      DOW[schedSel.getDay()] + ', ' + MONTHS[schedSel.getMonth()].slice(0, 3) + ' ' + schedSel.getDate();
+    var items = schedItems(schedSel);
+    var CHIP = 'font:600 11px/1 Geist;border-radius:5px;padding:4px 7px;white-space:nowrap;';
+    list.innerHTML = items.length ? '<div class="card" style="overflow:hidden">' + items.map(function (it, n) {
+      var act = it.kind === 'open' ? ' data-act="openNextJob" data-idx="' + it.idx + '"'
+        : it.kind === 'done' ? ' data-act="schedDone" data-n="' + n + '"'
+          : ' data-toast="Dispatched to you · it opens on the day"';
+      var chip = it.kind === 'done' ? '<span style="' + CHIP + 'color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6">Completed</span>'
+        : it.kind === 'ahead' ? '<span style="' + CHIP + 'color:#4A6FA5;background:#EBF0F8;border:1px solid #C8D5E8">Dispatched</span>' : '';
+      return '<div class="rowi"' + act + '><span class="mi">' + (it.kind === 'done' ? 'task_alt' : 'work_outline') + '</span><span class="t">' + it.name +
+        '<small>' + it.time + ' · ' + it.type + (it.no ? ' · ' + it.no : '') + ' · ' + it.brief + '</small></span>' + chip + '<span class="mi ch">chevron_right</span></div>';
+    }).join('') + '</div>' + (diff < 0 ? '<div style="font:400 12px/1.5 Geist;color:#8A97A8;margin-top:10px">Past jobs open read-only.</div>' : '')
+      : '<div class="card" style="padding:22px 16px;text-align:center;font:400 14px/1.45 Geist;color:#8A97A8">No jobs on this day</div>';
+    schedCache = items;
+  }
+  var schedCache = [];
+  ACT.openSchedule = function () { schedSel = dayStart(new Date()); paintSchedule(); go('more-schedule', 'push'); };
+  ACT.schedPick = function (el) { schedSel = new Date(+el.dataset.day); paintSchedule(); };
+  ACT.schedWeek = function (el) { var d = new Date(schedSel); d.setDate(d.getDate() + 7 * (+el.dataset.step)); schedSel = d; paintSchedule(); };
+  ACT.schedToday = function () { schedSel = dayStart(new Date()); paintSchedule(); };
+  ACT.schedDone = function (el) { var it = schedCache[+el.dataset.n]; if (it && it.el) ACT.histDetails(it.el); };
   paintPermBlock();
 
   /* Settings, Marek 10.11: Photo upload, Wi-Fi only for large downloads,
