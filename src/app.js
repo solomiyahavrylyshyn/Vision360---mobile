@@ -10381,28 +10381,17 @@
      ========================================================= */
   var demoManager = recall('demoManager', false);
   var PERMS = [
-    { key: 'schedule', icon: 'calendar_month', name: 'My schedule', sub: 'Your jobs, on Home', all: true, tag: 'Pro' },
-    { key: 'tasks', icon: 'checklist', name: 'Tasks', sub: 'To-dos from the office', all: true, tag: 'Pro' },
-    { key: 'timeoff', icon: 'event_busy', name: 'Time off request', sub: 'Ask for days off', all: true, tag: 'Pro' },
+    { key: 'schedule', icon: 'calendar_month', name: 'My schedule', sub: 'Your jobs, on Home', all: true },
     { key: 'pricebook', icon: 'menu_book', name: 'Price book items', sub: 'Customer prices, no cost', all: true },
     { key: 'estimates', icon: 'request_quote', name: 'Estimates', sub: 'Every estimate you made' },
     { key: 'invoices', icon: 'receipt_long', name: 'Invoices', sub: 'Unpaid, partially paid, paid' },
-    { key: 'inventory', icon: 'inventory_2', name: 'Inventory', sub: 'What is on your truck', tag: 'Pro' },
-    { key: 'earnings', icon: 'payments', name: 'My earnings', sub: 'Hours and pay', tag: 'Pro' },
     { key: 'team', icon: 'groups', name: 'Team performance', sub: 'Revenue and closing, by technician', mgr: true },
     { key: 'reports', icon: 'bar_chart', name: 'Reports', sub: 'Revenue, closing, exports', mgr: true },
     { key: 'approvals', icon: 'task_alt', name: 'Approvals', sub: 'Discounts and reopen requests', mgr: true }
   ];
 
+
   var PERM_PAGES = {
-    tasks: { intro: 'To-dos the office sends you that are not jobs. Comes with the Pro version.', rows: [
-      ['checklist', 'Pick up the new thermostats', 'From Jean \u00b7 due today'],
-      ['checklist', 'Renew the van registration', 'From the office \u00b7 due Nov 20'],
-      ['checklist', 'Upload your EPA 608 card', 'From Jean \u00b7 no due date']] },
-    timeoff: { intro: 'Ask your manager for days off; the answer comes back here. Comes with the Pro version.', rows: [
-      ['event_available', 'Nov 26 \u2013 27 \u00b7 Thanksgiving', 'Approved by Marek Stroz'],
-      ['hourglass_top', 'Dec 22 \u2013 Jan 2', 'Waiting for your manager'],
-      ['add_circle_outline', 'New request', 'Pick the days and a reason']] },
     estimates: { intro: 'The estimates you made or presented. Opens the job they belong to in the web app’s order.', rows: [
       ['request_quote', '10512-E03 · Randy Johnson', 'Sent · presented on this phone · $929.00 – $1,109.00'],
       ['request_quote', '10518-E01 · Brent Kenzie', 'Approved · Option B · $5,665.00'],
@@ -10411,13 +10400,6 @@
       ['receipt_long', '10512-I01 · Randy Johnson', 'Paid · $169.00 · card'],
       ['receipt_long', '10518-I01 · Brent Kenzie', 'Partially paid · $2,000.00 of $5,665.00'],
       ['receipt_long', '10520-I01 · Joseph Lane', 'Unpaid · $240.00']] },
-    inventory: { intro: 'Truck stock comes with the Pro version (Marek, Oct 21). Shown here so the place is known.', rows: [
-      ['inventory_2', 'Run capacitor 45/5 µF', '6 on the truck'],
-      ['inventory_2', 'Refrigerant R-410A, 25 lb', '2 on the truck'],
-      ['inventory_2', 'Filter 16×25×1', '12 on the truck']] },
-    earnings: { intro: 'Hours and pay are not in the first release (call 05.11). The office runs payroll from the web.', rows: [
-      ['schedule', 'This week', '32.5 h regular · 6.2 h drive · 4.0 h overtime'],
-      ['payments', 'Gross pay (estimate)', '$894.00 · before taxes and deductions']] },
     team: { intro: 'How the team is doing this month. Turned on for leads and managers.', rows: [
       ['person', 'Marek Stroz', '$65.2k revenue · 43% closing'],
       ['person', 'Peter Johnson', '$58.1k revenue · 39% closing'],
@@ -10491,26 +10473,10 @@
 
   /* Settings, Marek 10.11: Photo upload, Wi-Fi only for large downloads,
      Storage, Appearance */
-  var photoSize = recall('photoSize', 'Standard');
-  ACT.photoSize = function () {
-    var el = sheetEl('ov-photosize'), b = $('[data-sheetbody]', el);
-    var OPTS = [['Standard', 'Standard size', 'Full detail · about 3 MB a photo'], ['Reduced', 'Reduced size', 'Faster on weak signal · about 0.8 MB a photo']];
-    b.innerHTML = '<div style="display:flex;justify-content:center;padding:0 0 10px"><div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div></div>' +
-      '<div style="font:600 18px/1.25 Geist;margin-bottom:6px">Photo upload</div>' +
-      OPTS.map(function (o) {
-        var on = o[0] === photoSize;
-        return '<div data-tap="1" data-psize="' + o[0] + '" style="display:flex;align-items:center;gap:12px;padding:14px 2px;border-top:1px solid #EDF0F5">' +
-          '<span class="' + (on ? 'mif' : 'mi') + '" style="font-size:22px;color:' + (on ? '#4A6FA5' : '#A9B4C2') + '">' + (on ? 'radio_button_checked' : 'radio_button_unchecked') + '</span>' +
-          '<div><div style="font:500 16px/1.2 Geist">' + o[1] + '</div><div style="font:400 12.5px/1.35 Geist;color:#8A97A8;margin-top:3px">' + o[2] + '</div></div></div>';
-      }).join('');
-    b.onclick = function (ev) {
-      var r = ev.target.closest('[data-psize]'); if (!r) return;
-      photoSize = r.dataset.psize; remember('photoSize', photoSize);
-      paintSettingsNotes(); closeOverlays(true);
-      toast('Photos upload at ' + (photoSize === 'Reduced' ? 'reduced' : 'standard') + ' size', 'photo_size_select_large');
-    };
-    go('ov-photosize', 'overlay');
-  };
+  /* Marek 10.11: photo size drives the company's storage, so the company
+     sets it in the web app for the role, not each technician on his phone */
+  var photoSize = 'Balanced';
+  ACT.photoSize = function () { toast('Set by your company in the web app \u00b7 Balanced: good quality, quick upload', 'lock'); };
   var wifiOnly = recall('wifiOnly', false);
   ACT.toggleWifiOnly = function () {
     wifiOnly = !wifiOnly; remember('wifiOnly', wifiOnly);
@@ -10529,7 +10495,7 @@
   };
   var theme = recall('theme', 'Light');
   function paintSettingsNotes() {
-    var pn = byId('photoNote'); if (pn) pn.textContent = photoSize === 'Reduced' ? 'Reduced size · faster on weak signal' : 'Standard size';
+    var pn = byId('photoNote'); if (pn) pn.textContent = 'Balanced \u00b7 set by your company';
     var wn = byId('wifiNote'), ws = byId('wifiSw');
     if (wn) wn.textContent = wifiOnly ? 'On · photos still go on any connection' : 'Off · downloads use any connection';
     if (ws) { ws.style.background = wifiOnly ? '#4A6FA5' : '#DDE3EE'; ws.firstElementChild.style.left = wifiOnly ? '24px' : '3px'; }

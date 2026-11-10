@@ -350,7 +350,7 @@
 
             <!-- Marek, 10.11: each technician sees only what the office turned on for him in the web app -->
             <div class="card" id="permBlock" style="overflow:hidden;margin-bottom:6px"></div>
-            <div id="permNote" style="font:400 12px/1.45 Geist;color:#8A97A8;margin:0 2px 14px">Your office chooses what you see here, in the web app.</div>
+            <div id="permNote" style="font:400 12px/1.45 Geist;color:#8A97A8;margin:0 2px 14px">My schedule and Price book for everyone. More turn on with your role in the web app.</div>
 
             <div class="card" style="overflow:hidden;margin-bottom:14px">
               <div class="rowi" data-go="more-help" data-mode="push"><span class="mi">help_outline</span><span class="t">Help center<small>Call dispatch, safety, tutorials</small></span><span class="mi ch">chevron_right</span></div>
@@ -380,7 +380,7 @@
           <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
             <!-- Marek, 10.11: every setting in one place, in this order -->
             <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <div class="rowi" data-act="photoSize"><span class="mi">photo_size_select_large</span><span class="t">Photo upload<small id="photoNote">Standard size</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-act="photoSize"><span class="mi">photo_size_select_large</span><span class="t">Photo upload<small id="photoNote">Balanced &middot; set by your company</small></span><span class="mi" style="font-size:18px;color:#A9B4C2">lock</span></div>
               <div class="rowi" data-go="more-language" data-mode="push"><span class="mi">language</span><span class="t">Language<small id="langNote">English</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-act="toggleWifiOnly"><span class="mi">wifi</span><span class="t">Wi-Fi only for large downloads<small id="wifiNote">Off &middot; downloads use any connection</small></span><span data-sw id="wifiSw" style="width:52px;height:31px;border-radius:16px;background:#DDE3EE;position:relative;flex:none"><span style="position:absolute;top:3px;left:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span></span></div>
               <div class="rowi" data-go="more-storage" data-mode="push"><span class="mi">sd_storage</span><span class="t">Storage<small id="storageNote">248 MB used</small></span><span class="mi ch">chevron_right</span></div>
@@ -395,7 +395,7 @@
             <div class="card" style="overflow:hidden;margin-bottom:14px">
               <div class="rowi" data-go="more-appearance" data-mode="push"><span class="mi">dark_mode</span><span class="t">Appearance<small id="themeNote">Light</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-go="more-security" data-mode="push"><span class="mi">lock</span><span class="t">Security<small>Change password</small></span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-go="more-permissions" data-mode="push"><span class="mi">verified_user</span><span class="t">Permissions<small>Location, camera, microphone</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-permissions" data-mode="push"><span class="mi">verified_user</span><span class="t">Permissions<small>Location, camera</small></span><span class="mi ch">chevron_right</span></div>
             </div>
 
             <div class="card" style="overflow:hidden">
@@ -454,7 +454,7 @@
         <div class="screen" id="more-permissions" data-tabs="on">
           <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl" data-ttl>Permissions</span></div>
           <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
-            <div class="card" style="overflow:hidden;margin-bottom:12px"><div class="rowi" data-toast="Opens the phone&rsquo;s settings for Vision 360"><span class="mi">my_location</span><span class="t">Location<small>Checked when you start a job</small></span><span style="font:600 11px/1 Geist;border-radius:5px;padding:4px 7px;color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6">ALLOWED</span></div><div class="rowi" data-toast="Opens the phone&rsquo;s settings for Vision 360"><span class="mi">photo_camera</span><span class="t">Camera<small>Job photos, the driver&rsquo;s licence, receipts</small></span><span style="font:600 11px/1 Geist;border-radius:5px;padding:4px 7px;color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6">ALLOWED</span></div><div class="rowi" data-toast="Opens the phone&rsquo;s settings for Vision 360"><span class="mi">mic</span><span class="t">Microphone<small>Sound on job videos</small></span><span style="font:600 11px/1 Geist;border-radius:5px;padding:4px 7px;color:#8A6114;background:#FEF3E2;border:1px solid #F5D7A8">ASK EVERY TIME</span></div></div>
+            <div class="card" style="overflow:hidden;margin-bottom:12px"><div class="rowi" data-toast="Opens the phone&rsquo;s settings for Vision 360"><span class="mi">my_location</span><span class="t">Location<small>Checked when you start a job</small></span><span style="font:600 11px/1 Geist;border-radius:5px;padding:4px 7px;color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6">ALLOWED</span></div><div class="rowi" data-toast="Opens the phone&rsquo;s settings for Vision 360"><span class="mi">photo_camera</span><span class="t">Camera<small>Job photos, the driver&rsquo;s licence, receipts</small></span><span style="font:600 11px/1 Geist;border-radius:5px;padding:4px 7px;color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6">ALLOWED</span></div></div>
             <div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px;margin-bottom:12px"><span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">settings</span><div style="font:400 12.5px/1.45 Geist;color:#546478">The phone asks the first time the app needs each one. Change them any time in the phone&rsquo;s settings.</div></div>
           </div>
         </div>
