@@ -354,7 +354,7 @@
     home: 'home', 'home-active': 'home',
     'more-profile': 'more', 'more-settings': 'more', 'more-terms': 'more', 'more-privacy': 'more', 'more-delete': 'more', 'more-equipment': 'more', 'more-assets': 'more',
     'more-notifications': 'more', 'more-offline': 'more', 'more-help': 'more',
-    'more-language': 'more', 'more-lock': 'more', 'more-devices': 'more', 'more-perm': 'more', 'more-legal': 'more', 'more-storage': 'more', 'more-appearance': 'more', 'more-security': 'more', 'more-permissions': 'more',
+    'more-language': 'more', 'more-lock': 'more', 'more-devices': 'more', 'more-perm': 'more', 'more-legal': 'more', 'more-safety': 'more', 'more-tutorials': 'more', 'more-storage': 'more', 'more-appearance': 'more', 'more-security': 'more', 'more-permissions': 'more',
     history: 'history', 'hist-filters': 'history', 'hist-search': 'history',
     'period-quarter': 'home', 'period-week': 'home',
     chat: 'chat', 'chat-thread': 'chat', timesheet: 'timesheet', more: 'more'
@@ -10381,17 +10381,28 @@
      ========================================================= */
   var demoManager = recall('demoManager', false);
   var PERMS = [
-    { key: 'schedule', icon: 'calendar_month', name: 'My schedule', sub: 'Your jobs, on Home', all: true },
+    { key: 'schedule', icon: 'calendar_month', name: 'My schedule', sub: 'Your jobs, on Home', all: true, tag: 'Pro' },
+    { key: 'tasks', icon: 'checklist', name: 'Tasks', sub: 'To-dos from the office', all: true, tag: 'Pro' },
+    { key: 'timeoff', icon: 'event_busy', name: 'Time off request', sub: 'Ask for days off', all: true, tag: 'Pro' },
+    { key: 'pricebook', icon: 'menu_book', name: 'Price book items', sub: 'Customer prices, no cost', all: true },
     { key: 'estimates', icon: 'request_quote', name: 'Estimates', sub: 'Every estimate you made' },
     { key: 'invoices', icon: 'receipt_long', name: 'Invoices', sub: 'Unpaid, partially paid, paid' },
     { key: 'inventory', icon: 'inventory_2', name: 'Inventory', sub: 'What is on your truck', tag: 'Pro' },
     { key: 'earnings', icon: 'payments', name: 'My earnings', sub: 'Hours and pay', tag: 'Pro' },
-    { key: 'pricebook', icon: 'menu_book', name: 'Price book items', sub: 'Customer prices, no cost' },
-    { key: 'team', icon: 'groups', name: 'Team performance', sub: 'Revenue and closing, by technician' },
-    { key: 'reports', icon: 'bar_chart', name: 'Reports', sub: 'For managers', tag: 'Later' },
-    { key: 'approvals', icon: 'task_alt', name: 'Approvals', sub: 'For managers', tag: 'Later' }
+    { key: 'team', icon: 'groups', name: 'Team performance', sub: 'Revenue and closing, by technician', mgr: true },
+    { key: 'reports', icon: 'bar_chart', name: 'Reports', sub: 'Revenue, closing, exports', mgr: true },
+    { key: 'approvals', icon: 'task_alt', name: 'Approvals', sub: 'Discounts and reopen requests', mgr: true }
   ];
+
   var PERM_PAGES = {
+    tasks: { intro: 'To-dos the office sends you that are not jobs. Comes with the Pro version.', rows: [
+      ['checklist', 'Pick up the new thermostats', 'From Jean \u00b7 due today'],
+      ['checklist', 'Renew the van registration', 'From the office \u00b7 due Nov 20'],
+      ['checklist', 'Upload your EPA 608 card', 'From Jean \u00b7 no due date']] },
+    timeoff: { intro: 'Ask your manager for days off; the answer comes back here. Comes with the Pro version.', rows: [
+      ['event_available', 'Nov 26 \u2013 27 \u00b7 Thanksgiving', 'Approved by Marek Stroz'],
+      ['hourglass_top', 'Dec 22 \u2013 Jan 2', 'Waiting for your manager'],
+      ['add_circle_outline', 'New request', 'Pick the days and a reason']] },
     estimates: { intro: 'The estimates you made or presented. Opens the job they belong to in the web app’s order.', rows: [
       ['request_quote', '10512-E03 · Randy Johnson', 'Sent · presented on this phone · $929.00 – $1,109.00'],
       ['request_quote', '10518-E01 · Brent Kenzie', 'Approved · Option B · $5,665.00'],
@@ -10411,11 +10422,11 @@
       ['person', 'Marek Stroz', '$65.2k revenue · 43% closing'],
       ['person', 'Peter Johnson', '$58.1k revenue · 39% closing'],
       ['person', 'Luis Ortega', '$49.7k revenue · 35% closing']] },
-    reports: { intro: 'Reports live in the web app. For managers, after the first release.', rows: [
+    reports: { intro: 'Reports for managers. The full set lives in the web app.', rows: [
       ['bar_chart', 'Revenue by technician', 'This month'],
       ['bar_chart', 'Closing percentage by job type', 'This quarter'],
       ['file_download', 'Timesheet export for ADP', 'Weekly']] },
-    approvals: { intro: 'What waits for a manager’s yes. For managers, after the first release.', rows: [
+    approvals: { intro: 'What waits for a manager\u2019s yes.', rows: [
       ['percent', 'Discount over 10% · 10518 · Brent Kenzie', 'Asked by Luis Ortega · 9:12 AM'],
       ['lock_open', 'Reopen request · 10498 · Joseph Lane', 'Asked by Peter Johnson · yesterday']] }
   };
@@ -10440,7 +10451,24 @@
   ACT.demoManager = function () {
     demoManager = !demoManager; remember('demoManager', demoManager);
     paintPermBlock();
-    toast(demoManager ? 'More shows everything a manager can be given' : 'More shows what a technician sees: My schedule', 'admin_panel_settings');
+    toast(demoManager ? 'More shows what a manager sees: estimates, invoices, the team, reports, approvals' : 'More shows what a technician sees', 'admin_panel_settings');
+  };
+  ACT.helpReport = function (el) {
+    var feature = el.dataset.kind === 'feature';
+    var sh = sheetEl('ov-helpreport'), b = $('[data-sheetbody]', sh);
+    b.innerHTML = '<div style="display:flex;justify-content:center;padding:0 0 10px"><div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div></div>' +
+      '<div style="font:600 18px/1.25 Geist">' + (feature ? 'Feature request' : 'Report a problem') + '</div>' +
+      '<div style="font:400 13.5px/1.45 Geist;color:#546478;margin:5px 0 12px">' + (feature ? 'What would make your day easier? It goes to the Vision 360 team.' : 'What went wrong? Recent app activity is attached so support can see it.') + '</div>' +
+      '<textarea data-hrtext class="inp" rows="3" placeholder="' + (feature ? 'e.g. Show the gate code on Home' : 'e.g. The photo did not upload on 10512') + '" style="width:100%;height:auto;padding:11px 12px;font:400 15px/1.5 Geist;resize:none"></textarea>' +
+      '<div data-tap="1" data-hrgo style="height:52px;display:flex;align-items:center;justify-content:center;margin-top:12px;border-radius:11px;background:#4A6FA5;color:#fff;font:600 16px/1 Geist">Send</div>' +
+      '<div data-back data-tap="1" style="height:44px;display:flex;align-items:center;justify-content:center;font:500 14.5px/1 Geist;color:#546478;margin-top:4px">Cancel</div>';
+    b.onclick = function (ev) {
+      if (!ev.target.closest('[data-hrgo]')) return;
+      if (!norm($('[data-hrtext]', b).value)) { toast('Write a line first', 'edit'); return; }
+      closeOverlays(true);
+      toast(feature ? 'Feature request sent — thank you' : 'Problem report sent with recent app activity', feature ? 'lightbulb' : 'bug_report');
+    };
+    go('ov-helpreport', 'overlay');
   };
   ACT.openPerm = function (el) {
     var x = PERMS.filter(function (q) { return q.key === el.dataset.perm; })[0], pg = PERM_PAGES[el.dataset.perm];
@@ -10453,7 +10481,7 @@
       }).join('') + '</div>' +
       '<div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px">' +
       '<span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">admin_panel_settings</span><div style="font:400 12.5px/1.45 Geist;color:#546478">' +
-      'You see this because the office turned on “' + x.name + '” for you in the web app' + (x.tag === 'Pro' ? ' · Pro' : x.tag === 'Later' ? ' · after the first release' : '') + '.</div></div>';
+      (x.all ? 'Every technician sees this' : x.mgr ? 'Managers see this' : 'You see this because the office turned on \u201c' + x.name + '\u201d for you in the web app') + (x.tag === 'Pro' ? ' \u00b7 Pro version' : '') + '.</div></div>';
     go('more-perm', 'push');
   };
   /* My schedule is not a screen of its own (Solomiia, 10.11): the day's

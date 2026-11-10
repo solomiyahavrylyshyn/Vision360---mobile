@@ -597,7 +597,11 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
               </div>
               <div style="flex:1;min-width:0">
                 <div style="font:600 17px/1.2 Geist">Marek Stroz</div>
-                <div style="font:400 13px/1.4 Geist;color:#546478;margin-top:3px">Senior Technician</div>
+                <div style="font:400 13px/1.4 Geist;color:#546478;margin-top:3px">Senior Technician &middot; HVAC, Plumbing</div>
+                <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">
+                  <span style="font:600 10.5px/1 Geist;color:#4A6FA5;background:#EBF0F8;border:1px solid #C8D5E8;border-radius:5px;padding:3px 6px">NATE certified</span>
+                  <span style="font:600 10.5px/1 Geist;color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6;border-radius:5px;padding:3px 6px">EPA 608</span>
+                </div>
               </div>
               <span class="mi ch">chevron_right</span>
             </div>
@@ -614,7 +618,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
             <div id="permNote" style="font:400 12px/1.45 Geist;color:#8A97A8;margin:0 2px 14px">Your office chooses what you see here, in the web app.</div>
 
             <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <div class="rowi" data-go="more-help" data-mode="push"><span class="mi">help_outline</span><span class="t">Help center<small>Call dispatch, email app support</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-help" data-mode="push"><span class="mi">help_outline</span><span class="t">Help center<small>Call dispatch, safety, tutorials</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-go="more-legal" data-mode="push"><span class="mi">gavel</span><span class="t">Legal<small>Terms of Service, Privacy Policy</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-go="more-settings" data-mode="push"><span class="mi">settings</span><span class="t">Settings</span><span class="mi ch">chevron_right</span></div>
             </div>
@@ -648,7 +652,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
             </div>
 
             <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <div class="rowi" data-go="more-devices" data-mode="push"><span class="mi">devices</span><span class="t">My device<small>This phone &middot; signed in for 30 days</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-devices" data-mode="push"><span class="mi">devices</span><span class="t">My devices<small>This phone &middot; signed in for 30 days</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-go="more-notifications" data-mode="push"><span class="mi">notifications_none</span><span class="t">Notifications</span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-act="toggleLocation"><span class="mi">my_location</span><span class="t">Location services<small id="locNote">On &middot; needed to start a job</small></span><span id="locSw" style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none"><span style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span></span></div>
             </div>
@@ -735,6 +739,14 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
                 </div>
               </div>
             </div>
+            <!-- Marek, 10.11: certifications and the trades he is assigned, entered by the office in User management -->
+            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:4px 0 9px">Certifications &amp; trades</div>
+            <div class="card" style="overflow:hidden;margin-bottom:6px">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1 Geist;color:#546478">NATE certified</span><span style="font:500 14px/1 Geist">until Mar 2028</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1 Geist;color:#546478">EPA 608 &middot; Universal</span><span style="font:500 14px/1 Geist">no expiry</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px"><span style="font:500 14px/1 Geist;color:#546478">Trades</span><span style="font:500 14px/1 Geist">HVAC, Plumbing</span></div>
+            </div>
+            <div style="font:400 12px/1.5 Geist;color:#8A97A8;margin:0 2px 16px">Your office keeps these in the web app, under User management.</div>
             <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:4px 0 9px">Contact</div>
             <div class="card" style="overflow:hidden;margin-bottom:16px">
               <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1 Geist;color:#546478">Phone</span><span style="font:500 14.5px/1 Geist;color:#4A6FA5">(813) 555-4471</span></div>
@@ -944,16 +956,44 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         <div class="screen" id="more-help" data-tabs="on">
           <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Help center</span></div>
           <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
-            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">Get a person</div>
-            <div class="card" style="overflow:hidden;margin-bottom:16px">
-              <div class="rowi" data-toast="Calling dispatch — (813) 555-0100"><span class="mi">call</span><span class="t">Call dispatch<small>(813) 555-0100</small></span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-toast="Opens an email to support@vision360.app with the app&rsquo;s recent logs attached"><span class="mi">mail</span><span class="t">Email app support<small>support@vision360.app &middot; recent app logs attached</small></span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-toast="Calling the support line — (813) 555-0142"><span class="mi">support_agent</span><span class="t">App support line<small>(813) 555-0142 &middot; 7am&ndash;7pm</small></span><span class="mi ch">chevron_right</span></div>
+            <!-- Marek, 10.11: in this order -->
+            <div class="card" style="overflow:hidden;margin-bottom:14px">
+              <div class="rowi" data-act="callDispatch"><span class="mi">call</span><span class="t">Call dispatch<small>(813) 555-0100</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-safety" data-mode="push"><span class="mi">health_and_safety</span><span class="t">Safety procedures<small>Uploaded by your company</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-act="helpReport" data-kind="problem"><span class="mi">bug_report</span><span class="t">Report a problem<small>Recent app activity is attached</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-act="helpReport" data-kind="feature"><span class="mi">lightbulb</span><span class="t">Feature request<small>Tell us what would make your day easier</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Opens an email to support@vision360.app"><span class="mi">mail</span><span class="t">App support<small>support@vision360.app</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-tutorials" data-mode="push"><span class="mi">smart_display</span><span class="t">Tutorials<small>Short videos on the app</small></span><span class="mi ch">chevron_right</span></div>
             </div>
+            <div data-tap data-go="more-devices" data-mode="push" style="text-align:center;font:400 12px/1.6 Geist;color:#8A97A8;padding:6px 8px">Vision 360 v2.4.1 &middot; build 2411<br>Signed in on: This phone &middot; Samsung Galaxy S23</div>
+          </div>
+        </div>
 
-            <div class="card" style="padding:14px 15px">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font:500 13.5px/1 Geist;color:#546478">App version</span><span style="font:500 13.5px/1 Geist">2.4.1 &middot; build 2411</span></div>
-              <div style="display:flex;align-items:center;justify-content:space-between"><span style="font:500 13.5px/1 Geist;color:#546478">Signed in as</span><span style="font:500 13.5px/1 Geist">m.stroz@andservices.com</span></div>
+        <!-- ============ SAFETY PROCEDURES (Marek, 10.11: in Help center) ============ -->
+        <div class="screen" id="more-safety" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Safety procedures</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div style="font:400 12.5px/1.5 Geist;color:#8A97A8;margin-bottom:12px">Uploaded by your company in the web app. Open once and they work offline.</div>
+            <div class="card" style="overflow:hidden;margin-bottom:14px">
+              <div class="rowi" data-toast="Opening Electrical safety · PDF"><span class="mi">bolt</span><span class="t">Electrical safety<small>Lockout / tagout, testing for voltage &middot; PDF &middot; 4 pages</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Opening Attic and crawl space · PDF"><span class="mi">roofing</span><span class="t">Attic and crawl space<small>Heat, footing, ventilation &middot; PDF &middot; 3 pages</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Opening Refrigerant handling · PDF"><span class="mi">ac_unit</span><span class="t">Refrigerant handling<small>EPA 608 rules, recovery &middot; PDF &middot; 5 pages</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Opening Ladders and roofs · PDF"><span class="mi">stairs</span><span class="t">Ladders and roofs<small>Three points of contact, fall protection &middot; PDF &middot; 2 pages</small></span><span class="mi ch">chevron_right</span></div>
+            </div>
+            <div style="font:400 12px/1.5 Geist;color:#8A97A8">Last change by the office &middot; Nov 3, 2026</div>
+          </div>
+        </div>
+
+        <!-- ============ TUTORIALS ============ -->
+        <div class="screen" id="more-tutorials" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Tutorials</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div style="font:400 12.5px/1.5 Geist;color:#8A97A8;margin-bottom:12px">Short videos on using the app. They stream, so they need signal.</div>
+            <div class="card" style="overflow:hidden;margin-bottom:14px">
+              <div class="rowi" data-toast="Playing · Your first day with Vision 360 · 4:12"><span class="mi">play_circle</span><span class="t">Your first day with Vision 360<small>4:12 &middot; En route, Start, Pause, Complete</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Playing · Building and presenting an estimate · 6:40"><span class="mi">play_circle</span><span class="t">Building and presenting an estimate<small>6:40 &middot; options, price, the customer signs</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Playing · Taking a payment · 3:05"><span class="mi">play_circle</span><span class="t">Taking a payment<small>3:05 &middot; card, cash, check, the signature</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Playing · The AC Report Card · 5:18"><span class="mi">play_circle</span><span class="t">The AC Report Card<small>5:18 &middot; ratings, photos, the waiver</small></span><span class="mi ch">chevron_right</span></div>
             </div>
           </div>
         </div>
@@ -3659,7 +3699,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     home: 'home', 'home-active': 'home',
     'more-profile': 'more', 'more-settings': 'more', 'more-terms': 'more', 'more-privacy': 'more', 'more-delete': 'more', 'more-equipment': 'more', 'more-assets': 'more',
     'more-notifications': 'more', 'more-offline': 'more', 'more-help': 'more',
-    'more-language': 'more', 'more-lock': 'more', 'more-devices': 'more', 'more-perm': 'more', 'more-legal': 'more', 'more-storage': 'more', 'more-appearance': 'more', 'more-security': 'more', 'more-permissions': 'more',
+    'more-language': 'more', 'more-lock': 'more', 'more-devices': 'more', 'more-perm': 'more', 'more-legal': 'more', 'more-safety': 'more', 'more-tutorials': 'more', 'more-storage': 'more', 'more-appearance': 'more', 'more-security': 'more', 'more-permissions': 'more',
     history: 'history', 'hist-filters': 'history', 'hist-search': 'history',
     'period-quarter': 'home', 'period-week': 'home',
     chat: 'chat', 'chat-thread': 'chat', timesheet: 'timesheet', more: 'more'
@@ -13686,17 +13726,28 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
      ========================================================= */
   var demoManager = recall('demoManager', false);
   var PERMS = [
-    { key: 'schedule', icon: 'calendar_month', name: 'My schedule', sub: 'Your jobs, on Home', all: true },
+    { key: 'schedule', icon: 'calendar_month', name: 'My schedule', sub: 'Your jobs, on Home', all: true, tag: 'Pro' },
+    { key: 'tasks', icon: 'checklist', name: 'Tasks', sub: 'To-dos from the office', all: true, tag: 'Pro' },
+    { key: 'timeoff', icon: 'event_busy', name: 'Time off request', sub: 'Ask for days off', all: true, tag: 'Pro' },
+    { key: 'pricebook', icon: 'menu_book', name: 'Price book items', sub: 'Customer prices, no cost', all: true },
     { key: 'estimates', icon: 'request_quote', name: 'Estimates', sub: 'Every estimate you made' },
     { key: 'invoices', icon: 'receipt_long', name: 'Invoices', sub: 'Unpaid, partially paid, paid' },
     { key: 'inventory', icon: 'inventory_2', name: 'Inventory', sub: 'What is on your truck', tag: 'Pro' },
     { key: 'earnings', icon: 'payments', name: 'My earnings', sub: 'Hours and pay', tag: 'Pro' },
-    { key: 'pricebook', icon: 'menu_book', name: 'Price book items', sub: 'Customer prices, no cost' },
-    { key: 'team', icon: 'groups', name: 'Team performance', sub: 'Revenue and closing, by technician' },
-    { key: 'reports', icon: 'bar_chart', name: 'Reports', sub: 'For managers', tag: 'Later' },
-    { key: 'approvals', icon: 'task_alt', name: 'Approvals', sub: 'For managers', tag: 'Later' }
+    { key: 'team', icon: 'groups', name: 'Team performance', sub: 'Revenue and closing, by technician', mgr: true },
+    { key: 'reports', icon: 'bar_chart', name: 'Reports', sub: 'Revenue, closing, exports', mgr: true },
+    { key: 'approvals', icon: 'task_alt', name: 'Approvals', sub: 'Discounts and reopen requests', mgr: true }
   ];
+
   var PERM_PAGES = {
+    tasks: { intro: 'To-dos the office sends you that are not jobs. Comes with the Pro version.', rows: [
+      ['checklist', 'Pick up the new thermostats', 'From Jean \u00b7 due today'],
+      ['checklist', 'Renew the van registration', 'From the office \u00b7 due Nov 20'],
+      ['checklist', 'Upload your EPA 608 card', 'From Jean \u00b7 no due date']] },
+    timeoff: { intro: 'Ask your manager for days off; the answer comes back here. Comes with the Pro version.', rows: [
+      ['event_available', 'Nov 26 \u2013 27 \u00b7 Thanksgiving', 'Approved by Marek Stroz'],
+      ['hourglass_top', 'Dec 22 \u2013 Jan 2', 'Waiting for your manager'],
+      ['add_circle_outline', 'New request', 'Pick the days and a reason']] },
     estimates: { intro: 'The estimates you made or presented. Opens the job they belong to in the web app’s order.', rows: [
       ['request_quote', '10512-E03 · Randy Johnson', 'Sent · presented on this phone · $929.00 – $1,109.00'],
       ['request_quote', '10518-E01 · Brent Kenzie', 'Approved · Option B · $5,665.00'],
@@ -13716,11 +13767,11 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       ['person', 'Marek Stroz', '$65.2k revenue · 43% closing'],
       ['person', 'Peter Johnson', '$58.1k revenue · 39% closing'],
       ['person', 'Luis Ortega', '$49.7k revenue · 35% closing']] },
-    reports: { intro: 'Reports live in the web app. For managers, after the first release.', rows: [
+    reports: { intro: 'Reports for managers. The full set lives in the web app.', rows: [
       ['bar_chart', 'Revenue by technician', 'This month'],
       ['bar_chart', 'Closing percentage by job type', 'This quarter'],
       ['file_download', 'Timesheet export for ADP', 'Weekly']] },
-    approvals: { intro: 'What waits for a manager’s yes. For managers, after the first release.', rows: [
+    approvals: { intro: 'What waits for a manager\u2019s yes.', rows: [
       ['percent', 'Discount over 10% · 10518 · Brent Kenzie', 'Asked by Luis Ortega · 9:12 AM'],
       ['lock_open', 'Reopen request · 10498 · Joseph Lane', 'Asked by Peter Johnson · yesterday']] }
   };
@@ -13745,7 +13796,24 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   ACT.demoManager = function () {
     demoManager = !demoManager; remember('demoManager', demoManager);
     paintPermBlock();
-    toast(demoManager ? 'More shows everything a manager can be given' : 'More shows what a technician sees: My schedule', 'admin_panel_settings');
+    toast(demoManager ? 'More shows what a manager sees: estimates, invoices, the team, reports, approvals' : 'More shows what a technician sees', 'admin_panel_settings');
+  };
+  ACT.helpReport = function (el) {
+    var feature = el.dataset.kind === 'feature';
+    var sh = sheetEl('ov-helpreport'), b = $('[data-sheetbody]', sh);
+    b.innerHTML = '<div style="display:flex;justify-content:center;padding:0 0 10px"><div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div></div>' +
+      '<div style="font:600 18px/1.25 Geist">' + (feature ? 'Feature request' : 'Report a problem') + '</div>' +
+      '<div style="font:400 13.5px/1.45 Geist;color:#546478;margin:5px 0 12px">' + (feature ? 'What would make your day easier? It goes to the Vision 360 team.' : 'What went wrong? Recent app activity is attached so support can see it.') + '</div>' +
+      '<textarea data-hrtext class="inp" rows="3" placeholder="' + (feature ? 'e.g. Show the gate code on Home' : 'e.g. The photo did not upload on 10512') + '" style="width:100%;height:auto;padding:11px 12px;font:400 15px/1.5 Geist;resize:none"></textarea>' +
+      '<div data-tap="1" data-hrgo style="height:52px;display:flex;align-items:center;justify-content:center;margin-top:12px;border-radius:11px;background:#4A6FA5;color:#fff;font:600 16px/1 Geist">Send</div>' +
+      '<div data-back data-tap="1" style="height:44px;display:flex;align-items:center;justify-content:center;font:500 14.5px/1 Geist;color:#546478;margin-top:4px">Cancel</div>';
+    b.onclick = function (ev) {
+      if (!ev.target.closest('[data-hrgo]')) return;
+      if (!norm($('[data-hrtext]', b).value)) { toast('Write a line first', 'edit'); return; }
+      closeOverlays(true);
+      toast(feature ? 'Feature request sent — thank you' : 'Problem report sent with recent app activity', feature ? 'lightbulb' : 'bug_report');
+    };
+    go('ov-helpreport', 'overlay');
   };
   ACT.openPerm = function (el) {
     var x = PERMS.filter(function (q) { return q.key === el.dataset.perm; })[0], pg = PERM_PAGES[el.dataset.perm];
@@ -13758,7 +13826,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       }).join('') + '</div>' +
       '<div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px">' +
       '<span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">admin_panel_settings</span><div style="font:400 12.5px/1.45 Geist;color:#546478">' +
-      'You see this because the office turned on “' + x.name + '” for you in the web app' + (x.tag === 'Pro' ? ' · Pro' : x.tag === 'Later' ? ' · after the first release' : '') + '.</div></div>';
+      (x.all ? 'Every technician sees this' : x.mgr ? 'Managers see this' : 'You see this because the office turned on \u201c' + x.name + '\u201d for you in the web app') + (x.tag === 'Pro' ? ' \u00b7 Pro version' : '') + '.</div></div>';
     go('more-perm', 'push');
   };
   /* My schedule is not a screen of its own (Solomiia, 10.11): the day's

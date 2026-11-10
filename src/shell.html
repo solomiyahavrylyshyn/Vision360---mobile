@@ -332,7 +332,11 @@
               </div>
               <div style="flex:1;min-width:0">
                 <div style="font:600 17px/1.2 Geist">Marek Stroz</div>
-                <div style="font:400 13px/1.4 Geist;color:#546478;margin-top:3px">Senior Technician</div>
+                <div style="font:400 13px/1.4 Geist;color:#546478;margin-top:3px">Senior Technician &middot; HVAC, Plumbing</div>
+                <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">
+                  <span style="font:600 10.5px/1 Geist;color:#4A6FA5;background:#EBF0F8;border:1px solid #C8D5E8;border-radius:5px;padding:3px 6px">NATE certified</span>
+                  <span style="font:600 10.5px/1 Geist;color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6;border-radius:5px;padding:3px 6px">EPA 608</span>
+                </div>
               </div>
               <span class="mi ch">chevron_right</span>
             </div>
@@ -349,7 +353,7 @@
             <div id="permNote" style="font:400 12px/1.45 Geist;color:#8A97A8;margin:0 2px 14px">Your office chooses what you see here, in the web app.</div>
 
             <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <div class="rowi" data-go="more-help" data-mode="push"><span class="mi">help_outline</span><span class="t">Help center<small>Call dispatch, email app support</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-help" data-mode="push"><span class="mi">help_outline</span><span class="t">Help center<small>Call dispatch, safety, tutorials</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-go="more-legal" data-mode="push"><span class="mi">gavel</span><span class="t">Legal<small>Terms of Service, Privacy Policy</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-go="more-settings" data-mode="push"><span class="mi">settings</span><span class="t">Settings</span><span class="mi ch">chevron_right</span></div>
             </div>
@@ -383,7 +387,7 @@
             </div>
 
             <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <div class="rowi" data-go="more-devices" data-mode="push"><span class="mi">devices</span><span class="t">My device<small>This phone &middot; signed in for 30 days</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-devices" data-mode="push"><span class="mi">devices</span><span class="t">My devices<small>This phone &middot; signed in for 30 days</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-go="more-notifications" data-mode="push"><span class="mi">notifications_none</span><span class="t">Notifications</span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-act="toggleLocation"><span class="mi">my_location</span><span class="t">Location services<small id="locNote">On &middot; needed to start a job</small></span><span id="locSw" style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none"><span style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span></span></div>
             </div>
@@ -470,6 +474,14 @@
                 </div>
               </div>
             </div>
+            <!-- Marek, 10.11: certifications and the trades he is assigned, entered by the office in User management -->
+            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:4px 0 9px">Certifications &amp; trades</div>
+            <div class="card" style="overflow:hidden;margin-bottom:6px">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1 Geist;color:#546478">NATE certified</span><span style="font:500 14px/1 Geist">until Mar 2028</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1 Geist;color:#546478">EPA 608 &middot; Universal</span><span style="font:500 14px/1 Geist">no expiry</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px"><span style="font:500 14px/1 Geist;color:#546478">Trades</span><span style="font:500 14px/1 Geist">HVAC, Plumbing</span></div>
+            </div>
+            <div style="font:400 12px/1.5 Geist;color:#8A97A8;margin:0 2px 16px">Your office keeps these in the web app, under User management.</div>
             <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:4px 0 9px">Contact</div>
             <div class="card" style="overflow:hidden;margin-bottom:16px">
               <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1 Geist;color:#546478">Phone</span><span style="font:500 14.5px/1 Geist;color:#4A6FA5">(813) 555-4471</span></div>
@@ -679,16 +691,44 @@
         <div class="screen" id="more-help" data-tabs="on">
           <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Help center</span></div>
           <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
-            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">Get a person</div>
-            <div class="card" style="overflow:hidden;margin-bottom:16px">
-              <div class="rowi" data-toast="Calling dispatch — (813) 555-0100"><span class="mi">call</span><span class="t">Call dispatch<small>(813) 555-0100</small></span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-toast="Opens an email to support@vision360.app with the app&rsquo;s recent logs attached"><span class="mi">mail</span><span class="t">Email app support<small>support@vision360.app &middot; recent app logs attached</small></span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-toast="Calling the support line — (813) 555-0142"><span class="mi">support_agent</span><span class="t">App support line<small>(813) 555-0142 &middot; 7am&ndash;7pm</small></span><span class="mi ch">chevron_right</span></div>
+            <!-- Marek, 10.11: in this order -->
+            <div class="card" style="overflow:hidden;margin-bottom:14px">
+              <div class="rowi" data-act="callDispatch"><span class="mi">call</span><span class="t">Call dispatch<small>(813) 555-0100</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-safety" data-mode="push"><span class="mi">health_and_safety</span><span class="t">Safety procedures<small>Uploaded by your company</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-act="helpReport" data-kind="problem"><span class="mi">bug_report</span><span class="t">Report a problem<small>Recent app activity is attached</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-act="helpReport" data-kind="feature"><span class="mi">lightbulb</span><span class="t">Feature request<small>Tell us what would make your day easier</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Opens an email to support@vision360.app"><span class="mi">mail</span><span class="t">App support<small>support@vision360.app</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-tutorials" data-mode="push"><span class="mi">smart_display</span><span class="t">Tutorials<small>Short videos on the app</small></span><span class="mi ch">chevron_right</span></div>
             </div>
+            <div data-tap data-go="more-devices" data-mode="push" style="text-align:center;font:400 12px/1.6 Geist;color:#8A97A8;padding:6px 8px">Vision 360 v2.4.1 &middot; build 2411<br>Signed in on: This phone &middot; Samsung Galaxy S23</div>
+          </div>
+        </div>
 
-            <div class="card" style="padding:14px 15px">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font:500 13.5px/1 Geist;color:#546478">App version</span><span style="font:500 13.5px/1 Geist">2.4.1 &middot; build 2411</span></div>
-              <div style="display:flex;align-items:center;justify-content:space-between"><span style="font:500 13.5px/1 Geist;color:#546478">Signed in as</span><span style="font:500 13.5px/1 Geist">m.stroz@andservices.com</span></div>
+        <!-- ============ SAFETY PROCEDURES (Marek, 10.11: in Help center) ============ -->
+        <div class="screen" id="more-safety" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Safety procedures</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div style="font:400 12.5px/1.5 Geist;color:#8A97A8;margin-bottom:12px">Uploaded by your company in the web app. Open once and they work offline.</div>
+            <div class="card" style="overflow:hidden;margin-bottom:14px">
+              <div class="rowi" data-toast="Opening Electrical safety · PDF"><span class="mi">bolt</span><span class="t">Electrical safety<small>Lockout / tagout, testing for voltage &middot; PDF &middot; 4 pages</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Opening Attic and crawl space · PDF"><span class="mi">roofing</span><span class="t">Attic and crawl space<small>Heat, footing, ventilation &middot; PDF &middot; 3 pages</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Opening Refrigerant handling · PDF"><span class="mi">ac_unit</span><span class="t">Refrigerant handling<small>EPA 608 rules, recovery &middot; PDF &middot; 5 pages</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Opening Ladders and roofs · PDF"><span class="mi">stairs</span><span class="t">Ladders and roofs<small>Three points of contact, fall protection &middot; PDF &middot; 2 pages</small></span><span class="mi ch">chevron_right</span></div>
+            </div>
+            <div style="font:400 12px/1.5 Geist;color:#8A97A8">Last change by the office &middot; Nov 3, 2026</div>
+          </div>
+        </div>
+
+        <!-- ============ TUTORIALS ============ -->
+        <div class="screen" id="more-tutorials" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Tutorials</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div style="font:400 12.5px/1.5 Geist;color:#8A97A8;margin-bottom:12px">Short videos on using the app. They stream, so they need signal.</div>
+            <div class="card" style="overflow:hidden;margin-bottom:14px">
+              <div class="rowi" data-toast="Playing · Your first day with Vision 360 · 4:12"><span class="mi">play_circle</span><span class="t">Your first day with Vision 360<small>4:12 &middot; En route, Start, Pause, Complete</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Playing · Building and presenting an estimate · 6:40"><span class="mi">play_circle</span><span class="t">Building and presenting an estimate<small>6:40 &middot; options, price, the customer signs</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Playing · Taking a payment · 3:05"><span class="mi">play_circle</span><span class="t">Taking a payment<small>3:05 &middot; card, cash, check, the signature</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Playing · The AC Report Card · 5:18"><span class="mi">play_circle</span><span class="t">The AC Report Card<small>5:18 &middot; ratings, photos, the waiver</small></span><span class="mi ch">chevron_right</span></div>
             </div>
           </div>
         </div>
