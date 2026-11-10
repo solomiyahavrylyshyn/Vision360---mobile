@@ -11304,11 +11304,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       // M3-1: the words of the story, with the last sync time
       '<div style="font:600 16.5px/1.3 Geist">No jobs dispatched to you right now</div>' +
       '<div data-emptysync style="font:400 13.5px/1.5 Geist;color:#546478">' +
-      'Last sync Today 9:42 AM · anything dispatch adds shows up here.</div>' +
-      '<div data-tap="1" data-go="timesheet" data-mode="tab" style="margin-top:5px;height:46px;' +
-      'display:flex;align-items:center;justify-content:center;gap:7px;padding:0 20px;background:#fff;' +
-      'border:1px solid #C8D5E8;color:#4A6FA5;border-radius:10px;font:600 14.5px/1 Geist">' +
-      '<span class="mi" style="font-size:19px">schedule</span>See today&rsquo;s hours</div>';
+      'Last sync Today 9:42 AM · anything dispatch adds shows up here.</div>';
+    // Nov 10: no "See today's hours" — the timesheet is Pro (Marek 02.11)
     card.parentElement.insertBefore(empty, card.nextSibling);
 
     function arrow(el, by) {
