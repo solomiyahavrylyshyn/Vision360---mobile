@@ -11614,9 +11614,11 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       var heldHere = !state.onsite && !(state.enroute && mine) && pj.paused && pj.pausedFrom !== 'drive' && !pj.done;
       if (state.onsite && mine) {
         enroute.dataset.act = 'pauseJob';
-        // the word stands in for the glyph — "Pause · 1:12:05" has to fit a third of the row
-        enroute.setAttribute('style', (state.paused ? PAUSED : ONSITE) + ';min-width:0;white-space:nowrap;font-size:15px;gap:0');
-        enroute.innerHTML = 'Pause ·&nbsp;<span data-jobtime>0:00</span>';
+        // the word and the clock on two lines, as Paused / Tap to resume: "Pause · 1:12:05"
+        // on one line did not fit a third of the row (Nov 10)
+        enroute.setAttribute('style', (state.paused ? PAUSED : ONSITE) + ';min-width:0;white-space:nowrap;flex-direction:column;gap:3px');
+        enroute.innerHTML = '<span style="display:flex;align-items:center;gap:5px"><span class="mif" style="font-size:17px">pause</span>Pause</span>' +
+          '<span data-jobtime style="font:500 11.5px/1 Geist;opacity:.85;font-variant-numeric:tabular-nums">0:00</span>';
       } else if (heldHere) {
         enroute.dataset.act = 'start';
         enroute.setAttribute('style', PAUSED + ';flex-direction:column;gap:3px');
