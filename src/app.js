@@ -354,7 +354,7 @@
     home: 'home', 'home-active': 'home',
     'more-profile': 'more', 'more-settings': 'more', 'more-terms': 'more', 'more-privacy': 'more', 'more-delete': 'more', 'more-equipment': 'more', 'more-assets': 'more',
     'more-notifications': 'more', 'more-offline': 'more', 'more-help': 'more',
-    'more-language': 'more', 'more-lock': 'more', 'more-devices': 'more', 'more-sops': 'more', 'more-training': 'more',
+    'more-language': 'more', 'more-lock': 'more', 'more-devices': 'more', 'more-perm': 'more', 'more-legal': 'more', 'more-storage': 'more', 'more-appearance': 'more', 'more-security': 'more', 'more-permissions': 'more',
     history: 'history', 'hist-filters': 'history', 'hist-search': 'history',
     'period-quarter': 'home', 'period-week': 'home',
     chat: 'chat', 'chat-thread': 'chat', timesheet: 'timesheet', more: 'more'
@@ -10373,6 +10373,165 @@
     }
   })();
 
+  /* =========================================================
+     Marek, 10.11: More, top to bottom — the technician's profile, Sync
+     now, the items the office turned on for him in the web app, Help
+     center, Legal, Settings, Log out. A technician sees My schedule; the
+     rest follow his permissions. "Demo: show as manager" shows them all.
+     ========================================================= */
+  var demoManager = recall('demoManager', false);
+  var PERMS = [
+    { key: 'schedule', icon: 'calendar_month', name: 'My schedule', sub: 'Your jobs, on Home', all: true },
+    { key: 'estimates', icon: 'request_quote', name: 'Estimates', sub: 'Every estimate you made' },
+    { key: 'invoices', icon: 'receipt_long', name: 'Invoices', sub: 'Unpaid, partially paid, paid' },
+    { key: 'inventory', icon: 'inventory_2', name: 'Inventory', sub: 'What is on your truck', tag: 'Pro' },
+    { key: 'earnings', icon: 'payments', name: 'My earnings', sub: 'Hours and pay', tag: 'Pro' },
+    { key: 'pricebook', icon: 'menu_book', name: 'Price book items', sub: 'Customer prices, no cost' },
+    { key: 'team', icon: 'groups', name: 'Team performance', sub: 'Revenue and closing, by technician' },
+    { key: 'reports', icon: 'bar_chart', name: 'Reports', sub: 'For managers', tag: 'Later' },
+    { key: 'approvals', icon: 'task_alt', name: 'Approvals', sub: 'For managers', tag: 'Later' }
+  ];
+  var PERM_PAGES = {
+    estimates: { intro: 'The estimates you made or presented. Opens the job they belong to in the web app’s order.', rows: [
+      ['request_quote', '10512-E03 · Randy Johnson', 'Sent · presented on this phone · $929.00 – $1,109.00'],
+      ['request_quote', '10518-E01 · Brent Kenzie', 'Approved · Option B · $5,665.00'],
+      ['request_quote', '10522-E02 · Maria Gomez', 'Draft · 2 options']] },
+    invoices: { intro: 'Invoices on your jobs. Payments are taken on the job itself.', rows: [
+      ['receipt_long', '10512-I01 · Randy Johnson', 'Paid · $169.00 · card'],
+      ['receipt_long', '10518-I01 · Brent Kenzie', 'Partially paid · $2,000.00 of $5,665.00'],
+      ['receipt_long', '10520-I01 · Joseph Lane', 'Unpaid · $240.00']] },
+    inventory: { intro: 'Truck stock comes with the Pro version (Marek, Oct 21). Shown here so the place is known.', rows: [
+      ['inventory_2', 'Run capacitor 45/5 µF', '6 on the truck'],
+      ['inventory_2', 'Refrigerant R-410A, 25 lb', '2 on the truck'],
+      ['inventory_2', 'Filter 16×25×1', '12 on the truck']] },
+    earnings: { intro: 'Hours and pay are not in the first release (call 05.11). The office runs payroll from the web.', rows: [
+      ['schedule', 'This week', '32.5 h regular · 6.2 h drive · 4.0 h overtime'],
+      ['payments', 'Gross pay (estimate)', '$894.00 · before taxes and deductions']] },
+    team: { intro: 'How the team is doing this month. Turned on for leads and managers.', rows: [
+      ['person', 'Marek Stroz', '$65.2k revenue · 43% closing'],
+      ['person', 'Peter Johnson', '$58.1k revenue · 39% closing'],
+      ['person', 'Luis Ortega', '$49.7k revenue · 35% closing']] },
+    reports: { intro: 'Reports live in the web app. For managers, after the first release.', rows: [
+      ['bar_chart', 'Revenue by technician', 'This month'],
+      ['bar_chart', 'Closing percentage by job type', 'This quarter'],
+      ['file_download', 'Timesheet export for ADP', 'Weekly']] },
+    approvals: { intro: 'What waits for a manager’s yes. For managers, after the first release.', rows: [
+      ['percent', 'Discount over 10% · 10518 · Brent Kenzie', 'Asked by Luis Ortega · 9:12 AM'],
+      ['lock_open', 'Reopen request · 10498 · Joseph Lane', 'Asked by Peter Johnson · yesterday']] }
+  };
+  function tagHtml(tag) {
+    if (!tag) return '';
+    var pro = tag === 'Pro';
+    return '<span style="font:600 11px/1 Geist;border-radius:5px;padding:4px 7px;margin-left:6px;' +
+      (pro ? 'color:#6D28D9;background:#F0EAFB;border:1px solid #DCCDF5' : 'color:#546478;background:#F1F4F9;border:1px solid #DDE3EE') + '">' + tag + '</span>';
+  }
+  function paintPermBlock() {
+    var box = byId('permBlock'); if (!box) return;
+    box.innerHTML = PERMS.filter(function (x) { return x.all || demoManager; }).map(function (x) {
+      var go = x.key === 'schedule' ? ' data-act="openSchedule"'
+        : x.key === 'pricebook' ? ' data-go="est-catalog" data-mode="push" data-pbbrowse="1"'
+          : ' data-act="openPerm" data-perm="' + x.key + '"';
+      return '<div class="rowi"' + go + '><span class="mi">' + x.icon + '</span><span class="t">' + x.name +
+        '<small>' + x.sub + '</small></span>' + tagHtml(x.tag) + '<span class="mi ch">chevron_right</span></div>';
+    }).join('');
+    var n = byId('managerNote');
+    if (n) n.textContent = demoManager ? 'Demo: back to a technician' : 'Demo: show as manager';
+  }
+  ACT.demoManager = function () {
+    demoManager = !demoManager; remember('demoManager', demoManager);
+    paintPermBlock();
+    toast(demoManager ? 'More shows everything a manager can be given' : 'More shows what a technician sees: My schedule', 'admin_panel_settings');
+  };
+  ACT.openPerm = function (el) {
+    var x = PERMS.filter(function (q) { return q.key === el.dataset.perm; })[0], pg = PERM_PAGES[el.dataset.perm];
+    var root = byId('more-perm'); if (!x || !pg || !root) return;
+    $('[data-ttl]', root).textContent = x.name;
+    byId('permBody').innerHTML =
+      '<div style="font:400 12.5px/1.5 Geist;color:#8A97A8;margin-bottom:12px">' + pg.intro + '</div>' +
+      '<div class="card" style="overflow:hidden;margin-bottom:12px">' + pg.rows.map(function (r) {
+        return '<div class="rowi" data-toast="' + r[1].replace(/"/g, '') + '"><span class="mi">' + r[0] + '</span><span class="t">' + r[1] + '<small>' + r[2] + '</small></span><span class="mi ch">chevron_right</span></div>';
+      }).join('') + '</div>' +
+      '<div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px">' +
+      '<span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">admin_panel_settings</span><div style="font:400 12.5px/1.45 Geist;color:#546478">' +
+      'You see this because the office turned on “' + x.name + '” for you in the web app' + (x.tag === 'Pro' ? ' · Pro' : x.tag === 'Later' ? ' · after the first release' : '') + '.</div></div>';
+    go('more-perm', 'push');
+  };
+  /* My schedule is not a screen of its own (Solomiia, 10.11): the day's
+     jobs are on Home, so the row takes him there */
+  ACT.openSchedule = function () { go(homeScreen(), 'tab'); };
+  paintPermBlock();
+
+  /* Settings, Marek 10.11: Photo upload, Wi-Fi only for large downloads,
+     Storage, Appearance */
+  var photoSize = recall('photoSize', 'Standard');
+  ACT.photoSize = function () {
+    var el = sheetEl('ov-photosize'), b = $('[data-sheetbody]', el);
+    var OPTS = [['Standard', 'Standard size', 'Full detail · about 3 MB a photo'], ['Reduced', 'Reduced size', 'Faster on weak signal · about 0.8 MB a photo']];
+    b.innerHTML = '<div style="display:flex;justify-content:center;padding:0 0 10px"><div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div></div>' +
+      '<div style="font:600 18px/1.25 Geist;margin-bottom:6px">Photo upload</div>' +
+      OPTS.map(function (o) {
+        var on = o[0] === photoSize;
+        return '<div data-tap="1" data-psize="' + o[0] + '" style="display:flex;align-items:center;gap:12px;padding:14px 2px;border-top:1px solid #EDF0F5">' +
+          '<span class="' + (on ? 'mif' : 'mi') + '" style="font-size:22px;color:' + (on ? '#4A6FA5' : '#A9B4C2') + '">' + (on ? 'radio_button_checked' : 'radio_button_unchecked') + '</span>' +
+          '<div><div style="font:500 16px/1.2 Geist">' + o[1] + '</div><div style="font:400 12.5px/1.35 Geist;color:#8A97A8;margin-top:3px">' + o[2] + '</div></div></div>';
+      }).join('');
+    b.onclick = function (ev) {
+      var r = ev.target.closest('[data-psize]'); if (!r) return;
+      photoSize = r.dataset.psize; remember('photoSize', photoSize);
+      paintSettingsNotes(); closeOverlays(true);
+      toast('Photos upload at ' + (photoSize === 'Reduced' ? 'reduced' : 'standard') + ' size', 'photo_size_select_large');
+    };
+    go('ov-photosize', 'overlay');
+  };
+  var wifiOnly = recall('wifiOnly', false);
+  ACT.toggleWifiOnly = function () {
+    wifiOnly = !wifiOnly; remember('wifiOnly', wifiOnly);
+    paintSettingsNotes();
+    toast(wifiOnly ? 'Large downloads wait for Wi-Fi — photos to the office still go on any connection' : 'Downloads use any connection', 'wifi');
+  };
+  var storageCleared = recall('storageCleared', false);
+  ACT.clearStorage = function () {
+    var waiting = typeof waitingTotal === 'function' ? waitingTotal() : 0;
+    confirmSheet({
+      title: 'Clear storage?',
+      text: 'Removes the jobs and photos the office already has. ' + (waiting ? waiting + (waiting === 1 ? ' item' : ' items') + ' not sent yet stay on this phone.' : 'Nothing is waiting to be sent.'),
+      ok: 'Clear storage', danger: true, alt: null,
+      onOk: function () { storageCleared = true; remember('storageCleared', true); paintSettingsNotes(); toast('Storage cleared · 231 MB freed', 'delete_sweep'); }
+    });
+  };
+  var theme = recall('theme', 'Light');
+  function paintSettingsNotes() {
+    var pn = byId('photoNote'); if (pn) pn.textContent = photoSize === 'Reduced' ? 'Reduced size · faster on weak signal' : 'Standard size';
+    var wn = byId('wifiNote'), ws = byId('wifiSw');
+    if (wn) wn.textContent = wifiOnly ? 'On · photos still go on any connection' : 'Off · downloads use any connection';
+    if (ws) { ws.style.background = wifiOnly ? '#4A6FA5' : '#DDE3EE'; ws.firstElementChild.style.left = wifiOnly ? '24px' : '3px'; }
+    var used = storageCleared ? '17 MB' : '248 MB';
+    var waiting = typeof waitingTotal === 'function' ? waitingTotal() : 0;
+    var sn = byId('storageNote'); if (sn) sn.textContent = used + ' used';
+    var su = byId('stUsed'); if (su) su.textContent = used;
+    var sj = byId('stJobs'); if (sj) sj.textContent = storageCleared ? '3' : '18';
+    var sp = byId('stPhotos'); if (sp) sp.textContent = storageCleared ? '6' : '126';
+    var sw = byId('stWaiting'); if (sw) sw.textContent = waiting ? waiting + (waiting === 1 ? ' item' : ' items') : 'Nothing';
+    var tn = byId('themeNote'); if (tn) tn.textContent = theme === 'System' ? 'Same as the phone' : theme;
+    $$('#more-appearance [data-theme]').forEach(function (r) {
+      var on = r.dataset.theme === theme, ic = $('[data-themeic]', r);
+      r.dataset.act = 'pickTheme';
+      ic.className = on ? 'mif' : 'mi'; ic.style.color = on ? '#4A6FA5' : '#A9B4C2';
+      ic.textContent = on ? 'radio_button_checked' : 'radio_button_unchecked';
+    });
+  }
+  ACT.pickTheme = function (el) {
+    theme = el.dataset.theme; remember('theme', theme);
+    paintSettingsNotes();
+    toast(theme === 'Dark' ? 'Dark theme picked — not in this demo yet' : theme === 'System' ? 'Follows the phone — light in this demo' : 'Light theme', 'dark_mode');
+  };
+  paintSettingsNotes();
+  (function () {
+    var plain = go;
+    go = function (id, mode) { plain(id, mode); if (id === 'more-storage' || id === 'more-settings') paintSettingsNotes(); };
+    window.__proto && (window.__proto.go = go);
+  })();
+
   /* Marek, Nov 5: Delete account is Google Play's requirement, and the
      account is the company's — the technician asks, the manager or the
      owner removes it. One request; the screen then says it is pending. */
@@ -10445,7 +10604,7 @@
     { id: 'forgot', title: 'Reset password', section: 'auth', desc: 'Request a code' },
     { id: 'otp', title: 'Enter code', section: 'auth', desc: '6-digit SMS code' },
     { id: 'newpass', title: 'New password', section: 'auth', desc: 'With strength meter' },
-    { id: 'chat', title: 'Chat', section: 'app', desc: 'Conversations, 3 unread' },
+    { id: 'chat', title: 'Messages', section: 'app', desc: 'Pro · conversations, 3 unread' },
     { id: 'chat-thread', title: 'Chat thread', section: 'app', desc: 'Dispatch — live compose' },
     { id: 'timesheet', title: 'Timesheet', section: 'app', desc: 'Clocked-in timer, week' },
     { id: 'more', title: 'More', section: 'app', desc: 'Profile, sync, log out' }

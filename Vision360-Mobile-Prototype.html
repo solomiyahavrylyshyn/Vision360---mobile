@@ -414,7 +414,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         <!-- ============ CHAT LIST ============ -->
         <div class="screen" id="chat" data-tabs="on">
           <div class="hdr" style="padding:12px 16px">
-            <span class="ttl" style="font-size:21px">Chat</span>
+            <span class="ttl" style="font-size:21px">Messages</span>
             <span class="mi" data-tap data-toast="New conversation" style="font-size:23px;color:#4A6FA5">add_comment</span>
           </div>
           <div class="sc" style="flex:1;overflow-y:auto;padding:12px 16px 20px">
@@ -589,6 +589,19 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         <div class="screen" id="more" data-tabs="on">
           <div class="hdr" style="padding:12px 16px"><span class="ttl" style="font-size:21px">More</span></div>
           <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <!-- Marek, 10.11: More, top to bottom — profile, Sync now, what the office turned on, Help center, Legal, Settings, Log out -->
+            <div class="card" data-tap data-go="more-profile" data-mode="push" style="display:flex;align-items:center;gap:13px;padding:15px;margin-bottom:12px">
+              <div style="position:relative;flex:none">
+                <div style="width:52px;height:52px;border-radius:26px;background:#1C2B3A;color:#fff;font:600 18px/52px Geist;text-align:center">MS</div>
+                <span class="mi" style="position:absolute;right:-3px;bottom:-3px;font-size:14px;color:#4A6FA5;background:#fff;border:1px solid #DDE3EE;border-radius:11px;padding:3px">photo_camera</span>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font:600 17px/1.2 Geist">Marek Stroz</div>
+                <div style="font:400 13px/1.4 Geist;color:#546478;margin-top:3px">Senior Technician</div>
+              </div>
+              <span class="mi ch">chevron_right</span>
+            </div>
+
             <!-- M2-8: the same state as the strip; the card opens the Sync screen -->
             <div data-tap data-go="sync" data-mode="push" style="display:flex;align-items:center;gap:10px;background:#EBF0F8;border:1px solid #C8D5E8;border-radius:11px;padding:12px 13px;margin-bottom:16px">
               <span class="mi" id="moreSyncIcon" style="font-size:20px;color:#4A6FA5">cloud_done</span>
@@ -596,31 +609,14 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
               <span class="lnk" style="font-size:13px" data-act="sendNow">Sync now</span>
             </div>
 
-            <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <!-- Marek, Oct 21: inventory, truck stock and equipment are not in the MVP -->
-              <div class="rowi" data-go="est-catalog" data-mode="push" data-pbbrowse="1"><span class="mi">menu_book</span><span class="t">Price book</span><span class="mi ch">chevron_right</span></div>
-              <!-- Marek, 05.11: More is where the tools go, like the nine dots in Google — SOPs, training videos. Settings stay in Settings. -->
-              <div class="rowi" data-go="more-sops" data-mode="push"><span class="mi">fact_check</span><span class="t">SOPs &amp; procedures<small>Field walkthrough, safety, warranty</small></span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-go="more-training" data-mode="push"><span class="mi">smart_display</span><span class="t">Training videos<small>From your company</small></span><span class="mi ch">chevron_right</span></div>
-            </div>
-
-            <!-- PRD 776: English and Spanish in the first release, chosen on the
-                 phone; the devices signed in. No PIN of the app's own: the
-                 phone's screen lock protects it (decision 29.10, M1-9). -->
-            <!-- Marek, Nov 5: "all settings only in one place", as in the web app -->
-            <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <div class="rowi" data-go="more-settings" data-mode="push"><span class="mi">settings</span><span class="t">Settings<small>Profile, password, location, language</small></span><span class="mi ch">chevron_right</span></div>
-            </div>
+            <!-- Marek, 10.11: each technician sees only what the office turned on for him in the web app -->
+            <div class="card" id="permBlock" style="overflow:hidden;margin-bottom:6px"></div>
+            <div id="permNote" style="font:400 12px/1.45 Geist;color:#8A97A8;margin:0 2px 14px">Your office chooses what you see here, in the web app.</div>
 
             <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <div class="rowi" data-go="more-help" data-mode="push"><span class="mi">help_outline</span><span class="t">Help &amp; support</span><span class="mi ch">chevron_right</span></div>
-            </div>
-
-            <!-- M1-1: links to the Terms and the Privacy Policy; Delete account (M11-2) -->
-            <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <div class="rowi" data-go="more-terms" data-mode="push"><span class="mi">description</span><span class="t">Terms of Service</span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-go="more-privacy" data-mode="push"><span class="mi">privacy_tip</span><span class="t">Privacy Policy</span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-go="more-delete" data-mode="push"><span class="mi" style="color:#DC2626">person_remove</span><span class="t" style="color:#DC2626">Delete my account</span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-help" data-mode="push"><span class="mi">help_outline</span><span class="t">Help center<small>Call dispatch, email app support</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-legal" data-mode="push"><span class="mi">gavel</span><span class="t">Legal<small>Terms of Service, Privacy Policy</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-settings" data-mode="push"><span class="mi">settings</span><span class="t">Settings</span><span class="mi ch">chevron_right</span></div>
             </div>
 
             <div class="card" style="overflow:hidden">
@@ -631,6 +627,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
             <div class="rowi" data-act="demoNet" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">wifi_off</span><span id="demoNetNote">Demo: go offline</span></div>
             <div class="rowi" data-act="demoPushDispatch" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">notifications_active</span>Demo: push — new job dispatched</div>
             <div class="rowi" data-act="demoEstimate" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">request_quote</span>Demo: draft estimate with 3 options</div>
+            <div class="rowi" data-act="demoManager" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">admin_panel_settings</span><span id="managerNote">Demo: show as manager</span></div>
             <div class="rowi" data-act="demoWarranty" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">verified_user</span><span id="warrantyNote">Demo: show as a warranty technician</span></div>
             <!-- demo only: shows Home as a salaried technician sees it (OD-16) -->
             <div class="rowi" data-act="toggleSalaried" style="display:none;justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">badge</span><span id="salariedNote">Demo: show as a salaried technician</span></div>
@@ -642,55 +639,84 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         <div class="screen" id="more-settings" data-tabs="on">
           <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Settings</span></div>
           <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <!-- Marek, 10.11: every setting in one place, in this order -->
             <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <div class="rowi" data-go="more-profile" data-mode="push"><span class="mi">person</span><span class="t">Profile<small>Marek Stroz &middot; Senior Technician</small></span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-go="newpass" data-mode="push"><span class="mi">lock_reset</span><span class="t">Change password<small>The same rule as the web</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-act="photoSize"><span class="mi">photo_size_select_large</span><span class="t">Photo upload<small id="photoNote">Standard size</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-language" data-mode="push"><span class="mi">language</span><span class="t">Language<small id="langNote">English</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-act="toggleWifiOnly"><span class="mi">wifi</span><span class="t">Wi-Fi only for large downloads<small id="wifiNote">Off &middot; downloads use any connection</small></span><span data-sw id="wifiSw" style="width:52px;height:31px;border-radius:16px;background:#DDE3EE;position:relative;flex:none"><span style="position:absolute;top:3px;left:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span></span></div>
+              <div class="rowi" data-go="more-storage" data-mode="push"><span class="mi">sd_storage</span><span class="t">Storage<small id="storageNote">248 MB used</small></span><span class="mi ch">chevron_right</span></div>
             </div>
 
             <div class="card" style="overflow:hidden;margin-bottom:14px">
+              <div class="rowi" data-go="more-devices" data-mode="push"><span class="mi">devices</span><span class="t">My device<small>This phone &middot; signed in for 30 days</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-notifications" data-mode="push"><span class="mi">notifications_none</span><span class="t">Notifications</span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-act="toggleLocation"><span class="mi">my_location</span><span class="t">Location services<small id="locNote">On &middot; needed to start a job</small></span><span id="locSw" style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none"><span style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span></span></div>
             </div>
 
-            <!-- PRD 776: English and Spanish in the first release, chosen on the
-                 phone; the devices signed in. -->
             <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <div class="rowi" data-go="more-language" data-mode="push"><span class="mi">language</span><span class="t">Language<small id="langNote">English</small></span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-go="more-devices" data-mode="push"><span class="mi">devices</span><span class="t">My device<small>This phone &middot; signed in for 30 days</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-appearance" data-mode="push"><span class="mi">dark_mode</span><span class="t">Appearance<small id="themeNote">Light</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-security" data-mode="push"><span class="mi">lock</span><span class="t">Security<small>Change password</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-permissions" data-mode="push"><span class="mi">verified_user</span><span class="t">Permissions<small>Location, camera, microphone</small></span><span class="mi ch">chevron_right</span></div>
             </div>
 
-            <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <div class="rowi" data-go="more-notifications" data-mode="push"><span class="mi">notifications_none</span><span class="t">Notifications</span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-go="more-offline" data-mode="push"><span class="mi">wifi_off</span><span class="t">Offline mode<small>Always on &middot; completed jobs kept 7 days</small></span><span class="mi ch">chevron_right</span></div>
+            <div class="card" style="overflow:hidden">
+              <div class="rowi" data-go="more-delete" data-mode="push"><span class="mi" style="color:#DC2626">person_remove</span><span class="t" style="color:#DC2626">Delete my account</span><span class="mi ch">chevron_right</span></div>
             </div>
           </div>
         </div>
 
-        <!-- ============ SOPs (Marek, 05.11: tools in More) ============ -->
-        <div class="screen" id="more-sops" data-tabs="on">
-          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">SOPs &amp; procedures</span></div>
+<!-- ============ More and Settings (Marek, 10.11) ============ -->
+        <div class="screen" id="more-perm" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl" data-ttl>Estimates</span></div>
           <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
-            <div style="font:400 12.5px/1.5 Geist;color:#8A97A8;margin-bottom:12px">Your company&rsquo;s documents, kept in the web app. They open on this phone and work offline once opened.</div>
-            <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <div class="rowi" data-toast="Opening Field SOP · 17 steps"><span class="mi">checklist</span><span class="t">Field SOP<small>The 17-step job walkthrough &middot; PDF &middot; 12 pages</small></span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-toast="Opening Safety procedures"><span class="mi">health_and_safety</span><span class="t">Safety procedures<small>Electrical, attic, refrigerant handling &middot; PDF &middot; 8 pages</small></span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-toast="Opening Warranty policy"><span class="mi">verified_user</span><span class="t">Warranty policy<small>What the company covers and for how long &middot; PDF &middot; 4 pages</small></span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-toast="Opening Estimate presentation guide"><span class="mi">present_to_all</span><span class="t">Presenting an estimate<small>Four options, most expensive first &middot; PDF &middot; 3 pages</small></span><span class="mi ch">chevron_right</span></div>
-            </div>
-            <div style="font:400 12px/1.5 Geist;color:#8A97A8">Updated by the office &middot; last change Nov 3, 2026</div>
+            <div id="permBody"></div>
           </div>
         </div>
 
-        <!-- ============ TRAINING VIDEOS ============ -->
-        <div class="screen" id="more-training" data-tabs="on">
-          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Training videos</span></div>
+        <div class="screen" id="more-legal" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl" data-ttl>Legal</span></div>
           <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
-            <div style="font:400 12.5px/1.5 Geist;color:#8A97A8;margin-bottom:12px">Short videos your company added in the web app. They stream, so they need signal.</div>
-            <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <div class="rowi" data-toast="Playing · Your first day with Vision 360 · 4:12"><span class="mi">play_circle</span><span class="t">Your first day with Vision 360<small>4:12 &middot; En route, Start, Pause, Complete</small></span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-toast="Playing · Building and presenting an estimate · 6:40"><span class="mi">play_circle</span><span class="t">Building and presenting an estimate<small>6:40 &middot; options, price, the customer signs</small></span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-toast="Playing · Taking a payment · 3:05"><span class="mi">play_circle</span><span class="t">Taking a payment<small>3:05 &middot; card, cash, check, the signature</small></span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-toast="Playing · The AC Report Card · 5:18"><span class="mi">play_circle</span><span class="t">The AC Report Card<small>5:18 &middot; ratings, photos, the waiver</small></span><span class="mi ch">chevron_right</span></div>
+            <div class="card" style="overflow:hidden;margin-bottom:12px">
+              <div class="rowi" data-go="more-terms" data-mode="push"><span class="mi">description</span><span class="t">Terms of Service<small>Draft &middot; the final text comes from legal</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-privacy" data-mode="push"><span class="mi">privacy_tip</span><span class="t">Privacy Policy<small>What the app collects and who sees it</small></span><span class="mi ch">chevron_right</span></div>
             </div>
+            <div style="font:400 12px/1.5 Geist;color:#8A97A8">The same documents the web app shows.</div>
+          </div>
+        </div>
+
+        <div class="screen" id="more-storage" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl" data-ttl>Storage</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div class="card" style="overflow:hidden;margin-bottom:12px"><div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1 Geist;color:#546478">Storage used</span><span id="stUsed" style="font:600 14.5px/1 Geist">248 MB</span></div><div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1 Geist;color:#546478">Jobs on this phone</span><span id="stJobs" style="font:600 14.5px/1 Geist">18</span></div><div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1 Geist;color:#546478">Photos held locally</span><span id="stPhotos" style="font:600 14.5px/1 Geist">126</span></div><div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px"><span style="font:500 14px/1 Geist;color:#546478">Not sent yet</span><span id="stWaiting" style="font:600 14.5px/1 Geist">Nothing</span></div></div>
+            <div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px;margin-bottom:12px"><span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">event_available</span><div style="font:400 12.5px/1.45 Geist;color:#546478">Completed jobs stay 7 days, then leave this phone on their own. Without signal the app keeps working for up to 7 days.</div></div>
+            <button class="btn-o" data-act="clearStorage" style="color:#DC2626;border-color:#F3C4C4"><span class="mi" style="font-size:19px">delete_sweep</span>Clear storage</button>
+            <div style="font:400 12px/1.5 Geist;color:#8A97A8;margin-top:10px">Clears only what the office already has. Anything not sent yet stays on this phone.</div>
+          </div>
+        </div>
+
+        <div class="screen" id="more-appearance" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl" data-ttl>Appearance</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div class="card" style="overflow:hidden;margin-bottom:12px"><div class="rowi" data-theme="Light"><span class="mi" data-themeic>radio_button_unchecked</span><span class="t">Light<small>As the app looks today</small></span></div><div class="rowi" data-theme="Dark"><span class="mi" data-themeic>radio_button_unchecked</span><span class="t">Dark<small>Easier on the eyes at night and in attics</small></span></div><div class="rowi" data-theme="System"><span class="mi" data-themeic>radio_button_unchecked</span><span class="t">Same as the phone<small>Follows the phone&rsquo;s own setting</small></span></div></div>
+            <div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px;margin-bottom:12px"><span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">info</span><div style="font:400 12.5px/1.45 Geist;color:#546478">Dark theme is not decided for the first release yet. This demo keeps the light look.</div></div>
+          </div>
+        </div>
+
+        <div class="screen" id="more-security" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl" data-ttl>Security</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div class="card" style="overflow:hidden;margin-bottom:12px">
+              <div class="rowi" data-go="newpass" data-mode="push"><span class="mi">lock_reset</span><span class="t">Change password<small>The same rule as the web</small></span><span class="mi ch">chevron_right</span></div>
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px;margin-bottom:12px"><span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">screen_lock_portrait</span><div style="font:400 12.5px/1.45 Geist;color:#546478">Your phone&rsquo;s own screen lock protects the app. Signed in for 30 days, then the password again.</div></div>
+          </div>
+        </div>
+
+        <div class="screen" id="more-permissions" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl" data-ttl>Permissions</span></div>
+          <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
+            <div class="card" style="overflow:hidden;margin-bottom:12px"><div class="rowi" data-toast="Opens the phone&rsquo;s settings for Vision 360"><span class="mi">my_location</span><span class="t">Location<small>Checked when you start a job</small></span><span style="font:600 11px/1 Geist;border-radius:5px;padding:4px 7px;color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6">ALLOWED</span></div><div class="rowi" data-toast="Opens the phone&rsquo;s settings for Vision 360"><span class="mi">photo_camera</span><span class="t">Camera<small>Job photos, the driver&rsquo;s licence, receipts</small></span><span style="font:600 11px/1 Geist;border-radius:5px;padding:4px 7px;color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6">ALLOWED</span></div><div class="rowi" data-toast="Opens the phone&rsquo;s settings for Vision 360"><span class="mi">mic</span><span class="t">Microphone<small>Sound on job videos</small></span><span style="font:600 11px/1 Geist;border-radius:5px;padding:4px 7px;color:#8A6114;background:#FEF3E2;border:1px solid #F5D7A8">ASK EVERY TIME</span></div></div>
+            <div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px;margin-bottom:12px"><span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">settings</span><div style="font:400 12.5px/1.45 Geist;color:#546478">The phone asks the first time the app needs each one. Change them any time in the phone&rsquo;s settings.</div></div>
           </div>
         </div>
 
@@ -916,17 +942,13 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
 
         <!-- ============ HELP & SUPPORT ============ -->
         <div class="screen" id="more-help" data-tabs="on">
-          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Help &amp; support</span></div>
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Help center</span></div>
           <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
             <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">Get a person</div>
             <div class="card" style="overflow:hidden;margin-bottom:16px">
               <div class="rowi" data-toast="Calling dispatch — (813) 555-0100"><span class="mi">call</span><span class="t">Call dispatch<small>(813) 555-0100</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Opens an email to support@vision360.app with the app&rsquo;s recent logs attached"><span class="mi">mail</span><span class="t">Email app support<small>support@vision360.app &middot; recent app logs attached</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-toast="Calling the support line — (813) 555-0142"><span class="mi">support_agent</span><span class="t">App support line<small>(813) 555-0142 &middot; 7am&ndash;7pm</small></span><span class="mi ch">chevron_right</span></div>
-            </div>
-
-            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">Something&rsquo;s wrong</div>
-            <div class="card" style="overflow:hidden;margin-bottom:16px">
-              <div class="rowi" data-toast="Problem report sent with your last 50 log lines"><span class="mi">bug_report</span><span class="t">Report a problem<small>Sends recent activity so support can see it</small></span><span class="mi ch">chevron_right</span></div>
             </div>
 
             <div class="card" style="padding:14px 15px">
@@ -3262,7 +3284,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       <div class="tabbar" id="tabbar">
         <div class="tab on" data-tab="home"><span class="mif ic">home</span><span class="lb">Home</span></div>
         <div class="tab" data-tab="history"><span class="mi ic">history</span><span class="lb">History</span></div>
-        <div class="tab" data-tab="chat"><span class="mi ic">chat_bubble_outline</span><span class="lb">Chat</span><span class="badge">3</span></div>
+        <div class="tab" data-tab="chat"><span class="mi ic">chat_bubble_outline</span><span class="lb">Messages</span><span class="badge">3</span></div>
         <div class="tab" data-tab="timesheet" style="display:none"><!-- 05.11: timesheet is Pro (Marek 02.11) --><span class="mi ic">schedule</span><span class="lb">Timesheet</span></div>
         <div class="tab" data-tab="more"><span class="mi ic">menu</span><span class="lb">More</span></div>
       </div>
@@ -3637,7 +3659,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     home: 'home', 'home-active': 'home',
     'more-profile': 'more', 'more-settings': 'more', 'more-terms': 'more', 'more-privacy': 'more', 'more-delete': 'more', 'more-equipment': 'more', 'more-assets': 'more',
     'more-notifications': 'more', 'more-offline': 'more', 'more-help': 'more',
-    'more-language': 'more', 'more-lock': 'more', 'more-devices': 'more', 'more-sops': 'more', 'more-training': 'more',
+    'more-language': 'more', 'more-lock': 'more', 'more-devices': 'more', 'more-perm': 'more', 'more-legal': 'more', 'more-storage': 'more', 'more-appearance': 'more', 'more-security': 'more', 'more-permissions': 'more',
     history: 'history', 'hist-filters': 'history', 'hist-search': 'history',
     'period-quarter': 'home', 'period-week': 'home',
     chat: 'chat', 'chat-thread': 'chat', timesheet: 'timesheet', more: 'more'
@@ -13656,6 +13678,165 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     }
   })();
 
+  /* =========================================================
+     Marek, 10.11: More, top to bottom — the technician's profile, Sync
+     now, the items the office turned on for him in the web app, Help
+     center, Legal, Settings, Log out. A technician sees My schedule; the
+     rest follow his permissions. "Demo: show as manager" shows them all.
+     ========================================================= */
+  var demoManager = recall('demoManager', false);
+  var PERMS = [
+    { key: 'schedule', icon: 'calendar_month', name: 'My schedule', sub: 'Your jobs, on Home', all: true },
+    { key: 'estimates', icon: 'request_quote', name: 'Estimates', sub: 'Every estimate you made' },
+    { key: 'invoices', icon: 'receipt_long', name: 'Invoices', sub: 'Unpaid, partially paid, paid' },
+    { key: 'inventory', icon: 'inventory_2', name: 'Inventory', sub: 'What is on your truck', tag: 'Pro' },
+    { key: 'earnings', icon: 'payments', name: 'My earnings', sub: 'Hours and pay', tag: 'Pro' },
+    { key: 'pricebook', icon: 'menu_book', name: 'Price book items', sub: 'Customer prices, no cost' },
+    { key: 'team', icon: 'groups', name: 'Team performance', sub: 'Revenue and closing, by technician' },
+    { key: 'reports', icon: 'bar_chart', name: 'Reports', sub: 'For managers', tag: 'Later' },
+    { key: 'approvals', icon: 'task_alt', name: 'Approvals', sub: 'For managers', tag: 'Later' }
+  ];
+  var PERM_PAGES = {
+    estimates: { intro: 'The estimates you made or presented. Opens the job they belong to in the web app’s order.', rows: [
+      ['request_quote', '10512-E03 · Randy Johnson', 'Sent · presented on this phone · $929.00 – $1,109.00'],
+      ['request_quote', '10518-E01 · Brent Kenzie', 'Approved · Option B · $5,665.00'],
+      ['request_quote', '10522-E02 · Maria Gomez', 'Draft · 2 options']] },
+    invoices: { intro: 'Invoices on your jobs. Payments are taken on the job itself.', rows: [
+      ['receipt_long', '10512-I01 · Randy Johnson', 'Paid · $169.00 · card'],
+      ['receipt_long', '10518-I01 · Brent Kenzie', 'Partially paid · $2,000.00 of $5,665.00'],
+      ['receipt_long', '10520-I01 · Joseph Lane', 'Unpaid · $240.00']] },
+    inventory: { intro: 'Truck stock comes with the Pro version (Marek, Oct 21). Shown here so the place is known.', rows: [
+      ['inventory_2', 'Run capacitor 45/5 µF', '6 on the truck'],
+      ['inventory_2', 'Refrigerant R-410A, 25 lb', '2 on the truck'],
+      ['inventory_2', 'Filter 16×25×1', '12 on the truck']] },
+    earnings: { intro: 'Hours and pay are not in the first release (call 05.11). The office runs payroll from the web.', rows: [
+      ['schedule', 'This week', '32.5 h regular · 6.2 h drive · 4.0 h overtime'],
+      ['payments', 'Gross pay (estimate)', '$894.00 · before taxes and deductions']] },
+    team: { intro: 'How the team is doing this month. Turned on for leads and managers.', rows: [
+      ['person', 'Marek Stroz', '$65.2k revenue · 43% closing'],
+      ['person', 'Peter Johnson', '$58.1k revenue · 39% closing'],
+      ['person', 'Luis Ortega', '$49.7k revenue · 35% closing']] },
+    reports: { intro: 'Reports live in the web app. For managers, after the first release.', rows: [
+      ['bar_chart', 'Revenue by technician', 'This month'],
+      ['bar_chart', 'Closing percentage by job type', 'This quarter'],
+      ['file_download', 'Timesheet export for ADP', 'Weekly']] },
+    approvals: { intro: 'What waits for a manager’s yes. For managers, after the first release.', rows: [
+      ['percent', 'Discount over 10% · 10518 · Brent Kenzie', 'Asked by Luis Ortega · 9:12 AM'],
+      ['lock_open', 'Reopen request · 10498 · Joseph Lane', 'Asked by Peter Johnson · yesterday']] }
+  };
+  function tagHtml(tag) {
+    if (!tag) return '';
+    var pro = tag === 'Pro';
+    return '<span style="font:600 11px/1 Geist;border-radius:5px;padding:4px 7px;margin-left:6px;' +
+      (pro ? 'color:#6D28D9;background:#F0EAFB;border:1px solid #DCCDF5' : 'color:#546478;background:#F1F4F9;border:1px solid #DDE3EE') + '">' + tag + '</span>';
+  }
+  function paintPermBlock() {
+    var box = byId('permBlock'); if (!box) return;
+    box.innerHTML = PERMS.filter(function (x) { return x.all || demoManager; }).map(function (x) {
+      var go = x.key === 'schedule' ? ' data-act="openSchedule"'
+        : x.key === 'pricebook' ? ' data-go="est-catalog" data-mode="push" data-pbbrowse="1"'
+          : ' data-act="openPerm" data-perm="' + x.key + '"';
+      return '<div class="rowi"' + go + '><span class="mi">' + x.icon + '</span><span class="t">' + x.name +
+        '<small>' + x.sub + '</small></span>' + tagHtml(x.tag) + '<span class="mi ch">chevron_right</span></div>';
+    }).join('');
+    var n = byId('managerNote');
+    if (n) n.textContent = demoManager ? 'Demo: back to a technician' : 'Demo: show as manager';
+  }
+  ACT.demoManager = function () {
+    demoManager = !demoManager; remember('demoManager', demoManager);
+    paintPermBlock();
+    toast(demoManager ? 'More shows everything a manager can be given' : 'More shows what a technician sees: My schedule', 'admin_panel_settings');
+  };
+  ACT.openPerm = function (el) {
+    var x = PERMS.filter(function (q) { return q.key === el.dataset.perm; })[0], pg = PERM_PAGES[el.dataset.perm];
+    var root = byId('more-perm'); if (!x || !pg || !root) return;
+    $('[data-ttl]', root).textContent = x.name;
+    byId('permBody').innerHTML =
+      '<div style="font:400 12.5px/1.5 Geist;color:#8A97A8;margin-bottom:12px">' + pg.intro + '</div>' +
+      '<div class="card" style="overflow:hidden;margin-bottom:12px">' + pg.rows.map(function (r) {
+        return '<div class="rowi" data-toast="' + r[1].replace(/"/g, '') + '"><span class="mi">' + r[0] + '</span><span class="t">' + r[1] + '<small>' + r[2] + '</small></span><span class="mi ch">chevron_right</span></div>';
+      }).join('') + '</div>' +
+      '<div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px">' +
+      '<span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">admin_panel_settings</span><div style="font:400 12.5px/1.45 Geist;color:#546478">' +
+      'You see this because the office turned on “' + x.name + '” for you in the web app' + (x.tag === 'Pro' ? ' · Pro' : x.tag === 'Later' ? ' · after the first release' : '') + '.</div></div>';
+    go('more-perm', 'push');
+  };
+  /* My schedule is not a screen of its own (Solomiia, 10.11): the day's
+     jobs are on Home, so the row takes him there */
+  ACT.openSchedule = function () { go(homeScreen(), 'tab'); };
+  paintPermBlock();
+
+  /* Settings, Marek 10.11: Photo upload, Wi-Fi only for large downloads,
+     Storage, Appearance */
+  var photoSize = recall('photoSize', 'Standard');
+  ACT.photoSize = function () {
+    var el = sheetEl('ov-photosize'), b = $('[data-sheetbody]', el);
+    var OPTS = [['Standard', 'Standard size', 'Full detail · about 3 MB a photo'], ['Reduced', 'Reduced size', 'Faster on weak signal · about 0.8 MB a photo']];
+    b.innerHTML = '<div style="display:flex;justify-content:center;padding:0 0 10px"><div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div></div>' +
+      '<div style="font:600 18px/1.25 Geist;margin-bottom:6px">Photo upload</div>' +
+      OPTS.map(function (o) {
+        var on = o[0] === photoSize;
+        return '<div data-tap="1" data-psize="' + o[0] + '" style="display:flex;align-items:center;gap:12px;padding:14px 2px;border-top:1px solid #EDF0F5">' +
+          '<span class="' + (on ? 'mif' : 'mi') + '" style="font-size:22px;color:' + (on ? '#4A6FA5' : '#A9B4C2') + '">' + (on ? 'radio_button_checked' : 'radio_button_unchecked') + '</span>' +
+          '<div><div style="font:500 16px/1.2 Geist">' + o[1] + '</div><div style="font:400 12.5px/1.35 Geist;color:#8A97A8;margin-top:3px">' + o[2] + '</div></div></div>';
+      }).join('');
+    b.onclick = function (ev) {
+      var r = ev.target.closest('[data-psize]'); if (!r) return;
+      photoSize = r.dataset.psize; remember('photoSize', photoSize);
+      paintSettingsNotes(); closeOverlays(true);
+      toast('Photos upload at ' + (photoSize === 'Reduced' ? 'reduced' : 'standard') + ' size', 'photo_size_select_large');
+    };
+    go('ov-photosize', 'overlay');
+  };
+  var wifiOnly = recall('wifiOnly', false);
+  ACT.toggleWifiOnly = function () {
+    wifiOnly = !wifiOnly; remember('wifiOnly', wifiOnly);
+    paintSettingsNotes();
+    toast(wifiOnly ? 'Large downloads wait for Wi-Fi — photos to the office still go on any connection' : 'Downloads use any connection', 'wifi');
+  };
+  var storageCleared = recall('storageCleared', false);
+  ACT.clearStorage = function () {
+    var waiting = typeof waitingTotal === 'function' ? waitingTotal() : 0;
+    confirmSheet({
+      title: 'Clear storage?',
+      text: 'Removes the jobs and photos the office already has. ' + (waiting ? waiting + (waiting === 1 ? ' item' : ' items') + ' not sent yet stay on this phone.' : 'Nothing is waiting to be sent.'),
+      ok: 'Clear storage', danger: true, alt: null,
+      onOk: function () { storageCleared = true; remember('storageCleared', true); paintSettingsNotes(); toast('Storage cleared · 231 MB freed', 'delete_sweep'); }
+    });
+  };
+  var theme = recall('theme', 'Light');
+  function paintSettingsNotes() {
+    var pn = byId('photoNote'); if (pn) pn.textContent = photoSize === 'Reduced' ? 'Reduced size · faster on weak signal' : 'Standard size';
+    var wn = byId('wifiNote'), ws = byId('wifiSw');
+    if (wn) wn.textContent = wifiOnly ? 'On · photos still go on any connection' : 'Off · downloads use any connection';
+    if (ws) { ws.style.background = wifiOnly ? '#4A6FA5' : '#DDE3EE'; ws.firstElementChild.style.left = wifiOnly ? '24px' : '3px'; }
+    var used = storageCleared ? '17 MB' : '248 MB';
+    var waiting = typeof waitingTotal === 'function' ? waitingTotal() : 0;
+    var sn = byId('storageNote'); if (sn) sn.textContent = used + ' used';
+    var su = byId('stUsed'); if (su) su.textContent = used;
+    var sj = byId('stJobs'); if (sj) sj.textContent = storageCleared ? '3' : '18';
+    var sp = byId('stPhotos'); if (sp) sp.textContent = storageCleared ? '6' : '126';
+    var sw = byId('stWaiting'); if (sw) sw.textContent = waiting ? waiting + (waiting === 1 ? ' item' : ' items') : 'Nothing';
+    var tn = byId('themeNote'); if (tn) tn.textContent = theme === 'System' ? 'Same as the phone' : theme;
+    $$('#more-appearance [data-theme]').forEach(function (r) {
+      var on = r.dataset.theme === theme, ic = $('[data-themeic]', r);
+      r.dataset.act = 'pickTheme';
+      ic.className = on ? 'mif' : 'mi'; ic.style.color = on ? '#4A6FA5' : '#A9B4C2';
+      ic.textContent = on ? 'radio_button_checked' : 'radio_button_unchecked';
+    });
+  }
+  ACT.pickTheme = function (el) {
+    theme = el.dataset.theme; remember('theme', theme);
+    paintSettingsNotes();
+    toast(theme === 'Dark' ? 'Dark theme picked — not in this demo yet' : theme === 'System' ? 'Follows the phone — light in this demo' : 'Light theme', 'dark_mode');
+  };
+  paintSettingsNotes();
+  (function () {
+    var plain = go;
+    go = function (id, mode) { plain(id, mode); if (id === 'more-storage' || id === 'more-settings') paintSettingsNotes(); };
+    window.__proto && (window.__proto.go = go);
+  })();
+
   /* Marek, Nov 5: Delete account is Google Play's requirement, and the
      account is the company's — the technician asks, the manager or the
      owner removes it. One request; the screen then says it is pending. */
@@ -13728,7 +13909,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     { id: 'forgot', title: 'Reset password', section: 'auth', desc: 'Request a code' },
     { id: 'otp', title: 'Enter code', section: 'auth', desc: '6-digit SMS code' },
     { id: 'newpass', title: 'New password', section: 'auth', desc: 'With strength meter' },
-    { id: 'chat', title: 'Chat', section: 'app', desc: 'Conversations, 3 unread' },
+    { id: 'chat', title: 'Messages', section: 'app', desc: 'Pro · conversations, 3 unread' },
     { id: 'chat-thread', title: 'Chat thread', section: 'app', desc: 'Dispatch — live compose' },
     { id: 'timesheet', title: 'Timesheet', section: 'app', desc: 'Clocked-in timer, week' },
     { id: 'more', title: 'More', section: 'app', desc: 'Profile, sync, log out' }
