@@ -7834,27 +7834,34 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
      too, and they can carry a minus — a discount, a coupon. Whether every
      technician sees them or only those allowed to adjust the price is his
      open question; here every technician does. */
-  var CATALOG_CATEGORIES = ['Repairs', 'Equipment', 'Ductwork', 'IAQ', 'Others', 'Admin items'];
+  /* Nov 10: the tabs are the web app's item types, in its order — All items,
+     Price book, Services, Materials, Equipment, Asset, Admin (Items page of
+     the web). Admin items can carry a minus — a discount, a coupon. */
+  var CATALOG_CATEGORIES = ['All items', 'Price book', 'Services', 'Materials', 'Equipment', 'Asset', 'Admin'];
   var CATALOG_ROWS = [
-    ['AC Tune-Up', 'Routine inspection and cleaning of air conditioning system', 129, 'Repairs'],
-    ['Blower Motor Repair', 'Diagnose and repair blower motor malfunction', 350, 'Repairs'],
-    ['Capacitor Replacement', 'Replace faulty run/start capacitor in AC system', 180, 'Repairs'],
-    ['Condenser Coil Cleaning', 'Deep clean outdoor condenser coils for optimal performance', 250, 'Repairs'],
-    ['Drain Pan Replacement', 'Replace rusted or leaking condensate drain pan', 260, 'Repairs'],
-    ['Refrigerant Recharge', 'Refill refrigerant and check for leaks', 350, 'Repairs'],
-    ['Air Handler Replacement', 'Replace indoor air handler unit including labor', 2800, 'Equipment'],
-    ['HVAC System Installation', 'Install complete HVAC system in residential property', 8900, 'Equipment'],
-    ['Mini-Split System Install', 'Install ductless mini-split system for room or zone', 4200, 'Equipment'],
+    ['AC Tune-Up (flat rate)', 'Flat-rate seasonal tune-up of the AC system', 89, 'Price book'],
+    ['Diagnostic Fee', 'Diagnose the problem and quote the repair', 79, 'Price book'],
+    ['Capacitor Replacement', 'Replace faulty run/start capacitor in AC system', 289, 'Price book'],
+    ['Refrigerant Recharge', 'Refill refrigerant and check for leaks', 350, 'Price book'],
+    ['Condenser Coil Cleaning', 'Deep clean outdoor condenser coils for optimal performance', 250, 'Price book'],
+    ['Diagnostic Visit', 'Visit to find the cause of the problem', 99, 'Services'],
+    ['AC Tune-Up', 'Routine inspection and cleaning of air conditioning system', 129, 'Services'],
+    ['Blower Motor Repair', 'Diagnose and repair blower motor malfunction', 350, 'Services'],
+    ['Drain Pan Replacement', 'Replace rusted or leaking condensate drain pan', 260, 'Services'],
+    ['Duct Cleaning', 'Clean air ducts to improve air quality and efficiency', 450, 'Services'],
+    ['Emergency HVAC Call', '24/7 emergency service visit fee', 150, 'Services'],
+    ['R-410A Refrigerant (lb)', 'Refrigerant, per pound', 18, 'Materials'],
+    ['Capacitor 45/5 MFD', 'Dual run capacitor', 25, 'Materials'],
+    ['HVAC Filter Replacement', 'Replace standard air filter', 40, 'Materials'],
+    ['Blower Motor 1/2 HP', 'Replacement blower motor', 225, 'Equipment'],
     ['Thermostat Replacement', 'Replace existing thermostat with programmable or smart unit', 220, 'Equipment'],
-    ['Duct Cleaning', 'Clean air ducts to improve air quality and efficiency', 450, 'Ductwork'],
-    ['HVAC Zoning Setup', 'Install zoning dampers and controls for multi-zone climate', 3500, 'Ductwork'],
-    ['HVAC Filter Replacement', 'Replace standard air filter', 40, 'IAQ'],
-    ['Attic Insulation Top-Up', 'Add insulation to attic to improve efficiency', 1800, 'IAQ'],
-    ['Thermostat Calibration', 'Adjust and calibrate thermostat for accurate temperature control', 90, 'Others'],
-    ['Emergency HVAC Call', '24/7 emergency service visit fee', 150, 'Others'],
-    ['Manager discount', 'Price reduction approved by the office — shows as a minus line', -50, 'Admin items'],
-    ['Coupon — $25 off', 'Marketing coupon redeemed on the visit', -25, 'Admin items'],
-    ['Permit fee', 'County permit, passed through at cost', 175, 'Admin items']
+    ['Air Handler Replacement', 'Replace indoor air handler unit including labor', 2800, 'Equipment'],
+    ['Mini-Split System Install', 'Install ductless mini-split system for room or zone', 4200, 'Equipment'],
+    ['HVAC System Installation', 'Install complete HVAC system in residential property', 8900, 'Equipment'],
+    ['UV Air Purifier', 'In-duct UV light air purifier, installed', 650, 'Asset'],
+    ['Permit Fee', 'County permit, passed through at cost', 75, 'Admin'],
+    ['Manager discount', 'Price reduction approved by the office — shows as a minus line', -50, 'Admin'],
+    ['Coupon — $25 off', 'Marketing coupon redeemed on the visit', -25, 'Admin']
   ];
 
   /* The additional-items catalog is the same shelf as the estimate's, so it
@@ -7917,6 +7924,9 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       row.dataset.cat = spec[3];
       row.dataset.name = spec[0];
     });
+    // the board's rows that are not in the list leave, or they show on every tab
+    var keep = {}; CATALOG_ROWS.forEach(function (spec) { keep[spec[0]] = 1; });
+    rows.slice(1).forEach(function (r) { if (!keep[norm(parts(r).name.textContent)]) r.remove(); });
 
     var search = null;
     (function () {
@@ -7935,7 +7945,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       search = inp;
     })();
 
-    var cat = 'Repairs';
+    var cat = 'All items';
     var empty = document.createElement('div');
     empty.setAttribute('style', 'padding:30px 16px;text-align:center;font:400 14px/1.5 Geist;color:#8A97A8');
     sc.appendChild(empty);
@@ -7945,7 +7955,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       var shown = 0;
       $$(':scope > div[data-cat]', sc).forEach(function (r) {
         // a search looks through the whole catalog, not just the open tab
-        var on = q ? r.dataset.name.toLowerCase().indexOf(q) > -1 : r.dataset.cat === cat;
+        var on = q ? r.dataset.name.toLowerCase().indexOf(q) > -1 : (cat === 'All items' || r.dataset.cat === cat);
         r.hidden = !on;
         if (on) shown++;
       });
@@ -7954,18 +7964,24 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     };
 
     (function () {
-      var last = sel(root, 'Others')[0]; if (!last) return;
-      var chip = last.cloneNode(true); chip.textContent = 'Admin items';
-      last.insertAdjacentElement('afterend', chip);
+      // the board's five chips take the web's type names; two more are cloned
+      var chips = ['Repairs', 'Equipment', 'Ductwork', 'IAQ', 'Others'].map(function (l) { return sel(root, l)[0]; });
+      if (chips.some(function (c) { return !c; })) { MISS.push('est-catalog :: chips'); return; }
+      chips.forEach(function (c, i) { c.textContent = CATALOG_CATEGORIES[i]; });
+      var last = chips[4];
+      CATALOG_CATEGORIES.slice(5).forEach(function (l) {
+        var chip = last.cloneNode(true); chip.textContent = l;
+        last.insertAdjacentElement('afterend', chip); last = chip;
+      });
     })();
     seg('est-catalog', CATALOG_CATEGORIES, 0, function (i, label) {
       cat = label;
       if (search) search.value = '';
       catalogFilter();
       var note = $('[data-catnote]', root);
-      if (note) note.textContent = label === 'Admin items'
+      if (note) note.textContent = label === 'Admin'
         ? 'Admin items can carry a minus — a discount or a coupon shows as its own line on the estimate and the invoice'
-        : 'Categories from your company’s price book settings';
+        : 'Item types as in the web app’s Items';
     });
     catalogFilter();
   })();
@@ -13974,7 +13990,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       var note = document.createElement('div');
       note.dataset.catnote = '1';
       note.setAttribute('style', 'padding:0 16px 10px;margin-top:-4px;background:#fff;font:400 12px/1.35 Geist;color:#8A97A8;flex:none');
-      note.textContent = 'Categories from your company’s price book settings';
+      note.textContent = 'Item types as in the web app’s Items';
       strip.insertAdjacentElement('afterend', note);
     })();
     // OD-4: the custom item row is there for the roles that may create items
@@ -14566,8 +14582,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       if (!isFinite(price) || price <= 0) { toast('Enter the item’s price', 'info'); ins[1].focus(); return; }
       seq++;
       var it = { sku: 'PB-' + (9000 + seq), name: name, desc: desc, price: Math.round(price * 100) / 100,
-        cat: 'Others', type: 'Service', labor: 0, qty: qty };
-      CATALOG_ROWS.push([name, desc, it.price, 'Others']);
+        cat: 'Custom', type: 'Service', labor: 0, qty: qty };
+      CATALOG_ROWS.push([name, desc, it.price, 'Services']);
       var where = 'the option';
       if (catalogTarget === 'job' && JOBS[jobIdx]) {
         var c = {}; for (var k in it) c[k] = it[k];
