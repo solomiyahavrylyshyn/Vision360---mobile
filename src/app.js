@@ -354,7 +354,7 @@
     home: 'home', 'home-active': 'home',
     'more-profile': 'more', 'more-settings': 'more', 'more-terms': 'more', 'more-privacy': 'more', 'more-delete': 'more', 'more-equipment': 'more', 'more-assets': 'more',
     'more-notifications': 'more', 'more-offline': 'more', 'more-help': 'more',
-    'more-language': 'more', 'more-lock': 'more', 'more-devices': 'more', 'more-perm': 'more', 'more-legal': 'more', 'more-schedule': 'more', 'demo-tz': 'more', 'more-safety': 'more', 'more-tutorials': 'more', 'more-storage': 'more', 'more-appearance': 'more', 'more-security': 'more', 'more-permissions': 'more',
+    'more-language': 'more', 'more-lock': 'more', 'more-devices': 'more', 'more-perm': 'more', 'more-legal': 'more', 'more-schedule': 'more', 'demo-tz': 'more', 'demo-tmp': 'more', 'more-safety': 'more', 'more-tutorials': 'more', 'more-storage': 'more', 'more-appearance': 'more', 'more-security': 'more', 'more-permissions': 'more',
     history: 'history', 'hist-filters': 'history', 'hist-search': 'history',
     'period-quarter': 'home', 'period-week': 'home',
     chat: 'chat', 'chat-thread': 'chat', timesheet: 'timesheet', more: 'more'
@@ -6017,6 +6017,7 @@
         syncDemo = false; notApplied = demoConflicts(); notSent = demoNotSent();
         lastSyncAt = '9:42 AM'; remember('lastSyncAt', lastSyncAt);
       }
+      if (tmpD && tmpD.stage === 'offline') tmpSynced();
       if (openIssues() && !upPending) { paintNet(); return; }
       if (upPending) startUpload(upPending, upLastBound);
       else { net.sentFlash = true; paintNet(); flashThenHide(2200); }
@@ -11982,11 +11983,14 @@
       notSent.forEach(function (x, k) {
         var j = JOBS[x.job] || {};
         html += '<div class="card" style="padding:13px 14px;margin-bottom:10px;' + (x.handled ? '' : 'border:1px solid #F5C2C2') + '">' +
-          '<div style="font:600 14.5px/1.3 Geist">' + esc((jobNo(j) ? jobNo(j) + ' · ' : '') + (j.name || 'Job')) + '</div>' +
+          '<div style="font:600 14.5px/1.3 Geist">' + esc(x.label || ((jobNo(j) ? jobNo(j) + ' · ' : '') + (j.name || 'Job'))) + '</div>' +
           '<div style="font:500 13.5px/1.45 Geist;color:#1A2332;margin-top:6px">' + esc(x.what) + '</div>' +
           (x.handled
             ? '<div style="display:flex;align-items:center;gap:6px;margin-top:8px;font:600 13px/1.3 Geist;color:#16A34A"><span class="mi" style="font-size:18px">check_circle</span>Handled by the office</div>' +
               '<div style="font:400 12px/1.4 Geist;color:#8A97A8;margin-top:3px">' + esc(x.handledNote) + '</div>'
+            : x.kind === 'refused'
+              ? '<div style="font:400 13px/1.45 Geist;color:#B42318;margin-top:4px">' + esc(x.reason) + '</div>' +
+                '<div style="display:flex;align-items:center;gap:6px;margin-top:8px;font:500 12.5px/1.3 Geist;color:#546478"><span class="mi" style="font-size:17px">unsubscribe</span>The email to the customer was not sent</div>'
             : x.kind === 'file'
               ? '<div style="font:400 13px/1.45 Geist;color:#B42318;margin-top:4px">' + esc(x.reason) + '</div>' +
                 '<div style="display:flex;align-items:center;gap:6px;margin-top:8px;font:500 12.5px/1.3 Geist;color:#546478"><span class="mi" style="font-size:17px">smartphone</span>Kept on your phone</div>'
@@ -12207,7 +12211,7 @@
   };
   ACT.dpBig = function () {
     if (!dp) return;
-    if (!notSent.some(function (x) { return x.kind === 'file'; })) notSent.push({ job: jobIdx, kind: 'file',
+    if (!notSent.some(function (x) { return x.kind === 'file'; })) notSent.push({ job: jobIdx, kind: 'file', label: '10512-J02 · Randy Johnson',
       what: 'site-walkthrough.mov · 30 MB', reason: 'Not added: files over ' + DP_LIMIT + ' MB don’t upload.', handled: false });
     paintNet();
     confirmSheet({ title: 'Not added', text: 'site-walkthrough.mov is 30 MB — over the ' + DP_LIMIT + ' MB limit. It stays on your phone, and Sync lists it under Not sent.',
@@ -12268,6 +12272,127 @@
   ACT.demoTz = function () { tz = { phone: 'company', mid: false }; paintTz(); go('demo-tz', 'push'); };
   ACT.tzPhone = function (el) { tz.phone = el.dataset.k; paintTz(); };
   ACT.tzMid = function () { tz.mid = !tz.mid; paintTz(); if (tz.mid) toast('12:00 AM · Today, 9:00 AM · no sync', 'schedule'); };
+
+  /* =========================================================
+     Demo: M2-9 temporary number. Tom, offline on 10512-J02, makes an
+     invoice: TMP-7F3A2C-0003 on his screen, no number on the one Randy
+     sees; Send queues behind the invoice, Print needs the server. At 10:15
+     the server gives 10512-I03 and the email goes with that PDF. Ann Lee's
+     offline invoice on the same job lands at 10:40 — 10512-I04. If the lines
+     were already on 10512-I02, nothing is created and Sync says so.
+     ========================================================= */
+  var tmpD = null;
+  var TMP_LINES = [['Capacitor 45/5 MFD', 185], ['Service call', 89]];
+  function tmpNo() { return tmpD.stage === 'offline' ? 'TMP-7F3A2C-0003' : tmpD.conflict ? '' : '10512-I03'; }
+  function paintTmp() {
+    var body = byId('tmpBody'); if (!body || !tmpD) return;
+    var off = tmpD.stage === 'offline', refused = !off && tmpD.conflict;
+    var H = 'font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:18px 0 9px';
+    var lines = TMP_LINES.map(function (l) {
+      return '<div style="display:flex;justify-content:space-between;padding:7px 0;font:400 13.5px/1.3 Geist"><span>' + l[0] + '</span><span>$' + l[1].toFixed(2) + '</span></div>';
+    }).join('') + '<div style="display:flex;justify-content:space-between;padding:9px 0 0;margin-top:4px;border-top:1px solid #EDF0F5;font:600 14.5px/1.3 Geist"><span>Total</span><span>$274.00</span></div>';
+    function invCard(forCustomer) {
+      var num = forCustomer ? (off ? '' : tmpNo())
+        : off ? 'TMP-7F3A2C-0003 · final number after sync' : refused ? 'Not created' : '10512-I03';
+      return '<div class="card" style="padding:14px 15px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><span style="font:600 16px/1.3 Geist">Invoice</span>' +
+        (num ? '<span style="font:' + (off ? '500 12px' : '600 13px') + '/1.3 Geist;color:' + (refused ? '#B42318' : off ? '#8A97A8' : '#1A2332') + ';text-align:right">' + num + '</span>' : '') + '</div>' +
+        '<div style="font:400 12.5px/1.4 Geist;color:#546478;margin:3px 0 8px">Randy Johnson · 10512-J02 · AC not cooling</div>' + lines + '</div>';
+    }
+    var view = tmpD.view;
+    var html =
+      '<div style="display:flex;gap:3px;background:#E6EAF1;border-radius:10px;padding:3px;margin-bottom:12px">' +
+        ['tom', 'customer'].map(function (k) {
+          var on = view === k;
+          return '<span data-tap="1" data-act="tmpView" data-k="' + k + '" style="flex:1;text-align:center;padding:9px 4px;border-radius:8px;font:' + (on ? 600 : 500) + ' 13px/1.2 Geist;' +
+            (on ? 'background:#fff;color:#1A2332;box-shadow:0 1px 2px rgba(0,0,0,.08)' : 'color:#546478') + '">' + (k === 'tom' ? 'Tom’s screen' : 'What Randy sees') + '</span>';
+        }).join('') + '</div>' +
+      invCard(view === 'customer');
+    if (view === 'tom') {
+      if (off) html += '<div style="font:400 12px/1.5 Geist;color:#8A97A8;margin-top:8px">7F3A2C — the first 6 characters of this phone&rsquo;s ID · 0003 — the third temporary number made on this phone. Randy&rsquo;s screen shows no number.</div>';
+      html += '<div style="display:flex;gap:8px;margin-top:12px">' +
+        '<button class="btn" data-act="tmpSend" style="flex:1;height:44px;font-size:14px"><span class="mi" style="font-size:18px">send</span>Send to customer</button>' +
+        '<button class="btn" data-act="tmpPrint" style="flex:none;width:100px;height:44px;font-size:14px;background:#fff;color:#1A2332;border:1px solid #DDE3EE"><span class="mi" style="font-size:18px">print</span>Print</button></div>';
+      var em = tmpD.email;
+      if (em) html += '<div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;border-radius:10px;font:500 13px/1.35 Geist;' +
+        (em === 'queued' ? 'background:#FEF3E2;border:1px solid #F3D9AE;color:#8A6114"><span class="mi" style="font-size:18px">schedule_send</span>Email to Randy Johnson · waits for the invoice to be created'
+          : em === 'sent' ? 'background:#E8F6ED;border:1px solid #B6E3C6;color:#15803D"><span class="mi" style="font-size:18px">mark_email_read</span>Sent to Randy Johnson at 10:15 AM · PDF 10512-I03'
+            : 'background:#FDECEC;border:1px solid #F5C2C2;color:#B42318"><span class="mi" style="font-size:18px">unsubscribe</span>Not sent · the invoice was not created') + '</div>';
+    } else if (!off && !refused && tmpD.email === 'sent') {
+      html += '<div class="card" style="padding:12px 14px;margin-top:10px;display:flex;gap:10px;align-items:center"><span class="mi" style="font-size:22px;color:#DC2626">picture_as_pdf</span>' +
+        '<div style="flex:1;font:400 13px/1.4 Geist"><b>Invoice 10512-I03</b> from AND Services<div style="color:#8A97A8;font-size:12px">Email · 10:15 AM · 10512-I03.pdf</div></div></div>';
+    }
+    // the customer's invoices, in the order the server took them
+    var list = [['10512-I01', 'Paid'], ['10512-I02', 'Unpaid']];
+    if (!off && !refused) list.push(['10512-I03', 'Tom · 10:15 AM']);
+    if (tmpD.ann === 'synced') list.push([refused ? '10512-I03' : '10512-I04', 'Ann Lee · 10:40 AM']);
+    html += '<div style="' + H + '">Randy Johnson&rsquo;s invoices on the server</div><div class="card" style="overflow:hidden">' +
+      list.map(function (r, i) {
+        return '<div style="display:flex;justify-content:space-between;padding:12px 14px;' + (i < list.length - 1 ? 'border-bottom:1px solid #EDF0F5;' : '') + 'font:500 13.5px/1.3 Geist">' +
+          '<span style="font-weight:600">' + r[0] + '</span><span style="color:#546478">' + r[1] + '</span></div>';
+      }).join('') + '</div>';
+    html += '<div style="' + H + '">Ann Lee · same job, also offline</div>' +
+      '<div class="card" style="padding:12px 14px;font:400 13px/1.45 Geist">Her invoice: <b>' + (tmpD.ann === 'synced' ? (refused ? '10512-I03' : '10512-I04') + '</b> · her phone got signal at 10:40, after Tom&rsquo;s, so it came second'
+        : 'TMP-91B0E4-0001</b> · final number after sync') + '</div>';
+    var links = [];
+    if (off) {
+      links.push(['wifi', 'Demo: 10:15 AM · Tom walks outside', 'tmpOnline']);
+      if (!tmpD.conflict) links.push(['call_split', 'Demo: what if the lines were already on 10512-I02', 'tmpConflict']);
+    } else if (tmpD.ann !== 'synced') links.push(['wifi', 'Demo: 10:40 AM · Ann Lee&rsquo;s phone gets signal', 'tmpAnn']);
+    html += links.map(function (l) {
+      return '<div data-tap="1" data-act="' + l[2] + '" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:14px;color:#8A97A8;font:500 13px/1.3 Geist">' +
+        '<span class="mi" style="font-size:17px;color:#A9B4C2">' + l[0] + '</span>' + l[1] + '</div>';
+    }).join('');
+    if (tmpD.conflict && off) html += '<div style="font:400 12px/1.5 Geist;color:#8A97A8;text-align:center;margin-top:6px">Set: Capacitor and Service call are already on 10512-I02.</div>';
+    body.innerHTML = html;
+    var ttl = $('#demo-tmp .ttl'); if (ttl) ttl.textContent = off ? 'New invoice · offline' : refused ? 'Invoice · not created' : 'Invoice 10512-I03';
+  }
+  ACT.demoTmp = function (el, conflict) {
+    jobIdx = demoJobs()[0];
+    tmpD = { stage: 'offline', conflict: !!conflict, view: 'tom', email: '', ann: 'offline' };
+    notSent = notSent.filter(function (x) { return x.kind !== 'refused'; });
+    notApplied = [];
+    if (net.online) { net.online = false; net.syncing = false; paintCardAvailability(); }
+    syncQ = [{ job: jobIdx, what: 'Invoice TMP-7F3A2C-0003 · created', at: Date.now() }];
+    net.queue = syncQ.length;
+    paintNet(); paintDemoNet(); paintTmp();
+    closeOverlays(true);
+    if (curPage() !== 'demo-tmp') go('demo-tmp', 'push');
+  };
+  ACT.tmpConflict = function () { ACT.demoTmp(null, true); toast('The lines are already on 10512-I02', 'call_split'); };
+  ACT.tmpView = function (el) { tmpD.view = el.dataset.k; paintTmp(); };
+  ACT.tmpSend = function () {
+    if (tmpD.stage !== 'offline') { toast(tmpD.conflict ? 'There is no invoice to send' : 'Already sent · 10512-I03', 'info'); return; }
+    if (tmpD.email) { toast('Already waiting to go', 'schedule_send'); return; }
+    tmpD.email = 'queued';
+    syncQ.push({ job: jobIdx, what: 'Email to Randy Johnson · after the invoice', at: Date.now() });
+    net.queue = syncQ.length; paintNet();
+    toast('Queued · it goes after the invoice is created', 'schedule_send');
+    paintTmp();
+  };
+  ACT.tmpPrint = function () {
+    if (tmpD.stage === 'offline') {
+      confirmSheet({ title: 'Preview and print need a connection', text: 'The PDF is made by the server.', ok: 'OK', alt: null });
+      return;
+    }
+    toast(tmpD.conflict ? 'There is no invoice to print' : 'Opening 10512-I03.pdf', tmpD.conflict ? 'info' : 'picture_as_pdf');
+  };
+  ACT.tmpOnline = function () { window.dispatchEvent(new Event('online')); paintDemoNet(); };
+  function tmpSynced() {
+    tmpD.stage = 'synced';
+    lastSyncAt = '10:15 AM'; remember('lastSyncAt', lastSyncAt);
+    if (tmpD.conflict) {
+      if (tmpD.email) tmpD.email = 'refused';
+      notSent.push({ job: jobIdx, kind: 'refused', label: '10512-J02 · Randy Johnson', what: 'Invoice · Capacitor 45/5 MFD, Service call · $274.00',
+        reason: 'The invoice was not created — the lines are already on 10512-I02.', handled: false });
+      toast('Not created · see Sync', 'error');
+    } else {
+      if (tmpD.email) tmpD.email = 'sent';
+      toast('10512-I03 replaced TMP everywhere' + (tmpD.email ? ' · email sent' : ''), 'check_circle');
+    }
+    setTimeout(paintTmp, 0);
+  }
+  ACT.tmpAnn = function () { tmpD.ann = 'synced'; paintTmp(); toast('Ann Lee’s invoice arrived second · ' + (tmpD.conflict ? '10512-I03' : '10512-I04'), 'receipt_long'); };
 
   /* M2-9: at sync the server numbers what was made offline from the
      customer's sequence, and the app swaps the temporary number everywhere. */
