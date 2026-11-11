@@ -378,27 +378,25 @@
         <div class="screen" id="more-settings" data-tabs="on">
           <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Settings</span></div>
           <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
-            <!-- Marek, 10.11: every setting in one place, in this order -->
+            <!-- Marek, 10.11: one Settings item. The company sets some in the web app for the role (locked here); the technician changes the rest -->
+            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 2px 9px">Set by your company</div>
             <div class="card" style="overflow:hidden;margin-bottom:14px">
               <div class="rowi" data-act="photoSize"><span class="mi">photo_size_select_large</span><span class="t">Photo upload<small id="photoNote">Balanced &middot; set by your company</small></span><span class="mi" style="font-size:18px;color:#A9B4C2">lock</span></div>
-              <div class="rowi" data-go="more-language" data-mode="push"><span class="mi">language</span><span class="t">Language<small id="langNote">English</small></span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-act="toggleWifiOnly"><span class="mi">wifi</span><span class="t">Wi-Fi only for large downloads<small id="wifiNote">Off &middot; downloads use any connection</small></span><span data-sw id="wifiSw" style="width:52px;height:31px;border-radius:16px;background:#DDE3EE;position:relative;flex:none"><span style="position:absolute;top:3px;left:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span></span></div>
-              <div class="rowi" data-go="more-storage" data-mode="push"><span class="mi">sd_storage</span><span class="t">Storage<small id="storageNote">248 MB used</small></span><span class="mi ch">chevron_right</span></div>
-            </div>
-
-            <div class="card" style="overflow:hidden;margin-bottom:14px">
-              <div class="rowi" data-go="more-devices" data-mode="push"><span class="mi">devices</span><span class="t">My devices<small>This phone &middot; signed in for 30 days</small></span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-go="more-notifications" data-mode="push"><span class="mi">notifications_none</span><span class="t">Notifications</span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-act="langLocked"><span class="mi">language</span><span class="t">Language<small id="langNote">English &middot; set by your company</small></span><span class="mi" style="font-size:18px;color:#A9B4C2">lock</span></div>
+              <div class="rowi" data-act="toggleWifiOnly"><span class="mi">wifi</span><span class="t">Wi-Fi only for large downloads<small id="wifiNote">Off &middot; set by your company</small></span><span class="mi" style="font-size:18px;color:#A9B4C2">lock</span></div>
               <div class="rowi" data-act="toggleLocation"><span class="mi">my_location</span><span class="t">Location services<small id="locNote">On &middot; needed to start a job</small></span><span id="locSw" style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none"><span style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span></span></div>
             </div>
-
+            <div style="font:400 12px/1.45 Geist;color:#8A97A8;margin:-6px 2px 18px">Your office changes these in the web app. Location must be on to start a job.</div>
+            <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 2px 9px">Yours</div>
             <div class="card" style="overflow:hidden;margin-bottom:14px">
               <div class="rowi" data-go="more-appearance" data-mode="push"><span class="mi">dark_mode</span><span class="t">Appearance<small id="themeNote">Light</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-notifications" data-mode="push"><span class="mi">notifications_none</span><span class="t">Notifications</span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-storage" data-mode="push"><span class="mi">sd_storage</span><span class="t">Storage<small id="storageNote">248 MB used</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-devices" data-mode="push"><span class="mi">devices</span><span class="t">My devices<small>This phone &middot; signed in for 30 days</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-go="more-security" data-mode="push"><span class="mi">lock</span><span class="t">Security<small>Change password</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-go="more-permissions" data-mode="push"><span class="mi">verified_user</span><span class="t">Permissions<small>Location, camera</small></span><span class="mi ch">chevron_right</span></div>
             </div>
-
-            <div class="card" style="overflow:hidden">
+            <div class="card" style="overflow:hidden;margin-bottom:14px">
               <div class="rowi" data-go="more-delete" data-mode="push"><span class="mi" style="color:#DC2626">person_remove</span><span class="t" style="color:#DC2626">Delete my account</span><span class="mi ch">chevron_right</span></div>
             </div>
           </div>
@@ -715,7 +713,7 @@
               <div class="rowi" data-act="helpReport" data-kind="problem"><span class="mi">bug_report</span><span class="t">Report a problem<small>Recent app activity is attached</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-act="helpReport" data-kind="feature"><span class="mi">lightbulb</span><span class="t">Feature request<small>Tell us what would make your day easier</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-toast="Opens an email to support@vision360.app"><span class="mi">mail</span><span class="t">App support<small>support@vision360.app</small></span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-go="more-tutorials" data-mode="push"><span class="mi">smart_display</span><span class="t">Tutorials<small>Short videos on the app</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-go="more-tutorials" data-mode="push"><span class="mi">smart_display</span><span class="t">Tutorials &amp; FAQ<small>Uploaded by your company</small></span><span class="mi ch">chevron_right</span></div>
             </div>
             <div data-tap data-go="more-devices" data-mode="push" style="text-align:center;font:400 12px/1.6 Geist;color:#8A97A8;padding:6px 8px">Vision 360 v2.4.1 &middot; build 2411<br>Signed in on: This phone &middot; Samsung Galaxy S23</div>
           </div>
@@ -738,14 +736,16 @@
 
         <!-- ============ TUTORIALS ============ -->
         <div class="screen" id="more-tutorials" data-tabs="on">
-          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Tutorials</span></div>
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Tutorials &amp; FAQ</span></div>
           <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
-            <div style="font:400 12.5px/1.5 Geist;color:#8A97A8;margin-bottom:12px">Short videos on using the app. They stream, so they need signal.</div>
+            <div style="font:400 12.5px/1.5 Geist;color:#8A97A8;margin-bottom:12px">Your company uploads these in the web app. Videos stream, so they need signal.</div>
             <div class="card" style="overflow:hidden;margin-bottom:14px">
               <div class="rowi" data-toast="Playing · Your first day with Vision 360 · 4:12"><span class="mi">play_circle</span><span class="t">Your first day with Vision 360<small>4:12 &middot; En route, Start, Pause, Complete</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-toast="Playing · Building and presenting an estimate · 6:40"><span class="mi">play_circle</span><span class="t">Building and presenting an estimate<small>6:40 &middot; options, price, the customer signs</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-toast="Playing · Taking a payment · 3:05"><span class="mi">play_circle</span><span class="t">Taking a payment<small>3:05 &middot; card, cash, check, the signature</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-toast="Playing · The AC Report Card · 5:18"><span class="mi">play_circle</span><span class="t">The AC Report Card<small>5:18 &middot; ratings, photos, the waiver</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Opens · How to request a PO"><span class="mi">article</span><span class="t">How to request a PO<small>FAQ &middot; 1 page</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-toast="Opens · What to do when a job is cancelled"><span class="mi">article</span><span class="t">What to do when a job is cancelled<small>FAQ &middot; 1 page</small></span><span class="mi ch">chevron_right</span></div>
             </div>
           </div>
         </div>

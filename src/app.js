@@ -10551,10 +10551,13 @@
   var photoSize = 'Balanced';
   ACT.photoSize = function () { toast('Set by your company in the web app \u00b7 Balanced: good quality, quick upload', 'lock'); };
   var wifiOnly = recall('wifiOnly', false);
+  /* Marek, 10.11: Wi-Fi only and the language are the company's too —
+     the technician sees them here but changes nothing */
   ACT.toggleWifiOnly = function () {
-    wifiOnly = !wifiOnly; remember('wifiOnly', wifiOnly);
-    paintSettingsNotes();
-    toast(wifiOnly ? 'Large downloads wait for Wi-Fi — photos to the office still go on any connection' : 'Downloads use any connection', 'wifi');
+    toast('Set by your company in the web app \u00b7 only for downloads; photos to the office go on any connection', 'lock');
+  };
+  ACT.langLocked = function () {
+    toast('Set by your company in the web app \u00b7 English', 'lock');
   };
   var storageCleared = recall('storageCleared', false);
   ACT.clearStorage = function () {
@@ -10570,7 +10573,7 @@
   function paintSettingsNotes() {
     var pn = byId('photoNote'); if (pn) pn.textContent = 'Balanced \u00b7 set by your company';
     var wn = byId('wifiNote'), ws = byId('wifiSw');
-    if (wn) wn.textContent = wifiOnly ? 'On · photos still go on any connection' : 'Off · downloads use any connection';
+    if (wn) wn.textContent = (wifiOnly ? 'On' : 'Off') + ' \u00b7 set by your company';
     if (ws) { ws.style.background = wifiOnly ? '#4A6FA5' : '#DDE3EE'; ws.firstElementChild.style.left = wifiOnly ? '24px' : '3px'; }
     var used = storageCleared ? '17 MB' : '248 MB';
     var waiting = typeof waitingTotal === 'function' ? waitingTotal() : 0;
@@ -11592,7 +11595,7 @@
     LANGS.forEach(function (l, i) { list.appendChild(pickRow(i, i === 0, l, i ? 'Spanish' : '', 'lang')); });
     function paint() {
       paintTicks(list, 'lang', lang);
-      var n = byId('langNote'); if (n) n.textContent = LANGS[lang] || LANGS[0];
+      var n = byId('langNote'); if (n) n.textContent = (LANGS[lang] || LANGS[0]) + ' \u00b7 set by your company';
     }
     list.addEventListener('click', function (ev) {
       var r = ev.target.closest('[data-lang]'); if (!r) return;
