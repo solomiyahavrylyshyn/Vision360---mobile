@@ -631,6 +631,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
             <div class="rowi" data-act="demoNet" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">wifi_off</span><span id="demoNetNote">Demo: go offline</span></div>
             <div class="rowi" data-act="demoPushDispatch" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">notifications_active</span>Demo: push — new job dispatched</div>
             <div class="rowi" data-act="demoSync" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">cloud_sync</span>Demo: sync case &middot; Tom in a basement (M2-8)</div>
+            <div class="rowi" data-act="demoPhotos" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">photo_library</span>Demo: photo upload case &middot; 12 photos and a video</div>
+            <div class="rowi" data-act="demoTz" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">schedule</span>Demo: time zone case &middot; 9:00 AM everywhere</div>
             <div class="rowi" data-act="demoEstimate" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">request_quote</span>Demo: draft estimate with 3 options</div>
             <div class="rowi" data-act="demoManager" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">admin_panel_settings</span><span id="managerNote">Demo: show as manager</span></div>
             <div class="rowi" data-act="demoWarranty" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">verified_user</span><span id="warrantyNote">Demo: show as a warranty technician</span></div>
@@ -777,6 +779,12 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
             </div>
             <div style="font:400 12px/1.5 Geist;color:#8A97A8;margin-top:12px">Targets are set by your manager and drive the figures on Home.</div>
           </div>
+        </div>
+
+        <!-- ============ DEMO: TIME ZONES ============ -->
+        <div class="screen" id="demo-tz" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">Time zones</span></div>
+          <div class="sc" id="tzBody" style="flex:1;overflow-y:auto;padding:16px 16px 24px"></div>
         </div>
 
         <!-- ============ SYNC (M2-8) ============ -->
@@ -3717,7 +3725,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     home: 'home', 'home-active': 'home',
     'more-profile': 'more', 'more-settings': 'more', 'more-terms': 'more', 'more-privacy': 'more', 'more-delete': 'more', 'more-equipment': 'more', 'more-assets': 'more',
     'more-notifications': 'more', 'more-offline': 'more', 'more-help': 'more',
-    'more-language': 'more', 'more-lock': 'more', 'more-devices': 'more', 'more-perm': 'more', 'more-legal': 'more', 'more-schedule': 'more', 'more-safety': 'more', 'more-tutorials': 'more', 'more-storage': 'more', 'more-appearance': 'more', 'more-security': 'more', 'more-permissions': 'more',
+    'more-language': 'more', 'more-lock': 'more', 'more-devices': 'more', 'more-perm': 'more', 'more-legal': 'more', 'more-schedule': 'more', 'demo-tz': 'more', 'more-safety': 'more', 'more-tutorials': 'more', 'more-storage': 'more', 'more-appearance': 'more', 'more-security': 'more', 'more-permissions': 'more',
     history: 'history', 'hist-filters': 'history', 'hist-search': 'history',
     'period-quarter': 'home', 'period-week': 'home',
     chat: 'chat', 'chat-thread': 'chat', timesheet: 'timesheet', more: 'more'
@@ -9258,7 +9266,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       icon = 'cloud_off';
       // the strip says how old the saved data is: the last time it synced
       // M2-8: one wording with More — "Offline · 5 waiting"
-      text = pend.length ? 'Offline · ' + waitingTotal() + ' waiting'
+      text = waitingTotal() ? 'Offline · ' + waitingTotal() + ' waiting'
         : 'Offline · last sync ' + (lastSyncAt || '9:42 AM') + ' · working from saved data';
     } else if (net.syncing) { cls = 'sync'; icon = 'cloud_sync'; text = 'Sending ' + net.sent + ' of ' + net.total; }
     else if (up.phase === 'uploading') { cls = 'up'; icon = 'cloud_upload'; text = up.text; }
@@ -9331,7 +9339,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   function waitingFor(idx) {
     return syncQ.filter(function (q) { return q.job === idx; }).length + (upJob === idx ? upPending : 0);
   }
-  function waitingTotal() { return syncQ.length + upPending; }
+  function waitingTotal() { return syncQ.length + upPending + (typeof dpWaiting === 'function' ? dpWaiting() : 0); }
   /* When the phone last synced: the offline strip and More both say it.
      It moves when a sync finishes after the phone is back online. */
   var lastSyncAt = recall('lastSyncAt', '9:42 AM');
@@ -15350,6 +15358,9 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
           (x.handled
             ? '<div style="display:flex;align-items:center;gap:6px;margin-top:8px;font:600 13px/1.3 Geist;color:#16A34A"><span class="mi" style="font-size:18px">check_circle</span>Handled by the office</div>' +
               '<div style="font:400 12px/1.4 Geist;color:#8A97A8;margin-top:3px">' + esc(x.handledNote) + '</div>'
+            : x.kind === 'file'
+              ? '<div style="font:400 13px/1.45 Geist;color:#B42318;margin-top:4px">' + esc(x.reason) + '</div>' +
+                '<div style="display:flex;align-items:center;gap:6px;margin-top:8px;font:500 12.5px/1.3 Geist;color:#546478"><span class="mi" style="font-size:17px">smartphone</span>Kept on your phone</div>'
             : '<div style="font:400 13px/1.45 Geist;color:#B42318;margin-top:4px">' + esc(x.reason) + '</div>' +
               '<button class="btn" data-act="nsCall" data-n="' + k + '" style="margin-top:12px;height:40px;font-size:14px"><span class="mi" style="font-size:18px">call</span>Call office</button>' +
               '<div data-tap="1" data-act="nsHandled" data-n="' + k + '" style="text-align:center;margin-top:10px;color:#8A97A8;font:500 12.5px/1 Geist">Demo: the office sorts it out</div>') +
@@ -15449,6 +15460,185 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   }
   ACT.naRedo = function (el) { naResolve(el, true); };
   ACT.naDismiss = function (el) { naResolve(el, false); };
+
+  /* =========================================================
+     Demo: photos and video (M4-7 / M6-4). 12 photos offline, each Waiting;
+     outside they go up two at a time; a 20 MB video loses signal at 60% and,
+     with the app reopened an hour later, carries on from 12 MB; Helen's web
+     job page shows each new photo ~5 s after it lands; a 30 MB file is Not
+     added and waits in Sync under Not sent, kept on the phone.
+     ========================================================= */
+  var dp = null;            // the demo's own media, so the real counts stay put
+  var DP_LIMIT = 25;        // MB — assumption for the demo: 20 MB goes, 30 MB doesn't
+  function dpWaiting() {
+    if (!dp) return 0;
+    return dp.photos.filter(function (x) { return x.st !== 'up'; }).length + (dp.video.st !== 'up' ? 1 : 0);
+  }
+  function dpChip(st, label) {
+    return '<span style="position:absolute;left:5px;bottom:5px;font:600 10.5px/1 Geist;color:#fff;background:' +
+      (st === 'up' ? 'rgba(22,163,74,.92)' : st === 'paused' ? 'rgba(217,119,6,.92)' : 'rgba(28,43,58,.78)') +
+      ';border-radius:5px;padding:4px 6px;white-space:nowrap">' + label + '</span>';
+  }
+  function dpPaint() {
+    var box = byId('dpBox'); if (!box || !dp) return;
+    var TILE = 'aspect-ratio:1;border-radius:10px;position:relative;display:flex;align-items:center;justify-content:center;';
+    var tiles = dp.photos.map(function (x) {
+      var lab = x.st === 'up' ? 'Uploaded' : x.st === 'uploading' ? 'Uploading ' + Math.round(x.pct) + '%' : 'Waiting';
+      return '<div style="' + TILE + 'background:#D4DBE6"><span class="mi" style="font-size:26px;color:#A9B4C2">image</span>' + dpChip(x.st, lab) + '</div>';
+    }).join('');
+    var v = dp.video, vpct = Math.round(v.mb / 20 * 100);
+    var vlab = v.st === 'up' ? 'Uploaded' : v.st === 'paused' ? 'Paused · ' + Math.round(v.mb) + ' of 20 MB'
+      : v.st === 'uploading' ? (v.resumed ? 'From 12 MB · ' : '') + vpct + '%' : 'Waiting';
+    tiles += '<div style="' + TILE + 'background:#1C2B3A"><span class="mi" style="font-size:30px;color:#fff">play_circle</span>' +
+      '<span style="position:absolute;top:5px;right:6px;font:600 10px/1 Geist;color:#DCE6F5">0:48 · 20 MB</span>' + dpChip(v.st, vlab) + '</div>';
+    var link = dp.stage === 'offline' ? ['wifi', 'Demo: Tom walks outside · back online', 'dpOnline']
+      : dp.stage === 'dropped' ? ['restart_alt', 'Demo: Tom closed the app · opens it an hour later', 'dpReopen']
+        : dp.stage === 'done' ? ['video_file', 'Demo: add a 30 MB video', 'dpBig'] : null;
+    box.innerHTML =
+      '<div class="card" style="padding:12px 14px;margin-bottom:12px;display:flex;gap:11px;align-items:flex-start">' +
+        '<span class="mi" style="font-size:21px;color:#4A6FA5;margin-top:1px">computer</span>' +
+        '<div style="flex:1"><div style="font:600 13.5px/1.35 Geist">Office · Helen&rsquo;s web job page</div>' +
+        '<div style="font:400 12.5px/1.45 Geist;color:#546478;margin-top:2px">10512-J02 shows <b style="color:#1A2332">' + dp.office + ' of 13</b> new' +
+        (dp.officeAt ? ' · last one ' + dp.officeAt : '') + '. Each appears ~5 s after it uploads, no page refresh.</div></div></div>' +
+      '<div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">10512-J02 · taken just now</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px">' + tiles + '</div>' +
+      (link ? '<div data-tap="1" data-act="' + link[2] + '" style="display:flex;align-items:center;justify-content:center;gap:8px;margin:14px 0 4px;color:#8A97A8;font:500 13px/1 Geist">' +
+        '<span class="mi" style="font-size:17px;color:#A9B4C2">' + link[0] + '</span>' + link[1] + '</div>' : '') +
+      '<div style="height:1px;background:#DDE3EE;margin:14px 0"></div>';
+  }
+  function dpStrip(text, pct) {
+    if (!net.online) { up.phase = 'idle'; paintNet(); return; }
+    up.phase = 'uploading'; up.text = text; up.pct = pct; paintNet();
+  }
+  function dpLanded() {
+    // Helen's page picks it up ~5 s later
+    setTimeout(function () {
+      if (!dp) return;
+      dp.office++; dp.officeAt = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+      dpPaint();
+    }, 5000);
+  }
+  function dpRun() {
+    clearInterval(dp.timer);
+    dp.timer = setInterval(function () {
+      if (!dp || !net.online) return;
+      var left = dp.photos.filter(function (x) { return x.st !== 'up'; });
+      if (left.length) {
+        // two at a time
+        left.slice(0, 2).forEach(function (x) {
+          x.st = 'uploading'; x.pct = Math.min(100, x.pct + 9);
+          if (x.pct >= 100) { x.st = 'up'; dpLanded(); }
+        });
+        var done = 12 - dp.photos.filter(function (x) { return x.st !== 'up'; }).length;
+        dpStrip('Uploading photos · ' + done + ' of 12 uploaded', done / 12 * 100);
+      } else if (dp.video.st !== 'up') {
+        var v = dp.video;
+        v.st = 'uploading'; v.mb = Math.min(20, v.mb + (v.resumed ? 0.2 : 0.5));
+        if (!v.resumed && v.mb >= 12) {
+          // signal gone at 60%, and Tom closes the app
+          v.mb = 12; v.st = 'paused'; dp.stage = 'dropped';
+          net.online = false; up.phase = 'idle'; paintNet(); paintCardAvailability();
+          dpPaint(); return;
+        }
+        if (v.mb >= 20) { v.st = 'up'; dpLanded(); }
+        dpStrip('Uploading video · ' + v.mb.toFixed(1) + ' of 20 MB' + (v.resumed ? ' · resumed from 12 MB' : ''), v.mb / 20 * 100);
+      } else {
+        clearInterval(dp.timer);
+        dp.stage = 'done';
+        up.phase = 'done'; up.text = '12 photos and 1 video uploaded'; paintNet(); flashThenHide(2600);
+      }
+      dpPaint();
+    }, 110);
+  }
+  ACT.demoPhotos = function () {
+    if (dp) clearInterval(dp.timer);
+    jobIdx = demoJobs()[0];
+    if (net.online) { net.online = false; net.syncing = false; paintCardAvailability(); }
+    dp = { stage: 'offline', office: 0, officeAt: '', video: { st: 'waiting', mb: 0, resumed: false },
+      photos: Array.apply(null, Array(12)).map(function () { return { st: 'waiting', pct: 0 }; }) };
+    var ph = byId('photos'), sc = ph && $('.sc', ph);
+    if (!sc) { MISS.push('photos :: demo'); return; }
+    var box = byId('dpBox');
+    if (!box) { box = document.createElement('div'); box.id = 'dpBox'; sc.insertBefore(box, sc.firstElementChild); }
+    up.phase = 'idle'; paintNet(); paintDemoNet(); dpPaint();
+    closeOverlays(true);
+    go('photos', 'push');
+    toast('Tom is in a basement · 12 photos and a video', 'cloud_off');
+  };
+  ACT.dpOnline = function () {
+    if (!dp) return;
+    dp.stage = 'sending'; net.online = true; paintCardAvailability(); paintDemoNet(); dpRun();
+  };
+  ACT.dpReopen = function () {
+    if (!dp) return;
+    toast('An hour later · Tom opens the app', 'schedule');
+    dp.stage = 'sending'; dp.video.resumed = true; dp.video.st = 'uploading';
+    net.online = true; paintCardAvailability(); paintDemoNet(); dpPaint();
+    setTimeout(dpRun, 900);
+  };
+  ACT.dpBig = function () {
+    if (!dp) return;
+    if (!notSent.some(function (x) { return x.kind === 'file'; })) notSent.push({ job: jobIdx, kind: 'file',
+      what: 'site-walkthrough.mov · 30 MB', reason: 'Not added: files over ' + DP_LIMIT + ' MB don’t upload.', handled: false });
+    paintNet();
+    confirmSheet({ title: 'Not added', text: 'site-walkthrough.mov is 30 MB — over the ' + DP_LIMIT + ' MB limit. It stays on your phone, and Sync lists it under Not sent.',
+      ok: 'Open Sync', alt: 'OK', onOk: function () { go('sync', 'push'); } });
+  };
+
+  /* =========================================================
+     Demo: time zones. Every time is the company's clock — the office, Tom
+     and Randy all see "9:00 AM", no zone, no conversion. Tom's phone in
+     another zone changes nothing; "Tomorrow" turns "Today" at the company's
+     midnight with no sync; the switch to daylight time moves nothing.
+     ========================================================= */
+  var tz = { phone: 'company', mid: false };
+  var TZ_PHONE = {
+    company: ['Same as company', 'Eastern', 0],
+    pacific: ['Los Angeles', 'Pacific', -3],
+    kyiv: ['Kyiv', 'Eastern European', 7]
+  };
+  function tzClock(offset) {
+    // company now: Sat, Mar 7, 11:59 PM — or Sun, Mar 8, 12:00 AM
+    var base = new Date(2026, 2, 7, 23, 59 + (tz.mid ? 1 : 0)); base.setHours(base.getHours() + offset);
+    return base.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + ', ' +
+      base.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  }
+  function paintTz() {
+    var body = byId('tzBody'); if (!body) return;
+    var when = (tz.mid ? 'Today' : 'Tomorrow') + ', 9:00 AM', ph = TZ_PHONE[tz.phone];
+    function seg(k) {
+      var on = tz.phone === k;
+      return '<span data-tap="1" data-act="tzPhone" data-k="' + k + '" style="flex:1;text-align:center;padding:9px 4px;border-radius:8px;font:' + (on ? 600 : 500) + ' 12.5px/1.2 Geist;' +
+        (on ? 'background:#fff;color:#1A2332;box-shadow:0 1px 2px rgba(0,0,0,.08)' : 'color:#546478') + '">' + TZ_PHONE[k][0] + '</span>';
+    }
+    function row(who, what, last) {
+      return '<div style="display:flex;justify-content:space-between;gap:10px;padding:12px 14px;' + (last ? '' : 'border-bottom:1px solid #EDF0F5;') + 'font:500 13.5px/1.35 Geist">' +
+        '<span style="color:#546478">' + who + '</span><span style="font-weight:600;color:#1A2332;text-align:right">' + what + '</span></div>';
+    }
+    var H = 'font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:18px 0 9px';
+    body.innerHTML =
+      '<div style="font:400 12.5px/1.5 Geist;color:#546478;margin-bottom:12px">Helen set 10512-J02 to 9:00 AM. Every time in Vision 360 is the company&rsquo;s clock (Tampa, FL · Eastern), with no zone shown and nothing converted.</div>' +
+      '<div class="card" style="padding:14px 15px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center"><span style="font:600 16px/1.3 Geist">Randy Johnson</span>' +
+        '<span style="font:500 13px/1 Geist;color:#546478;display:flex;align-items:center;gap:5px"><span class="mi" style="font-size:16px">schedule</span>' + when + '</span></div>' +
+        '<div style="font:400 13px/1.4 Geist;color:#546478;margin-top:5px">10512-J02 · AC not cooling</div></div>' +
+      '<div style="' + H + '">Who sees what</div>' +
+      '<div class="card" style="overflow:hidden">' + row('Tom · the app', when) + row('Randy Johnson · reminder', 'Sun, Mar 8, 9:00 AM') + row('Helen · the office', '9:00 AM', true) + '</div>' +
+      '<div style="' + H + '">Tom&rsquo;s phone time zone</div>' +
+      '<div style="display:flex;gap:3px;background:#E6EAF1;border-radius:10px;padding:3px">' + seg('company') + seg('pacific') + seg('kyiv') + '</div>' +
+      '<div style="font:400 12.5px/1.5 Geist;color:#546478;margin-top:8px">Phone clock: ' + tzClock(ph[2]) + ' (' + ph[1] + '). The job still reads <b style="color:#1A2332">' + when + '</b>.</div>' +
+      '<div style="' + H + '">Company clock</div>' +
+      '<div class="card" style="padding:13px 15px;display:flex;align-items:center;gap:12px">' +
+        '<div style="flex:1"><div style="font:600 15px/1.3 Geist">' + tzClock(0) + '</div>' +
+        '<div style="font:400 12.5px/1.4 Geist;color:#546478;margin-top:2px">' + (tz.mid ? 'Midnight passed: Tomorrow became Today on the phone, with no sync.' : 'One minute to the company&rsquo;s midnight.') + '</div></div>' +
+        '<span data-tap="1" data-act="tzMid" style="font:600 13.5px/1 Geist;color:#4A6FA5;padding:8px 4px;white-space:nowrap">' + (tz.mid ? 'Back to 11:59' : '+1 minute') + '</span></div>' +
+      '<div style="' + H + '">Daylight saving</div>' +
+      '<div class="card" style="padding:13px 15px;display:flex;gap:11px"><span class="mi" style="font-size:20px;color:#4A6FA5">wb_sunny</span>' +
+        '<div style="font:400 13px/1.5 Geist;color:#1A2332">Sun, Mar 8 is the switch to daylight time: at 2:00 AM the clocks go to 3:00 AM. The job is still <b>9:00 AM</b> for Tom, Randy and the office. Nothing moves.</div></div>';
+  }
+  ACT.demoTz = function () { tz = { phone: 'company', mid: false }; paintTz(); go('demo-tz', 'push'); };
+  ACT.tzPhone = function (el) { tz.phone = el.dataset.k; paintTz(); };
+  ACT.tzMid = function () { tz.mid = !tz.mid; paintTz(); if (tz.mid) toast('12:00 AM · Today, 9:00 AM · no sync', 'schedule'); };
 
   /* M2-9: at sync the server numbers what was made offline from the
      customer's sequence, and the app swaps the temporary number everywhere. */
