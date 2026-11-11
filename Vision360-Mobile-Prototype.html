@@ -630,6 +630,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
             <!-- demo only: the connection and the office's pushes, for the call (M2, M3-11) -->
             <div class="rowi" data-act="demoNet" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">wifi_off</span><span id="demoNetNote">Demo: go offline</span></div>
             <div class="rowi" data-act="demoPushDispatch" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">notifications_active</span>Demo: push — new job dispatched</div>
+            <div class="rowi" data-act="demoSync" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">cloud_sync</span>Demo: sync case &middot; Tom in a basement (M2-8)</div>
             <div class="rowi" data-act="demoEstimate" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">request_quote</span>Demo: draft estimate with 3 options</div>
             <div class="rowi" data-act="demoManager" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">admin_panel_settings</span><span id="managerNote">Demo: show as manager</span></div>
             <div class="rowi" data-act="demoWarranty" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">verified_user</span><span id="warrantyNote">Demo: show as a warranty technician</span></div>
@@ -9256,16 +9257,31 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       if (upPending) pend.push(upPending + ' ' + plural(upPending));
       icon = 'cloud_off';
       // the strip says how old the saved data is: the last time it synced
-      text = 'Offline · last sync ' + (lastSyncAt || '9:42 AM') + (pend.length ? ' · ' + pend.join(' and ') + ' will send when you’re back'
-        : ' · working from saved data');
+      // M2-8: one wording with More — "Offline · 5 waiting"
+      text = pend.length ? 'Offline · ' + waitingTotal() + ' waiting'
+        : 'Offline · last sync ' + (lastSyncAt || '9:42 AM') + ' · working from saved data';
     } else if (net.syncing) { cls = 'sync'; icon = 'cloud_sync'; text = 'Sending ' + net.sent + ' of ' + net.total; }
     else if (up.phase === 'uploading') { cls = 'up'; icon = 'cloud_upload'; text = up.text; }
     else if (up.phase === 'done') { cls = 'ok'; icon = 'cloud_done'; text = up.text; }
-    else if (net.sentFlash) { cls = 'ok'; icon = 'cloud_done'; text = 'All sent'; }
+    // M2-8 + Jean (PRD review part 2): what the office overruled stays on the
+    // same blue strip with a red "!" — not a second banner
+    else if (notApplied.length) { cls = 'sync'; icon = 'cloud_done'; text = 'All sent · ' + lastSyncAt; }
+    else if (net.sentFlash) { cls = 'ok'; icon = 'cloud_done'; text = 'All sent · ' + lastSyncAt; }
     else show = false;
     netbar.className = 'netbar' + (show ? ' on' : '') + (cls ? ' ' + cls : '');
     netIcon.textContent = icon;
     netmsg.textContent = text;
+    var nb = byId('netNA');
+    if (!nb) {
+      nb = document.createElement('span'); nb.id = 'netNA';
+      nb.setAttribute('style', 'margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:5px;background:#fff;color:#DC2626;' +
+        'border-radius:999px;padding:3px 9px 3px 3px;font:600 12px/1 Geist;position:relative;z-index:1');
+      netbar.insertBefore(nb, netFill);
+    }
+    var naShow = show && net.online && !net.syncing && notApplied.length > 0;
+    nb.style.display = naShow ? 'inline-flex' : 'none';
+    if (naShow) nb.innerHTML = '<span style="width:17px;height:17px;border-radius:50%;background:#DC2626;color:#fff;display:inline-flex;align-items:center;justify-content:center;font:700 12px/1 Geist">!</span>' +
+      notApplied.length + ' not applied';
     netFill.style.width = up.phase === 'uploading' ? up.pct + '%' : '0';
     paintCloseoutBlocker();
     paintLastSync();
@@ -9298,6 +9314,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
      is, so the Sync screen can list it by job and the job can say it has
      something waiting. */
   var syncQ = [];
+  var notApplied = [];   // M2-8: changes the office overruled while he was offline
+  var syncDemo = false;  // the M2-8 case from More's demo rows: Tom in the basement
   var QLABEL = { 'Job status': 'Status', Note: 'Note' };
   function queued(what, detail) {
     if (net.online) return;
@@ -9329,12 +9347,13 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       : { icon: 'cloud_off', text: 'Offline · last sync Today ' + lastSyncAt, tone: 'warn' };
     if (net.syncing) return { icon: 'cloud_sync', text: 'Sending ' + net.sent + ' of ' + net.total, tone: 'brand' };
     if (n) return { icon: 'cloud_upload', text: n + ' waiting', tone: 'brand' };
+    if (notApplied.length) return { icon: 'error', text: 'All sent · ' + notApplied.length + ' not applied', tone: 'bad' };
     return { icon: 'cloud_done', text: 'All sent · ' + lastSyncAt, tone: 'ok' };
   }
   function paintLastSync() {
     var st = syncState();
     var t = byId('moreSyncTitle'); if (t) t.textContent = st.text;
-    var ic = byId('moreSyncIcon'); if (ic) { ic.textContent = st.icon; ic.style.color = st.tone === 'warn' ? '#D97706' : '#4A6FA5'; }
+    var ic = byId('moreSyncIcon'); if (ic) { ic.textContent = st.icon; ic.style.color = st.tone === 'warn' ? '#D97706' : st.tone === 'bad' ? '#DC2626' : '#4A6FA5'; }
     var e = byId('moreLastSync'); if (e && lastSyncAt) e.textContent = 'Last sync Today ' + lastSyncAt;
     var w = byId('offWaiting'); if (w) w.textContent = net.queue ? net.queue + (net.queue === 1 ? ' change' : ' changes') : 'Nothing';
   }
@@ -9345,11 +9364,14 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     // US-M14-2: queued work goes up by itself — no manual "Generate Report".
     // M2-8: the indicator counts it out — "Sending 2 of 5"
     net.syncing = true; net.total = syncQ.length || 1; net.sent = 1; paintNet();
-    var step = setInterval(function () { if (net.sent < net.total) { net.sent++; paintNet(); } }, Math.max(150, 1100 / net.total));
+    var dur = syncDemo ? 750 * net.total : 1100;
+    var step = setInterval(function () { if (net.sent < net.total) { net.sent++; paintNet(); } }, Math.max(150, dur / net.total));
     setTimeout(function () {
       clearInterval(step);
       net.queue = 0; net.syncing = false; syncQ = [];
       markSynced();
+      if (syncDemo) { syncDemo = false; notApplied = demoConflicts(); paintDemoSync(); }
+      if (notApplied.length && !upPending) { paintNet(); return; }
       if (upPending) startUpload(upPending, upLastBound);
       else { net.sentFlash = true; paintNet(); flashThenHide(2200); }
     }, 1100);
@@ -15289,9 +15311,26 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     var body = byId('syncBody'); if (!body) return;
     var st = syncState(), n = waitingTotal();
     var html = '<div class="card" style="display:flex;align-items:center;gap:12px;padding:15px;margin-bottom:16px">' +
-      '<span class="mi" style="font-size:26px;color:' + (st.tone === 'warn' ? '#D97706' : st.tone === 'ok' ? '#16A34A' : '#4A6FA5') + '">' + st.icon + '</span>' +
-      '<div style="flex:1"><div style="font:600 16px/1.3 Geist">' + (n ? esc(st.text) : 'Everything is sent') + '</div>' +
+      '<span class="mi" style="font-size:26px;color:' + (st.tone === 'warn' ? '#D97706' : st.tone === 'ok' ? '#16A34A' : st.tone === 'bad' ? '#DC2626' : '#4A6FA5') + '">' + st.icon + '</span>' +
+      '<div style="flex:1"><div style="font:600 16px/1.3 Geist">' + (n || notApplied.length || net.syncing ? esc(st.text) : 'Everything is sent') + '</div>' +
       '<div style="font:400 13px/1.4 Geist;color:#546478;margin-top:3px">Last sync Today ' + esc(lastSyncAt) + '</div></div></div>';
+    if (notApplied.length && !n) {
+      html += '<div style="display:flex;align-items:center;gap:7px;font:600 12px/1 Geist;letter-spacing:.07em;color:#DC2626;text-transform:uppercase;margin:0 0 9px">' +
+        '<span style="width:17px;height:17px;border-radius:50%;background:#DC2626;color:#fff;display:inline-flex;align-items:center;justify-content:center;font:700 12px/1 Geist;letter-spacing:0">!</span>' +
+        notApplied.length + ' not applied</div>' +
+        '<div style="font:400 12.5px/1.5 Geist;color:#546478;margin:-2px 0 10px">The office changed the same thing while you were offline. Redo sends yours again; Dismiss keeps the office&rsquo;s.</div>';
+      notApplied.forEach(function (c, k) {
+        var j = JOBS[c.job] || {};
+        html += '<div class="card" style="padding:13px 14px;margin-bottom:10px;border:1px solid #F5C2C2">' +
+          '<div style="font:600 14.5px/1.3 Geist">' + esc((jobNo(j) ? jobNo(j) + ' · ' : '') + (j.name || 'Job')) + '</div>' +
+          naRow('You', c.you, c.youAt + ' · offline') +
+          naRow('Office', c.office, c.by + ' · ' + c.officeAt) +
+          '<div style="display:flex;gap:8px;margin-top:12px">' +
+            '<button class="btn" data-act="naRedo" data-n="' + k + '" style="flex:1;height:40px;font-size:14px">Redo</button>' +
+            '<button class="btn sec" data-act="naDismiss" data-n="' + k + '" style="flex:1;height:40px;font-size:14px;background:#fff;color:#1A2332;border:1px solid #DDE3EE">Dismiss</button>' +
+          '</div></div>';
+      });
+    }
     if (n) {
       html += '<div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">Waiting</div>';
       var byJob = {};
@@ -15313,13 +15352,68 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         row('Oldest waiting', syncQ.length ? (oldest ? oldest + ' min ago' : 'Just now') : '—') +
         row('Last successful sync', 'Today ' + lastSyncAt, true) + '</div>';
     }
+    if (syncDemo && !net.online) html += '<div data-tap="1" data-act="demoSyncOnline" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:14px;color:#8A97A8;font:500 13px/1 Geist">' +
+      '<span class="mi" style="font-size:17px;color:#A9B4C2">wifi</span>Demo: Tom walks outside &middot; back online</div>';
     body.innerHTML = html;
+    function naRow(who, what, meta) {
+      return '<div style="display:flex;gap:10px;margin-top:9px"><span style="flex:none;width:48px;font:600 12px/1.5 Geist;color:#8A97A8;text-transform:uppercase;letter-spacing:.05em">' + who + '</span>' +
+        '<div style="flex:1;font:400 13.5px/1.45 Geist;color:#1A2332">' + esc(what) + '<div style="font:400 12px/1.4 Geist;color:#8A97A8;margin-top:2px">' + esc(meta) + '</div></div></div>';
+    }
     function row(l, v, last) {
       return '<div style="display:flex;justify-content:space-between;padding:13px 15px;' + (last ? '' : 'border-bottom:1px solid #EDF0F5;') +
         'font:500 14px/1 Geist;color:#546478"><span>' + l + '</span><span style="font-weight:600;color:#1A2332">' + esc(v) + '</span></div>';
     }
     function esc(t) { return String(t).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
   }
+  /* M2-8 demo: Tom in a basement. Offline · 5 waiting, 2 on this job's card;
+     outside it counts Sending 2 of 5 → All sent; two things the office
+     changed meanwhile come back as "2 not applied" with Redo / Dismiss. */
+  function demoJobs() {
+    var a = jobIdx < JOBS.length ? jobIdx : (openJobs()[0] || 0);
+    var b = openJobs().filter(function (i) { return i !== a; })[0];
+    if (b === undefined) b = (a + 1) % JOBS.length;
+    return [a, b];
+  }
+  function demoConflicts() {
+    var ab = demoJobs();
+    return [
+      { job: ab[0], you: 'Marked the job Completed', youAt: '9:18 AM', office: 'Rescheduled it to Thu, Nov 12, 9:00 AM', by: 'Linda Moss, dispatcher', officeAt: '9:31 AM',
+        redo: 'Sent again · the job is Completed', dismiss: 'Kept the office’s · rescheduled to Thu' },
+      { job: ab[1], you: 'Field note: “Customer wants a call before 5 PM”', youAt: '9:24 AM', office: 'Edited the same note: “Call after 6 PM, works late”', by: 'Kate Rivera, office', officeAt: '9:36 AM',
+        redo: 'Sent again · your note replaced the office’s', dismiss: 'Kept the office’s note' }
+    ];
+  }
+  ACT.demoSync = function () {
+    var ab = demoJobs(), t = Date.now() - 40 * 60000;
+    jobIdx = ab[0];
+    if (net.online) { net.online = false; net.syncing = false; paintCardAvailability(); }
+    notApplied = [];
+    syncQ = [
+      { job: ab[0], what: 'Status · Completed', at: t },
+      { job: ab[0], what: 'Item added · Capacitor 45/5 MFD', at: t + 6e4 },
+      { job: ab[1], what: 'Photo 3 of 12 (40%)', at: t + 12e4 },
+      { job: ab[1], what: 'Field note', at: t + 18e4 },
+      { job: ab[1], what: 'Payment $250.00 cash', at: t + 24e4 }
+    ];
+    net.queue = syncQ.length;
+    syncDemo = true;
+    paintNet(); paintDemoNet();
+    closeOverlays && closeOverlays(true);
+    go(homeScreen(), 'root');
+    toast('Tom is in a basement · tap the strip for Sync', 'cloud_off');
+  };
+  ACT.demoSyncOnline = function () { window.dispatchEvent(new Event('online')); paintDemoNet(); };
+  function paintDemoSync() { paintSync(); }
+  function naResolve(el, redo) {
+    var c = notApplied[+el.dataset.n]; if (!c) return;
+    notApplied.splice(+el.dataset.n, 1);
+    toast(redo ? c.redo : c.dismiss, redo ? 'sync' : 'check');
+    if (!notApplied.length) { net.sentFlash = true; flashThenHide(2200); }
+    paintNet();
+  }
+  ACT.naRedo = function (el) { naResolve(el, true); };
+  ACT.naDismiss = function (el) { naResolve(el, false); };
+
   /* M2-9: at sync the server numbers what was made offline from the
      customer's sequence, and the app swaps the temporary number everywhere. */
   function estNoOf(j) {
