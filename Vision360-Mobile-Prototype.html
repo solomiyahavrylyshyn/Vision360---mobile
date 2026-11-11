@@ -648,7 +648,6 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
             <div class="card" style="overflow:hidden;margin-bottom:14px">
               <div class="rowi" data-act="photoSize"><span class="mi">photo_size_select_large</span><span class="t">Photo upload<small id="photoNote">Balanced &middot; set by your company</small></span><span class="mi" style="font-size:18px;color:#A9B4C2">lock</span></div>
               <div class="rowi" data-act="langLocked"><span class="mi">language</span><span class="t">Language<small id="langNote">English &middot; set by your company</small></span><span class="mi" style="font-size:18px;color:#A9B4C2">lock</span></div>
-              <div class="rowi" data-act="toggleWifiOnly"><span class="mi">wifi</span><span class="t">Wi-Fi only for large downloads<small id="wifiNote">Off &middot; set by your company</small></span><span class="mi" style="font-size:18px;color:#A9B4C2">lock</span></div>
               <div class="rowi" data-act="toggleLocation"><span class="mi">my_location</span><span class="t">Location services<small id="locNote">On &middot; needed to start a job</small></span><span id="locSw" style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none"><span style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span></span></div>
             </div>
             <div style="font:400 12px/1.45 Geist;color:#8A97A8;margin:-6px 2px 18px">Your office changes these in the web app. Location must be on to start a job.</div>
@@ -657,6 +656,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
               <div class="rowi" data-go="more-appearance" data-mode="push"><span class="mi">dark_mode</span><span class="t">Appearance<small id="themeNote">Light</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-go="more-notifications" data-mode="push"><span class="mi">notifications_none</span><span class="t">Notifications</span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-go="more-storage" data-mode="push"><span class="mi">sd_storage</span><span class="t">Storage<small id="storageNote">248 MB used</small></span><span class="mi ch">chevron_right</span></div>
+              <div class="rowi" data-act="toggleWifiOnly"><span class="mi">wifi</span><span class="t">Wi-Fi only for large downloads<small id="wifiNote">Off &middot; downloads use any connection</small></span><span data-sw id="wifiSw" style="width:52px;height:31px;border-radius:16px;background:#DDE3EE;position:relative;flex:none"><span style="position:absolute;top:3px;left:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span></span></div>
               <div class="rowi" data-go="more-devices" data-mode="push"><span class="mi">devices</span><span class="t">My devices<small>This phone &middot; signed in for 30 days</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-go="more-security" data-mode="push"><span class="mi">lock</span><span class="t">Security<small>Change password</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-go="more-permissions" data-mode="push"><span class="mi">verified_user</span><span class="t">Permissions<small>Location, camera</small></span><span class="mi ch">chevron_right</span></div>
@@ -13913,10 +13913,12 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   var photoSize = 'Balanced';
   ACT.photoSize = function () { toast('Set by your company in the web app \u00b7 Balanced: good quality, quick upload', 'lock'); };
   var wifiOnly = recall('wifiOnly', false);
-  /* Marek, 10.11: Wi-Fi only and the language are the company's too —
-     the technician sees them here but changes nothing */
+  /* Marek, 10.11: the language is the company's; Wi-Fi only stays the
+     technician's own switch, saved on the phone */
   ACT.toggleWifiOnly = function () {
-    toast('Set by your company in the web app \u00b7 only for downloads; photos to the office go on any connection', 'lock');
+    wifiOnly = !wifiOnly; remember('wifiOnly', wifiOnly);
+    paintSettingsNotes();
+    toast(wifiOnly ? 'Large downloads wait for Wi-Fi — photos to the office still go on any connection' : 'Downloads use any connection', 'wifi');
   };
   ACT.langLocked = function () {
     toast('Set by your company in the web app \u00b7 English', 'lock');
@@ -13935,7 +13937,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   function paintSettingsNotes() {
     var pn = byId('photoNote'); if (pn) pn.textContent = 'Balanced \u00b7 set by your company';
     var wn = byId('wifiNote'), ws = byId('wifiSw');
-    if (wn) wn.textContent = (wifiOnly ? 'On' : 'Off') + ' \u00b7 set by your company';
+    if (wn) wn.textContent = wifiOnly ? 'On · photos still go on any connection' : 'Off · downloads use any connection';
     if (ws) { ws.style.background = wifiOnly ? '#4A6FA5' : '#DDE3EE'; ws.firstElementChild.style.left = wifiOnly ? '24px' : '3px'; }
     var used = storageCleared ? '17 MB' : '248 MB';
     var waiting = typeof waitingTotal === 'function' ? waitingTotal() : 0;
