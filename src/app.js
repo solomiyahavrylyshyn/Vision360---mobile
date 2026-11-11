@@ -5902,7 +5902,7 @@
     else if (up.phase === 'done') { cls = 'ok'; icon = 'cloud_done'; text = up.text; }
     // M2-8 + Jean (PRD review part 2): what the office overruled stays on the
     // same blue strip with a red "!" — not a second banner
-    else if (notApplied.length) { cls = 'sync'; icon = 'cloud_done'; text = 'All sent · ' + lastSyncAt; }
+    else if (openIssues()) { cls = 'sync'; icon = 'cloud_done'; text = 'All sent · ' + lastSyncAt; }
     else if (net.sentFlash) { cls = 'ok'; icon = 'cloud_done'; text = 'All sent · ' + lastSyncAt; }
     else show = false;
     netbar.className = 'netbar' + (show ? ' on' : '') + (cls ? ' ' + cls : '');
@@ -5915,10 +5915,11 @@
         'border-radius:999px;padding:3px 9px 3px 3px;font:600 12px/1 Geist;position:relative;z-index:1');
       netbar.insertBefore(nb, netFill);
     }
-    var naShow = show && net.online && !net.syncing && notApplied.length > 0;
+    var nsOpen = notSent.filter(function (x) { return !x.handled; }).length;
+    var naShow = show && net.online && !net.syncing && (notApplied.length + nsOpen) > 0;
     nb.style.display = naShow ? 'inline-flex' : 'none';
     if (naShow) nb.innerHTML = '<span style="width:17px;height:17px;border-radius:50%;background:#DC2626;color:#fff;display:inline-flex;align-items:center;justify-content:center;font:700 12px/1 Geist">!</span>' +
-      notApplied.length + ' not applied';
+      [notApplied.length ? notApplied.length + ' not applied' : '', nsOpen ? nsOpen + ' not sent' : ''].filter(Boolean).join(' · ');
     netFill.style.width = up.phase === 'uploading' ? up.pct + '%' : '0';
     paintCloseoutBlocker();
     paintLastSync();
@@ -5952,6 +5953,8 @@
      something waiting. */
   var syncQ = [];
   var notApplied = [];   // M2-8: changes the office overruled while he was offline
+  var notSent = [];      // M2-8: what the server refused — the office sorts it out
+  function openIssues() { return notApplied.length + notSent.filter(function (x) { return !x.handled; }).length; }
   var syncDemo = false;  // the M2-8 case from More's demo rows: Tom in the basement
   var QLABEL = { 'Job status': 'Status', Note: 'Note' };
   function queued(what, detail) {
@@ -5984,7 +5987,10 @@
       : { icon: 'cloud_off', text: 'Offline · last sync Today ' + lastSyncAt, tone: 'warn' };
     if (net.syncing) return { icon: 'cloud_sync', text: 'Sending ' + net.sent + ' of ' + net.total, tone: 'brand' };
     if (n) return { icon: 'cloud_upload', text: n + ' waiting', tone: 'brand' };
-    if (notApplied.length) return { icon: 'error', text: 'All sent · ' + notApplied.length + ' not applied', tone: 'bad' };
+    if (openIssues()) {
+      var ns = notSent.filter(function (x) { return !x.handled; }).length;
+      return { icon: 'error', text: 'All sent · ' + [notApplied.length ? notApplied.length + ' not applied' : '', ns ? ns + ' not sent' : ''].filter(Boolean).join(' · '), tone: 'bad' };
+    }
     return { icon: 'cloud_done', text: 'All sent · ' + lastSyncAt, tone: 'ok' };
   }
   function paintLastSync() {
@@ -6007,8 +6013,11 @@
       clearInterval(step);
       net.queue = 0; net.syncing = false; syncQ = [];
       markSynced();
-      if (syncDemo) { syncDemo = false; notApplied = demoConflicts(); paintDemoSync(); }
-      if (notApplied.length && !upPending) { paintNet(); return; }
+      if (syncDemo) {
+        syncDemo = false; notApplied = demoConflicts(); notSent = demoNotSent();
+        lastSyncAt = '9:42 AM'; remember('lastSyncAt', lastSyncAt);
+      }
+      if (openIssues() && !upPending) { paintNet(); return; }
       if (upPending) startUpload(upPending, upLastBound);
       else { net.sentFlash = true; paintNet(); flashThenHide(2200); }
     }, 1100);
@@ -11949,13 +11958,13 @@
     var st = syncState(), n = waitingTotal();
     var html = '<div class="card" style="display:flex;align-items:center;gap:12px;padding:15px;margin-bottom:16px">' +
       '<span class="mi" style="font-size:26px;color:' + (st.tone === 'warn' ? '#D97706' : st.tone === 'ok' ? '#16A34A' : st.tone === 'bad' ? '#DC2626' : '#4A6FA5') + '">' + st.icon + '</span>' +
-      '<div style="flex:1"><div style="font:600 16px/1.3 Geist">' + (n || notApplied.length || net.syncing ? esc(st.text) : 'Everything is sent') + '</div>' +
+      '<div style="flex:1"><div style="font:600 16px/1.3 Geist">' + (n || openIssues() || net.syncing ? esc(st.text) : 'Everything is sent') + '</div>' +
       '<div style="font:400 13px/1.4 Geist;color:#546478;margin-top:3px">Last sync Today ' + esc(lastSyncAt) + '</div></div></div>';
     if (notApplied.length && !n) {
       html += '<div style="display:flex;align-items:center;gap:7px;font:600 12px/1 Geist;letter-spacing:.07em;color:#DC2626;text-transform:uppercase;margin:0 0 9px">' +
         '<span style="width:17px;height:17px;border-radius:50%;background:#DC2626;color:#fff;display:inline-flex;align-items:center;justify-content:center;font:700 12px/1 Geist;letter-spacing:0">!</span>' +
         notApplied.length + ' not applied</div>' +
-        '<div style="font:400 12.5px/1.5 Geist;color:#546478;margin:-2px 0 10px">The office changed the same thing while you were offline. Redo sends yours again; Dismiss keeps the office&rsquo;s.</div>';
+        '<div style="font:400 12.5px/1.5 Geist;color:#546478;margin:-2px 0 10px">The office changed the same thing later, so the office&rsquo;s version stays. Redo sends yours again; Dismiss keeps the office&rsquo;s.</div>';
       notApplied.forEach(function (c, k) {
         var j = JOBS[c.job] || {};
         html += '<div class="card" style="padding:13px 14px;margin-bottom:10px;border:1px solid #F5C2C2">' +
@@ -11966,6 +11975,22 @@
             '<button class="btn" data-act="naRedo" data-n="' + k + '" style="flex:1;height:40px;font-size:14px">Redo</button>' +
             '<button class="btn sec" data-act="naDismiss" data-n="' + k + '" style="flex:1;height:40px;font-size:14px;background:#fff;color:#1A2332;border:1px solid #DDE3EE">Dismiss</button>' +
           '</div></div>';
+      });
+    }
+    if (notSent.length && !n) {
+      html += '<div style="font:600 12px/1 Geist;letter-spacing:.07em;color:' + (notSent.some(function (x) { return !x.handled; }) ? '#DC2626' : '#8A97A8') + ';text-transform:uppercase;margin:16px 0 9px">Not sent</div>';
+      notSent.forEach(function (x, k) {
+        var j = JOBS[x.job] || {};
+        html += '<div class="card" style="padding:13px 14px;margin-bottom:10px;' + (x.handled ? '' : 'border:1px solid #F5C2C2') + '">' +
+          '<div style="font:600 14.5px/1.3 Geist">' + esc((jobNo(j) ? jobNo(j) + ' · ' : '') + (j.name || 'Job')) + '</div>' +
+          '<div style="font:500 13.5px/1.45 Geist;color:#1A2332;margin-top:6px">' + esc(x.what) + '</div>' +
+          (x.handled
+            ? '<div style="display:flex;align-items:center;gap:6px;margin-top:8px;font:600 13px/1.3 Geist;color:#16A34A"><span class="mi" style="font-size:18px">check_circle</span>Handled by the office</div>' +
+              '<div style="font:400 12px/1.4 Geist;color:#8A97A8;margin-top:3px">' + esc(x.handledNote) + '</div>'
+            : '<div style="font:400 13px/1.45 Geist;color:#B42318;margin-top:4px">' + esc(x.reason) + '</div>' +
+              '<button class="btn" data-act="nsCall" data-n="' + k + '" style="margin-top:12px;height:40px;font-size:14px"><span class="mi" style="font-size:18px">call</span>Call office</button>' +
+              '<div data-tap="1" data-act="nsHandled" data-n="' + k + '" style="text-align:center;margin-top:10px;color:#8A97A8;font:500 12.5px/1 Geist">Demo: the office sorts it out</div>') +
+          '</div>';
       });
     }
     if (n) {
@@ -12013,21 +12038,25 @@
   }
   function demoConflicts() {
     var ab = demoJobs();
+    // Tom set 2 offline at 9:00, Helen set 3 in the office at 10:00 — the later one stays
     return [
-      { job: ab[0], you: 'Marked the job Completed', youAt: '9:18 AM', office: 'Rescheduled it to Thu, Nov 12, 9:00 AM', by: 'Linda Moss, dispatcher', officeAt: '9:31 AM',
-        redo: 'Sent again · the job is Completed', dismiss: 'Kept the office’s · rescheduled to Thu' },
-      { job: ab[1], you: 'Field note: “Customer wants a call before 5 PM”', youAt: '9:24 AM', office: 'Edited the same note: “Call after 6 PM, works late”', by: 'Kate Rivera, office', officeAt: '9:36 AM',
-        redo: 'Sent again · your note replaced the office’s', dismiss: 'Kept the office’s note' }
+      { job: ab[0], you: 'Capacitor 45/5 MFD · quantity 2', youAt: '9:00 AM', office: 'Capacitor 45/5 MFD · quantity 3 (this one stays)', by: 'Helen Park, office', officeAt: '10:00 AM',
+        redo: 'Sent again · quantity is 2', dismiss: 'Kept the office’s · quantity 3' }
     ];
+  }
+  function demoNotSent() {
+    var ab = demoJobs();
+    return [{ job: ab[1], what: 'Payment $250.00 cash', reason: 'The server didn’t take it: the invoice is already paid in full in the office.',
+      handled: false, handledNote: 'The office recorded the cash as a deposit on the next visit · Helen Park · just now' }];
   }
   ACT.demoSync = function () {
     var ab = demoJobs(), t = Date.now() - 40 * 60000;
     jobIdx = ab[0];
     if (net.online) { net.online = false; net.syncing = false; paintCardAvailability(); }
-    notApplied = [];
+    notApplied = []; notSent = [];
     syncQ = [
-      { job: ab[0], what: 'Status · Completed', at: t },
-      { job: ab[0], what: 'Item added · Capacitor 45/5 MFD', at: t + 6e4 },
+      { job: ab[0], what: 'Quantity · Capacitor 45/5 MFD → 2', at: t },
+      { job: ab[0], what: 'Status · Work done', at: t + 6e4 },
       { job: ab[1], what: 'Photo 3 of 12 (40%)', at: t + 12e4 },
       { job: ab[1], what: 'Field note', at: t + 18e4 },
       { job: ab[1], what: 'Payment $250.00 cash', at: t + 24e4 }
@@ -12039,14 +12068,21 @@
     go(homeScreen(), 'root');
     toast('Tom is in a basement · tap the strip for Sync', 'cloud_off');
   };
+  function issuesMaybeDone() { if (!openIssues()) { net.sentFlash = true; flashThenHide(2200); } paintNet(); }
+  ACT.nsCall = function (el) {
+    ACT.callDispatch();
+    var x = notSent[+el.dataset.n];
+    // demo: the office sorts it out a few seconds after the call
+    setTimeout(function () { if (x && !x.handled) { x.handled = true; issuesMaybeDone(); toast('The office handled the payment', 'check_circle'); } }, 4000);
+  };
+  ACT.nsHandled = function (el) { var x = notSent[+el.dataset.n]; if (x) { x.handled = true; issuesMaybeDone(); } };
   ACT.demoSyncOnline = function () { window.dispatchEvent(new Event('online')); paintDemoNet(); };
   function paintDemoSync() { paintSync(); }
   function naResolve(el, redo) {
     var c = notApplied[+el.dataset.n]; if (!c) return;
     notApplied.splice(+el.dataset.n, 1);
     toast(redo ? c.redo : c.dismiss, redo ? 'sync' : 'check');
-    if (!notApplied.length) { net.sentFlash = true; flashThenHide(2200); }
-    paintNet();
+    issuesMaybeDone();
   }
   ACT.naRedo = function (el) { naResolve(el, true); };
   ACT.naDismiss = function (el) { naResolve(el, false); };
