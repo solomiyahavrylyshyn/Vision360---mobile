@@ -3483,13 +3483,11 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   var invNum = recall('invNum', '');          // the current invoice's number
   if (/^INV-/.test(invNum)) invNum = '';       // the old INV-26-10-123 numbers give way to the web's
   var invTemp = recall('invTemp', false);      // M2-9: made offline, numbered at sync
-  /* M2-9: TMP- + the first 6 hex characters of the device id + a counter
-     kept on the device, never reused (4 digits, 5 after 9999). */
-  var DEVICE_HEX = '7F3A2C';
-  function nextTempNo() {
-    var n = recall('tmpSeq', 2) + 1; remember('tmpSeq', n);
-    return 'TMP-' + DEVICE_HEX + '-' + String(n).padStart(4, '0');
-  }
+  /* M2-9 (call 11.11): made offline, the number is the customer's with XX
+     in place of the count — 10512-IXX, 10512-EXX — and the technician's
+     screens add "number after sync"; the server gives the real one. */
+  function nextTempNo(j, letter) { return ((j && j.cust) || '10512') + '-' + (letter || 'I') + 'XX'; }
+  if (/^TMP-/.test(invNum)) invNum = nextTempNo(null, 'I');
   // the next number of the customer's own sequence: 10512-I01, 10512-E03
   function nextDocNo(j, letter) {
     var key = letter === 'E' ? 'estSeqs' : 'invSeqs';
@@ -3498,7 +3496,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     return c + '-' + letter + String(seqs[c]).padStart(2, '0');
   }
   // the technician's own screens say a temporary number is one
-  function invDisplay() { var n = invNo(); return invTemp ? n + ' · final number after sync' : n; }
+  function invDisplay() { var n = invNo(); return invTemp ? n + ' · number after sync' : n; }
   var invSeq = recall('invSeq', 122);         // the board's INV-26-03-123 was the 123rd
   var invPaidSoFar = recall('invPaidSoFar', 0);   // partial payments taken against the invoice
   var invBase = recall('invBase', null);          // an invoice kept as it was when the estimate changed
@@ -4364,7 +4362,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       // M2-9: the estimate gets its number when it is first saved — a
       // temporary one when there is no signal
       var ej = JOBS[jobIdx];
-      if (ej && !ej.estNo) { ej.estTmp = !net.online; ej.estNo = ej.estTmp ? nextTempNo() : nextDocNo(ej, 'E'); saveJobs(); }
+      if (ej && !ej.estNo) { ej.estTmp = !net.online; ej.estNo = ej.estTmp ? nextTempNo(ej, 'E') : nextDocNo(ej, 'E'); saveJobs(); }
       var warranty = typedWarranty();
       var added = addOption(total, optionItems, false, wanted);
       if (added && first) pickedOption = Object.keys(OPTION_TOTALS)[0] || pickedOption;
@@ -4620,7 +4618,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
          the real one at sync. */
       var cj = JOBS[jobIdx] || {};
       invTemp = !net.online;
-      invNum = invTemp ? nextTempNo() : nextDocNo(cj, 'I');
+      invNum = invTemp ? nextTempNo(cj, 'I') : nextDocNo(cj, 'I');
       remember('invNum', invNum); remember('invTemp', invTemp);
       state.inv = 'created';
       paintPayScreens();
@@ -6396,11 +6394,14 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     var what = state.inv === 'paid' ? 'Receipt ' + invNo() : 'Invoice ' + invNo();
     toast(net.online ? what + ' ' + verb : what + ' will be ' + how + ' when there is signal', icon);
   }
-  ACT.invMail = function () { sendReceipt('emailed', 'mail', 'emailed to the customer'); };
+  ACT.invMail = function () {
+    if (!net.online) { closeOverlays(true); toast('Send by email needs a connection', 'cloud_off'); return; }
+    sendReceipt('emailed', 'mail', 'emailed to the customer');
+  };
   ACT.invSms = function () { sendReceipt('sent by SMS', 'sms', 'sent by SMS'); };
   ACT.invPrint = function () {
-    // M2-9 / M7-6b: the PDF is the server's; the app draws no preview of its own
-    if (!net.online) { closeOverlays(true); toast('Preview and print need a connection — the PDF is made by the server', 'cloud_off'); return; }
+    // M7-6b (call 11.11): with no signal the PDF is made on the phone from the company template
+    if (!net.online) { closeOverlays(true); toast('Printing the PDF made on this phone from the company template', 'print'); return; }
     sendReceipt('printed', 'print', 'sent to the printer');
   };
 
@@ -7514,7 +7515,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     estBadge.setAttribute('style', estBadgeStyle + (declined ? ';color:#DC2626;background:#FDECEC;border-color:#F5C2C2' : changes ? ';color:#8A6114;background:#FEF3E2;border-color:#F5D7A8'
       : sent ? ';color:#4A6FA5;background:#EBF0F8;border-color:#C8D5E8' : ''));
     var no = estNoOf(j);
-    estBadgeLine.textContent = (no ? (j.estTmp ? no + ' · final number after sync' : no) + ' · ' : '') +
+    estBadgeLine.textContent = (no ? (j.estTmp ? no + ' · number after sync' : no) + ' · ' : '') +
       (declined ? 'Declined by the customer' + (j.estDeclined && j.estDeclined.reason ? ' — ' + j.estDeclined.reason : '') + ' · read-only'
       : sent ? 'Presented on this phone by Marek Stroz · ' + j.sentAt.split(', ').slice(-1)[0]
       : changes ? 'Revise and resend for approval' : 'Autosaved 2 min ago');
@@ -8515,7 +8516,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       if (invNum && (id === 'inv-sent' || id === 'inv-paid')) {
         $$('div,span', root).forEach(function (e) {
           [].slice.call(e.childNodes).forEach(function (n) {
-            if (n.nodeType === 3 && /^(INV-\d\d-\d\d-\d+|\d{4,6}-I\d{2,}|TMP-[0-9A-F]{6}-\d{4,}( · final number after sync)?)$/.test(norm(n.nodeValue))) n.nodeValue = invDisplay();
+            if (n.nodeType === 3 && /^(INV-\d\d-\d\d-\d+|\d{4,6}-I\d{2,}|\d{4,6}-IXX( · number after sync)?)$/.test(norm(n.nodeValue))) n.nodeValue = invDisplay();
           });
         });
       }
@@ -9903,31 +9904,43 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   /* A saved photo shows up in the job's media strip wearing its label —
      otherwise the only proof anything happened is a toast that's gone in
      two seconds. */
-  function addMediaThumbs(n) {
+  /* Call 11.11 (M4-1 / M4-6): Media on General is three blocks — Before,
+     After, Other — each with its own +, which files the photos under it. */
+  var mediaBlk = recall('mediaBlk', { Before: 1, After: 1, Other: 0 });
+  function paintMediaBlocks() {
     var root = byId('job-general'); if (!root) return;
-    var head = sel(root, 'Media')[0];
-    var card = head && head.parentElement && head.parentElement.parentElement;
-    if (!card) { MISS.push('job-general :: media strip'); return; }
-    var strip = head.parentElement.nextElementSibling;
-    var tiles = $$(':scope > div', strip);
-    var tpl = tiles[0], addTile = tiles[tiles.length - 1];
-    if (!tpl || !addTile || tpl === addTile) { MISS.push('job-general :: media tiles'); return; }
-    for (var i = 0; i < n; i++) {
-      var t = tpl.cloneNode(true);
-      // no label was chosen at capture, so the thumb does not claim one
-      var badge = $$('span', t).filter(function (e) {
-        return /position:absolute/.test(e.getAttribute('style') || '');
-      })[0];
-      if (badge) badge.remove();
-      strip.insertBefore(t, addTile);
+    var box = byId('mediaBlocks');
+    if (!box) {
+      var head = sel(root, 'Media')[0];
+      var strip = head && head.parentElement && head.parentElement.nextElementSibling;
+      if (!strip) { MISS.push('job-general :: media blocks'); return; }
+      box = document.createElement('div'); box.id = 'mediaBlocks';
+      box.setAttribute('style', 'display:flex;flex-direction:column;gap:12px');
+      strip.parentElement.replaceChild(box, strip);
+      var count = head.parentElement.lastElementChild;
+      if (count && count !== head) count.dataset.mediacount = '1';
     }
-    var count = head.parentElement.lastElementChild;
-    if (count && /^[0-9]+$/.test(norm(count.textContent))) {
-      count.textContent = String((parseInt(count.textContent, 10) || 0) + n);
-    }
-    // the strip would grow past the card; let it scroll instead
-    strip.style.overflowX = 'auto';
-    strip.classList.add('sc');
+    var BG = { Before: '#DDE3EE', After: '#D4DBE6', Other: '#E4E9F1' };
+    box.innerHTML = ['Before', 'After', 'Other'].map(function (t) {
+      var n = mediaBlk[t] || 0, tiles = '';
+      for (var i = 0; i < Math.min(n, 6); i++) tiles += '<div data-tap="1" data-go="photo-detail" data-mode="modal" style="flex:none;width:64px;height:64px;border-radius:9px;background:' + BG[t] + ';display:flex;align-items:center;justify-content:center"><span class="mi" style="font-size:22px;color:#A9B4C2">image</span></div>';
+      if (n > 6) tiles += '<div data-tap="1" data-go="photos" data-mode="push" style="flex:none;width:64px;height:64px;border-radius:9px;background:#F2F5F9;display:flex;align-items:center;justify-content:center;font:600 13px/1 Geist;color:#546478">+' + (n - 6) + '</div>';
+      var add = viewPast ? '' : '<div data-tap="1" data-act="mediaAddTyped" data-type="' + t + '" aria-label="Add ' + t + ' photos" style="flex:none;width:64px;height:64px;border-radius:9px;background:#EBF0F8;border:1px dashed #C8D5E8;display:flex;align-items:center;justify-content:center"><span class="mi" style="font-size:24px;color:#4A6FA5">add</span></div>';
+      return '<div><div style="font:600 12.5px/1 Geist;color:#546478;margin-bottom:7px">' + t + ' <span style="color:#8A97A8;font-weight:500">' + n + '</span></div>' +
+        '<div class="sc" style="display:flex;gap:7px;overflow-x:auto">' + tiles + add + '</div></div>';
+    }).join('');
+    var c = $('[data-mediacount]', root);
+    if (c) c.textContent = String(mediaBlk.Before + mediaBlk.After + mediaBlk.Other);
+  }
+  ACT.mediaAddTyped = function (el) {
+    photoType = el.dataset.type; remember('photoType', photoType);
+    typedByBlock = true;
+    go('ov-media-source', 'overlay');
+  };
+  function addMediaThumbs(n) {
+    var t = photoType in mediaBlk ? photoType : 'Other';
+    mediaBlk[t] = (mediaBlk[t] || 0) + n; remember('mediaBlk', mediaBlk);
+    paintMediaBlocks();
   }
 
   /* The job's media strip got the new thumbs and the gallery did not, so
@@ -12873,8 +12886,10 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   ACT.optMenuMail = function () {
     var n = menuName();
     closeOverlays(true);
+    // M6-13 (call 11.11): nothing is queued — it says it needs signal
+    if (!net.online) { toast('Send by email needs a connection', 'cloud_off'); return; }
     queued('Estimate');
-    toast(net.online ? n + ' emailed to the customer' : n + ' will be emailed when there is signal', 'mail');
+    toast(n + ' emailed to the customer', 'mail');
   };
   ACT.optMenuSms = function () {
     var n = menuName();
@@ -12889,8 +12904,9 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   ACT.optMenuPaper = function () {
     var n = menuName();
     closeOverlays(true);
+    if (!net.online) { toast('Printing the PDF made on this phone from the company template', 'print'); return; }
     queued('Estimate');
-    toast(net.online ? n + ' sent to the printer' : n + ' will print when there is signal', 'print');
+    toast(n + ' sent to the printer', 'print');
   };
   ACT.optMenuDel = function () {
     var n = menuName(), card = menuCard;
@@ -14519,7 +14535,15 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       setTimeout(function () { c.cancel(); }, 0);
     }
   }, true);
+  var typedByBlock = false;     // set by a Media block's +
   function batchTypeStep(from, ok, cancel) {
+    // call 11.11: the step is gone. The block's + gave the type; anything
+    // added elsewhere is Other until he changes it on the photo
+    if (!typedByBlock) { photoType = 'Other'; remember('photoType', photoType); }
+    typedByBlock = false;
+    paintPhotoType();
+    ok();
+    return;
     var n = Math.max(1, mediaBatch);
     $('[data-bttitle]', batchEl).textContent = 'What are these photos?';
     $('[data-btsub]', batchEl).textContent = from === 'camera'
@@ -15154,10 +15178,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div style="font:600 16px/1.25 Geist">Maria Lopez</div>' +
         '<span style="font:600 11.5px/1 Geist;color:#8A6114;background:#FEF3E2;border-radius:5px;padding:5px 7px;white-space:nowrap">Not dispatched yet</span></div>' +
         '<div style="font:400 13.5px/1.4 Geist;color:#546478;margin-top:5px">Warranty · compressor replacement · Mon, Dec 15, 9:00 AM</div>' +
-        '<div style="font:400 13px/1.4 Geist;color:#8A97A8;margin-top:3px">10512-J105 · 2207 W Platt St, Tampa, FL 33606</div>' +
-        '<div style="display:flex;gap:9px;margin-top:12px">' +
-        '<div data-tap="1" data-undisp aria-disabled="true" style="' + BTN + '"><span class="mi" style="font-size:18px">directions_car</span>En route</div>' +
-        '<div data-tap="1" data-undisp aria-disabled="true" style="' + BTN + '"><span class="mi" style="font-size:18px">play_arrow</span>Start</div></div></div>';
+        '<div style="font:400 13px/1.4 Geist;color:#8A97A8;margin-top:3px">10512-J105 · 2207 W Platt St, Tampa, FL 33606</div></div>';  // call 11.11: no action buttons
       upcomingBox.addEventListener('click', function (ev) {
         if (!ev.target.closest('[data-undisp]')) return;
         ev.stopPropagation();
@@ -15367,8 +15388,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
             ? '<div style="display:flex;align-items:center;gap:6px;margin-top:8px;font:600 13px/1.3 Geist;color:#16A34A"><span class="mi" style="font-size:18px">check_circle</span>Handled by the office</div>' +
               '<div style="font:400 12px/1.4 Geist;color:#8A97A8;margin-top:3px">' + esc(x.handledNote) + '</div>'
             : x.kind === 'refused'
-              ? '<div style="font:400 13px/1.45 Geist;color:#B42318;margin-top:4px">' + esc(x.reason) + '</div>' +
-                '<div style="display:flex;align-items:center;gap:6px;margin-top:8px;font:500 12.5px/1.3 Geist;color:#546478"><span class="mi" style="font-size:17px">unsubscribe</span>The email to the customer was not sent</div>'
+              ? '<div style="font:400 13px/1.45 Geist;color:#B42318;margin-top:4px">' + esc(x.reason) + '</div>'
             : x.kind === 'file'
               ? '<div style="font:400 13px/1.45 Geist;color:#B42318;margin-top:4px">' + esc(x.reason) + '</div>' +
                 '<div style="display:flex;align-items:center;gap:6px;margin-top:8px;font:500 12.5px/1.3 Geist;color:#546478"><span class="mi" style="font-size:17px">smartphone</span>Kept on your phone</div>'
@@ -15510,7 +15530,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         '<span class="mi" style="font-size:21px;color:#4A6FA5;margin-top:1px">computer</span>' +
         '<div style="flex:1"><div style="font:600 13.5px/1.35 Geist">Office · Helen&rsquo;s web job page</div>' +
         '<div style="font:400 12.5px/1.45 Geist;color:#546478;margin-top:2px">10512-J02 shows <b style="color:#1A2332">' + dp.office + ' of 13</b> new' +
-        (dp.officeAt ? ' · last one ' + dp.officeAt : '') + '. Each appears ~5 s after it uploads, no page refresh.</div></div></div>' +
+        (dp.officeAt ? ' · refreshed ' + dp.officeAt : '') + '. New files show after she refreshes the page.</div>' +
+        '<div data-tap="1" data-act="dpRefresh" style="display:inline-flex;align-items:center;gap:5px;margin-top:7px;font:600 12.5px/1 Geist;color:#4A6FA5"><span class="mi" style="font-size:16px">refresh</span>Demo: Helen refreshes the page</div></div></div>' +
       '<div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">10512-J02 · taken just now</div>' +
       '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px">' + tiles + '</div>' +
       (link ? '<div data-tap="1" data-act="' + link[2] + '" style="display:flex;align-items:center;justify-content:center;gap:8px;margin:14px 0 4px;color:#8A97A8;font:500 13px/1 Geist">' +
@@ -15521,14 +15542,15 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     if (!net.online) { up.phase = 'idle'; paintNet(); return; }
     up.phase = 'uploading'; up.text = text; up.pct = pct; paintNet();
   }
-  function dpLanded() {
-    // Helen's page picks it up ~5 s later
-    setTimeout(function () {
-      if (!dp) return;
-      dp.office++; dp.officeAt = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' });
-      dpPaint();
-    }, 5000);
-  }
+  // call 11.11: the web page does not update by itself — Helen sees what
+  // had landed when she last refreshed
+  function dpLanded() { }
+  ACT.dpRefresh = function () {
+    if (!dp) return;
+    dp.office = dp.photos.filter(function (x) { return x.st === 'up'; }).length + (dp.video.st === 'up' ? 1 : 0);
+    dp.officeAt = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    dpPaint();
+  };
   function dpRun() {
     clearInterval(dp.timer);
     dp.timer = setInterval(function () {
@@ -15661,7 +15683,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
      ========================================================= */
   var tmpD = null;
   var TMP_LINES = [['Capacitor 45/5 MFD', 185], ['Service call', 89]];
-  function tmpNo() { return tmpD.stage === 'offline' ? 'TMP-7F3A2C-0003' : tmpD.conflict ? '' : '10512-I03'; }
+  function tmpNo() { return tmpD.stage === 'offline' ? '10512-IXX' : tmpD.conflict ? '' : '10512-I03'; }
   function paintTmp() {
     var body = byId('tmpBody'); if (!body || !tmpD) return;
     var off = tmpD.stage === 'offline', refused = !off && tmpD.conflict;
@@ -15671,7 +15693,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     }).join('') + '<div style="display:flex;justify-content:space-between;padding:9px 0 0;margin-top:4px;border-top:1px solid #EDF0F5;font:600 14.5px/1.3 Geist"><span>Total</span><span>$274.00</span></div>';
     function invCard(forCustomer) {
       var num = forCustomer ? (off ? '' : tmpNo())
-        : off ? 'TMP-7F3A2C-0003 · final number after sync' : refused ? 'Not created' : '10512-I03';
+        : off ? '10512-IXX · number after sync' : refused ? 'Not created' : '10512-I03';
       return '<div class="card" style="padding:14px 15px">' +
         '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><span style="font:600 16px/1.3 Geist">Invoice</span>' +
         (num ? '<span style="font:' + (off ? '500 12px' : '600 13px') + '/1.3 Geist;color:' + (refused ? '#B42318' : off ? '#8A97A8' : '#1A2332') + ';text-align:right">' + num + '</span>' : '') + '</div>' +
@@ -15687,14 +15709,13 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         }).join('') + '</div>' +
       invCard(view === 'customer');
     if (view === 'tom') {
-      if (off) html += '<div style="font:400 12px/1.5 Geist;color:#8A97A8;margin-top:8px">7F3A2C — the first 6 characters of this phone&rsquo;s ID · 0003 — the third temporary number made on this phone. Randy&rsquo;s screen shows no number.</div>';
+      if (off) html += '<div style="font:400 12px/1.5 Geist;color:#8A97A8;margin-top:8px">XX until sync: the server gives the next number of Randy&rsquo;s invoices. Randy&rsquo;s screen shows no number.</div>';
       html += '<div style="display:flex;gap:8px;margin-top:12px">' +
         '<button class="btn" data-act="tmpSend" style="flex:1;height:44px;font-size:14px"><span class="mi" style="font-size:18px">send</span>Send to customer</button>' +
         '<button class="btn" data-act="tmpPrint" style="flex:none;width:100px;height:44px;font-size:14px;background:#fff;color:#1A2332;border:1px solid #DDE3EE"><span class="mi" style="font-size:18px">print</span>Print</button></div>';
       var em = tmpD.email;
       if (em) html += '<div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;border-radius:10px;font:500 13px/1.35 Geist;' +
-        (em === 'queued' ? 'background:#FEF3E2;border:1px solid #F3D9AE;color:#8A6114"><span class="mi" style="font-size:18px">schedule_send</span>Email to Randy Johnson · waits for the invoice to be created'
-          : em === 'sent' ? 'background:#E8F6ED;border:1px solid #B6E3C6;color:#15803D"><span class="mi" style="font-size:18px">mark_email_read</span>Sent to Randy Johnson at 10:15 AM · PDF 10512-I03'
+        (em === 'sent' ? 'background:#E8F6ED;border:1px solid #B6E3C6;color:#15803D"><span class="mi" style="font-size:18px">mark_email_read</span>Sent to Randy Johnson at 10:15 AM · PDF 10512-I03'
             : 'background:#FDECEC;border:1px solid #F5C2C2;color:#B42318"><span class="mi" style="font-size:18px">unsubscribe</span>Not sent · the invoice was not created') + '</div>';
     } else if (!off && !refused && tmpD.email === 'sent') {
       html += '<div class="card" style="padding:12px 14px;margin-top:10px;display:flex;gap:10px;align-items:center"><span class="mi" style="font-size:22px;color:#DC2626">picture_as_pdf</span>' +
@@ -15711,7 +15732,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       }).join('') + '</div>';
     html += '<div style="' + H + '">Ann Lee · same job, also offline</div>' +
       '<div class="card" style="padding:12px 14px;font:400 13px/1.45 Geist">Her invoice: <b>' + (tmpD.ann === 'synced' ? (refused ? '10512-I03' : '10512-I04') + '</b> · her phone got signal at 10:40, after Tom&rsquo;s, so it came second'
-        : 'TMP-91B0E4-0001</b> · final number after sync') + '</div>';
+        : '10512-IXX</b> · number after sync') + '</div>';
     var links = [];
     if (off) {
       links.push(['wifi', 'Demo: 10:15 AM · Tom walks outside', 'tmpOnline']);
@@ -15731,7 +15752,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     notSent = notSent.filter(function (x) { return x.kind !== 'refused'; });
     notApplied = [];
     if (net.online) { net.online = false; net.syncing = false; paintCardAvailability(); }
-    syncQ = [{ job: jobIdx, what: 'Invoice TMP-7F3A2C-0003 · created', at: Date.now() }];
+    syncQ = [{ job: jobIdx, what: 'Invoice 10512-IXX · created', at: Date.now() }];
     net.queue = syncQ.length;
     paintNet(); paintDemoNet(); paintTmp();
     closeOverlays(true);
@@ -15740,17 +15761,19 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   ACT.tmpConflict = function () { ACT.demoTmp(null, true); toast('The lines are already on 10512-I02', 'call_split'); };
   ACT.tmpView = function (el) { tmpD.view = el.dataset.k; paintTmp(); };
   ACT.tmpSend = function () {
-    if (tmpD.stage !== 'offline') { toast(tmpD.conflict ? 'There is no invoice to send' : 'Already sent · 10512-I03', 'info'); return; }
-    if (tmpD.email) { toast('Already waiting to go', 'schedule_send'); return; }
-    tmpD.email = 'queued';
-    syncQ.push({ job: jobIdx, what: 'Email to Randy Johnson · after the invoice', at: Date.now() });
-    net.queue = syncQ.length; paintNet();
-    toast('Queued · it goes after the invoice is created', 'schedule_send');
-    paintTmp();
+    if (tmpD.stage !== 'offline') {
+      if (tmpD.conflict) { toast('There is no invoice to send', 'info'); return; }
+      if (tmpD.email === 'sent') { toast('Already sent · 10512-I03', 'info'); return; }
+      tmpD.email = 'sent'; paintTmp(); toast('Emailed to Randy Johnson · PDF 10512-I03', 'mail'); return;
+    }
+    // call 11.11: nothing waits — it needs signal
+    confirmSheet({ title: 'Send by email needs a connection', text: 'Send it when you have signal. The invoice gets its number then, and the email goes with that PDF.', ok: 'OK', alt: null });
   };
   ACT.tmpPrint = function () {
     if (tmpD.stage === 'offline') {
-      confirmSheet({ title: 'Preview and print need a connection', text: 'The PDF is made by the server.', ok: 'OK', alt: null });
+      // call 11.11: the PDF is made on the phone from the company template (to agree with Marek)
+      confirmSheet({ title: 'Print preview · made on this phone', text: 'From the company template, with its logo. It shows no invoice number until sync.', ok: 'Print', alt: null,
+        onOk: function () { toast('Sent to the printer', 'print'); } });
       return;
     }
     toast(tmpD.conflict ? 'There is no invoice to print' : 'Opening 10512-I03.pdf', tmpD.conflict ? 'info' : 'picture_as_pdf');
@@ -15760,17 +15783,30 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     tmpD.stage = 'synced';
     lastSyncAt = '10:15 AM'; remember('lastSyncAt', lastSyncAt);
     if (tmpD.conflict) {
-      if (tmpD.email) tmpD.email = 'refused';
       notSent.push({ job: jobIdx, kind: 'refused', label: '10512-J02 · Randy Johnson', what: 'Invoice · Capacitor 45/5 MFD, Service call · $274.00',
         reason: 'The invoice was not created — the lines are already on 10512-I02.', handled: false });
       toast('Not created · see Sync', 'error');
     } else {
-      if (tmpD.email) tmpD.email = 'sent';
-      toast('10512-I03 replaced TMP everywhere' + (tmpD.email ? ' · email sent' : ''), 'check_circle');
+      toast('10512-I03 replaced 10512-IXX everywhere', 'check_circle');
     }
     setTimeout(paintTmp, 0);
   }
   ACT.tmpAnn = function () { tmpD.ann = 'synced'; paintTmp(); toast('Ann Lee’s invoice arrived second · ' + (tmpD.conflict ? '10512-I03' : '10512-I04'), 'receipt_long'); };
+
+  /* M6-13b (call 11.11): with no signal the preview is the PDF made on the
+     phone from the company template, not "needs a connection". */
+  function paintPreviewNote() {
+    var root = byId('est-preview'), sc = root && $('.sc', root); if (!sc) return;
+    var n = byId('pvNote');
+    if (!n) {
+      n = document.createElement('div'); n.id = 'pvNote';
+      n.setAttribute('style', 'display:flex;gap:9px;align-items:flex-start;background:#FEF3E2;border:1px solid #F3D9AE;border-radius:11px;padding:11px 13px;margin-bottom:12px;font:400 12.5px/1.45 Geist;color:#7A5B12');
+      n.innerHTML = '<span class="mi" style="font-size:18px;color:#D97706">cloud_off</span><span>No connection · this PDF is made on the phone from the company template. The server&rsquo;s PDF comes after sync.</span>';
+      sc.insertBefore(n, sc.firstElementChild);
+    }
+    n.style.display = net.online ? 'none' : 'flex';
+  }
+  paintMediaBlocks();
 
   /* M2-9: at sync the server numbers what was made offline from the
      customer's sequence, and the app swaps the temporary number everywhere. */
@@ -16236,6 +16272,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       // the Sync screen was painted only when the connection changed — opened
       // with nothing waiting, it was a title and a button
       if (id === 'sync') paintSync();
+      if (id === 'est-preview') paintPreviewNote();
+      if (id === 'job-general') paintMediaBlocks();
       if (y === null) return;
       function settle() {
         var sc = $('.sc', byId(id));
