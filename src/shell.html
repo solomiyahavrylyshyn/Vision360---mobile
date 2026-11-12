@@ -58,18 +58,21 @@
                   <input class="inp" id="li-pw" type="password" value="vision360" autocomplete="current-password" style="padding-right:46px">
                   <span class="mi" id="li-eye" data-tap style="position:absolute;right:13px;top:16px;font-size:20px;color:#8A97A8">visibility_off</span>
                 </span>
-                <span class="err" id="li-pw-e">Password must be at least 6 characters.</span>
+                <span class="err" id="li-pw-e">Enter your password.</span>
               </label>
 
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px">
-                <span class="chk on" id="li-rm"><span class="box"><span class="mif">check</span></span>Keep me signed in</span>
+              <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:14px">
+                <span id="li-rm" style="display:none"></span>
                 <span class="lnk" data-go="forgot" data-mode="push">Forgot password?</span>
               </div>
+              <!-- M1-5 / M1-5b: the server's answer, never a field mark -->
+              <div id="li-msg" style="display:none;align-items:flex-start;gap:8px;background:#FEF2F2;border:1px solid #F5C2C2;border-radius:10px;padding:11px 12px;margin-bottom:14px;font:400 13px/1.45 Geist;color:#991B1B"></div>
 
               <button class="btn" id="li-go"><span class="mif" style="font-size:19px">login</span>Sign in</button>
+              <div style="font:400 12.5px/1.45 Geist;color:#8A97A8;text-align:center;margin-top:14px">First time? Open the invitation email to set your password.</div>
 
             </div>
-            <div style="text-align:center;font:400 12px/1 Geist;color:#8A97A8;padding:26px 0 22px">v2.4.1 · Need help? <span class="lnk" style="font-size:12px" data-toast="Support: (813) 555-0142">Contact support</span></div>
+            <div style="text-align:center;font:400 12px/1 Geist;color:#8A97A8;padding:26px 0 22px">v2.4.1 · Need help? <span class="lnk" style="font-size:12px" data-toast="Call dispatch: (813) 555-0100">Contact support</span></div>
           </div>
         </div>
 
@@ -328,7 +331,6 @@
             <div class="card" data-tap data-go="more-profile" data-mode="push" style="display:flex;align-items:center;gap:13px;padding:15px;margin-bottom:12px">
               <div style="position:relative;flex:none">
                 <div style="width:52px;height:52px;border-radius:26px;background:#1C2B3A;color:#fff;font:600 18px/52px Geist;text-align:center">MS</div>
-                <span class="mi" style="position:absolute;right:-3px;bottom:-3px;font-size:14px;color:#4A6FA5;background:#fff;border:1px solid #DDE3EE;border-radius:11px;padding:3px">photo_camera</span>
               </div>
               <div style="flex:1;min-width:0">
                 <div style="font:600 17px/1.2 Geist">Marek Stroz</div>
@@ -350,7 +352,7 @@
 
             <!-- Marek, 10.11: each technician sees only what the office turned on for him in the web app -->
             <div class="card" id="permBlock" style="overflow:hidden;margin-bottom:6px"></div>
-            <div id="permNote" style="font:400 12px/1.45 Geist;color:#8A97A8;margin:0 2px 14px">My schedule and Price book for everyone. More turn on with your role in the web app.</div>
+            <div id="permNote" style="font:400 12px/1.45 Geist;color:#8A97A8;margin:0 2px 14px">What you see here is turned on for your role in the web app.</div>
 
             <div class="card" style="overflow:hidden;margin-bottom:14px">
               <div class="rowi" data-go="more-help" data-mode="push"><span class="mi">help_outline</span><span class="t">Help center<small>Call dispatch, safety, tutorials</small></span><span class="mi ch">chevron_right</span></div>
@@ -374,7 +376,6 @@
             <div class="rowi" data-act="demoWarranty" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">verified_user</span><span id="warrantyNote">Demo: show as a warranty technician (M3-12)</span></div>
             <!-- demo only: shows Home as a salaried technician sees it (OD-16) -->
             <div class="rowi" data-act="toggleSalaried" style="display:none;justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">badge</span><span id="salariedNote">Demo: show as a salaried technician</span></div>
-            <div style="text-align:center;font:400 12px/1 Geist;color:#8A97A8;padding:20px 0 6px">Vision 360 v2.4.1 &middot; build 2411</div>
           </div>
         </div>
 
@@ -456,8 +457,8 @@
         <div class="screen" id="more-permissions" data-tabs="on">
           <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl" data-ttl>Permissions</span></div>
           <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
-            <div class="card" style="overflow:hidden;margin-bottom:12px"><div class="rowi" data-toast="Opens the phone&rsquo;s settings for Vision 360"><span class="mi">my_location</span><span class="t">Location<small>Checked when you start a job</small></span><span style="font:600 11px/1 Geist;border-radius:5px;padding:4px 7px;color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6">ALLOWED</span></div><div class="rowi" data-toast="Opens the phone&rsquo;s settings for Vision 360"><span class="mi">photo_camera</span><span class="t">Camera<small>Job photos, the driver&rsquo;s licence, receipts</small></span><span style="font:600 11px/1 Geist;border-radius:5px;padding:4px 7px;color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6">ALLOWED</span></div></div>
-            <div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px;margin-bottom:12px"><span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">settings</span><div style="font:400 12.5px/1.45 Geist;color:#546478">The phone asks the first time the app needs each one. Change them any time in the phone&rsquo;s settings.</div></div>
+            <div class="card" style="overflow:hidden;margin-bottom:12px"><div class="rowi" style="align-items:flex-start"><span class="mi">my_location</span><span class="t">Location<small>Checked when you start a job</small><span style="display:flex;align-items:center;gap:10px;margin-top:8px"><span style="font:600 11px/1 Geist;border-radius:5px;padding:4px 7px;color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6">Allowed while using the app</span><span class="lnk" style="font-size:13px" data-toast="Opens the phone&rsquo;s settings for Vision 360">Open settings</span></span></span></div><div class="rowi" style="align-items:flex-start"><span class="mi">photo_camera</span><span class="t">Camera<small>Job photos, receipts, scanning cards</small><span style="display:flex;align-items:center;gap:10px;margin-top:8px"><span style="font:600 11px/1 Geist;border-radius:5px;padding:4px 7px;color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6">Allowed while using the app</span><span class="lnk" style="font-size:13px" data-toast="Opens the phone&rsquo;s settings for Vision 360">Open settings</span></span></span></div><div class="rowi" style="align-items:flex-start"><span class="mi">mic</span><span class="t">Microphone<small>Videos with sound, voice notes</small><span style="display:flex;align-items:center;gap:10px;margin-top:8px"><span style="font:600 11px/1 Geist;border-radius:5px;padding:4px 7px;color:#546478;background:#F5F7FA;border:1px solid #DDE3EE">Not asked yet</span><span class="lnk" style="font-size:13px" data-toast="Opens the phone&rsquo;s settings for Vision 360">Open settings</span></span></span></div><div class="rowi" style="align-items:flex-start"><span class="mi">notifications</span><span class="t">Notifications<small>New jobs and changes from the office</small><span style="display:flex;align-items:center;gap:10px;margin-top:8px"><span style="font:600 11px/1 Geist;border-radius:5px;padding:4px 7px;color:#DC2626;background:#FEF2F2;border:1px solid #F5C2C2">Not allowed</span><span class="lnk" style="font-size:13px" data-toast="Opens the phone&rsquo;s settings for Vision 360">Open settings</span></span></span></div></div>
+            <div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px;margin-bottom:12px"><span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">settings</span><div style="font:400 12.5px/1.45 Geist;color:#546478">The phone asks the first time the app needs each one. The app never changes them itself &mdash; Open settings takes you to the phone&rsquo;s settings for Vision 360.</div></div>
           </div>
         </div>
 
@@ -486,7 +487,7 @@
               <div style="width:60px;height:60px;border-radius:30px;background:#1C2B3A;color:#fff;font:600 21px/60px Geist;text-align:center;flex:none">MS</div>
               <div style="flex:1">
                 <div style="font:600 19px/1.2 Geist;letter-spacing:-.01em">Marek Stroz</div>
-                <div style="font:400 13.5px/1.4 Geist;color:#546478;margin-top:4px">Senior Technician &middot; Employee #4471</div>
+                <div style="font:400 13.5px/1.4 Geist;color:#546478;margin-top:4px">Senior Technician &middot; AND Services</div>
                 <div style="display:flex;gap:6px;margin-top:8px">
                   <span style="font:600 11px/1 Geist;color:#4A6FA5;background:#EBF0F8;border:1px solid #C8D5E8;border-radius:5px;padding:4px 7px">NATE certified</span>
                   <span style="font:600 11px/1 Geist;color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6;border-radius:5px;padding:4px 7px">EPA 608</span>
@@ -496,8 +497,9 @@
             <!-- Marek, 10.11: certifications and the trades he is assigned, entered by the office in User management -->
             <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:4px 0 9px">Certifications &amp; trades</div>
             <div class="card" style="overflow:hidden;margin-bottom:6px">
-              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1 Geist;color:#546478">NATE certified</span><span style="font:500 14px/1 Geist">until Mar 2028</span></div>
-              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1 Geist;color:#546478">EPA 608 &middot; Universal</span><span style="font:500 14px/1 Geist">no expiry</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1.35 Geist;color:#546478">NATE certified<small style="display:block;font:400 12px/1.3 Geist;color:#8A97A8">No. 2049-118</small></span><span style="font:500 14px/1 Geist">Expires 03/31/2028</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1.35 Geist;color:#546478">EPA 608 &middot; Universal<small style="display:block;font:400 12px/1.3 Geist;color:#8A97A8">No. 123456</small></span><span style="font:500 14px/1 Geist">No expiry</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1.35 Geist;color:#546478">OSHA 10<small style="display:block;font:400 12px/1.3 Geist;color:#8A97A8">No. 36-0042871</small></span><span style="font:600 14px/1 Geist;color:#DC2626">Expired 03/31/2026</span></div>
               <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px"><span style="font:500 14px/1 Geist;color:#546478">Trades</span><span style="font:500 14px/1 Geist">HVAC, Plumbing</span></div>
             </div>
             <div style="font:400 12px/1.5 Geist;color:#8A97A8;margin:0 2px 16px">Your office keeps these in the web app, under User management.</div>
@@ -505,7 +507,7 @@
             <div class="card" style="overflow:hidden;margin-bottom:16px">
               <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1 Geist;color:#546478">Phone</span><span style="font:500 14.5px/1 Geist;color:#4A6FA5">(813) 555-4471</span></div>
               <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1 Geist;color:#546478">Email</span><span style="font:500 14.5px/1 Geist">m.stroz@andservices.com</span></div>
-              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px"><span style="font:500 14px/1 Geist;color:#546478">Truck</span><span style="font:500 14.5px/1 Geist">Truck 14 &middot; Tampa</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px"><span style="font:500 14px/1 Geist;color:#546478">Company</span><span style="font:500 14.5px/1 Geist">AND Services</span></div>
             </div>
             <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:4px 0 9px">My targets &middot; this month</div>
             <div class="card" style="overflow:hidden">
@@ -1168,20 +1170,20 @@
 
 <!-- ============ MY DEVICES ============ -->
         <div class="screen" id="more-devices" data-tabs="on">
-          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">My device</span></div>
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">My devices</span></div>
           <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
-            <!-- Call 05.11: one device, one technician; signed in for 30 days -->
+            <!-- M1-10b: all his own devices, read only; revoke and allow stay with the admin in the web -->
             <div class="card" style="overflow:hidden;margin-bottom:12px">
-              <div class="rowi"><span class="mi">smartphone</span><span class="t">This phone<small>Samsung Galaxy S23 &middot; active now</small></span><span style="font:600 11px/1 Geist;color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6;border-radius:5px;padding:4px 7px">SIGNED IN</span></div>
-              <div class="rowi"><span class="mi">event_available</span><span class="t">Signed in until Dec 9, 2026<small>30 days from your last sign-in &middot; then the password again</small></span></div>
+              <div class="rowi"><span class="mi">smartphone</span><span class="t">Marek&rsquo;s phone<small>Samsung Galaxy S23 &middot; active now</small></span><span style="font:600 11px/1 Geist;color:#4A6FA5;background:#EBF0F8;border:1px solid #C8D5E8;border-radius:5px;padding:4px 7px">This device</span></div>
+              <div class="rowi"><span class="mi">tablet_android</span><span class="t">Marek&rsquo;s tablet<small>Samsung Galaxy Tab A8 &middot; last active Nov 11, 2026</small></span></div>
             </div>
             <div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px;margin-bottom:10px">
               <span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">phonelink_lock</span>
-              <div style="font:400 12.5px/1.45 Geist;color:#546478">One technician, one device. Signing in on another phone signs this one out &mdash; anything not sent yet is sent first.</div>
+              <div style="font:400 12.5px/1.45 Geist;color:#546478">Each device stays signed in while you use it. Signing out on one does not sign out the others.</div>
             </div>
             <div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px">
               <span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">admin_panel_settings</span>
-              <div style="font:400 12.5px/1.45 Geist;color:#546478">Lost the phone? Your admin signs it out and erases its data in the web app.</div>
+              <div style="font:400 12.5px/1.45 Geist;color:#546478">Lost a device? Your admin signs it out and erases its data in the web app.</div>
             </div>
           </div>
         </div>

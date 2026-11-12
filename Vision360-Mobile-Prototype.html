@@ -323,18 +323,21 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
                   <input class="inp" id="li-pw" type="password" value="vision360" autocomplete="current-password" style="padding-right:46px">
                   <span class="mi" id="li-eye" data-tap style="position:absolute;right:13px;top:16px;font-size:20px;color:#8A97A8">visibility_off</span>
                 </span>
-                <span class="err" id="li-pw-e">Password must be at least 6 characters.</span>
+                <span class="err" id="li-pw-e">Enter your password.</span>
               </label>
 
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px">
-                <span class="chk on" id="li-rm"><span class="box"><span class="mif">check</span></span>Keep me signed in</span>
+              <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:14px">
+                <span id="li-rm" style="display:none"></span>
                 <span class="lnk" data-go="forgot" data-mode="push">Forgot password?</span>
               </div>
+              <!-- M1-5 / M1-5b: the server's answer, never a field mark -->
+              <div id="li-msg" style="display:none;align-items:flex-start;gap:8px;background:#FEF2F2;border:1px solid #F5C2C2;border-radius:10px;padding:11px 12px;margin-bottom:14px;font:400 13px/1.45 Geist;color:#991B1B"></div>
 
               <button class="btn" id="li-go"><span class="mif" style="font-size:19px">login</span>Sign in</button>
+              <div style="font:400 12.5px/1.45 Geist;color:#8A97A8;text-align:center;margin-top:14px">First time? Open the invitation email to set your password.</div>
 
             </div>
-            <div style="text-align:center;font:400 12px/1 Geist;color:#8A97A8;padding:26px 0 22px">v2.4.1 · Need help? <span class="lnk" style="font-size:12px" data-toast="Support: (813) 555-0142">Contact support</span></div>
+            <div style="text-align:center;font:400 12px/1 Geist;color:#8A97A8;padding:26px 0 22px">v2.4.1 · Need help? <span class="lnk" style="font-size:12px" data-toast="Call dispatch: (813) 555-0100">Contact support</span></div>
           </div>
         </div>
 
@@ -593,7 +596,6 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
             <div class="card" data-tap data-go="more-profile" data-mode="push" style="display:flex;align-items:center;gap:13px;padding:15px;margin-bottom:12px">
               <div style="position:relative;flex:none">
                 <div style="width:52px;height:52px;border-radius:26px;background:#1C2B3A;color:#fff;font:600 18px/52px Geist;text-align:center">MS</div>
-                <span class="mi" style="position:absolute;right:-3px;bottom:-3px;font-size:14px;color:#4A6FA5;background:#fff;border:1px solid #DDE3EE;border-radius:11px;padding:3px">photo_camera</span>
               </div>
               <div style="flex:1;min-width:0">
                 <div style="font:600 17px/1.2 Geist">Marek Stroz</div>
@@ -615,7 +617,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
 
             <!-- Marek, 10.11: each technician sees only what the office turned on for him in the web app -->
             <div class="card" id="permBlock" style="overflow:hidden;margin-bottom:6px"></div>
-            <div id="permNote" style="font:400 12px/1.45 Geist;color:#8A97A8;margin:0 2px 14px">My schedule and Price book for everyone. More turn on with your role in the web app.</div>
+            <div id="permNote" style="font:400 12px/1.45 Geist;color:#8A97A8;margin:0 2px 14px">What you see here is turned on for your role in the web app.</div>
 
             <div class="card" style="overflow:hidden;margin-bottom:14px">
               <div class="rowi" data-go="more-help" data-mode="push"><span class="mi">help_outline</span><span class="t">Help center<small>Call dispatch, safety, tutorials</small></span><span class="mi ch">chevron_right</span></div>
@@ -639,7 +641,6 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
             <div class="rowi" data-act="demoWarranty" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">verified_user</span><span id="warrantyNote">Demo: show as a warranty technician (M3-12)</span></div>
             <!-- demo only: shows Home as a salaried technician sees it (OD-16) -->
             <div class="rowi" data-act="toggleSalaried" style="display:none;justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">badge</span><span id="salariedNote">Demo: show as a salaried technician</span></div>
-            <div style="text-align:center;font:400 12px/1 Geist;color:#8A97A8;padding:20px 0 6px">Vision 360 v2.4.1 &middot; build 2411</div>
           </div>
         </div>
 
@@ -721,8 +722,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         <div class="screen" id="more-permissions" data-tabs="on">
           <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl" data-ttl>Permissions</span></div>
           <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
-            <div class="card" style="overflow:hidden;margin-bottom:12px"><div class="rowi" data-toast="Opens the phone&rsquo;s settings for Vision 360"><span class="mi">my_location</span><span class="t">Location<small>Checked when you start a job</small></span><span style="font:600 11px/1 Geist;border-radius:5px;padding:4px 7px;color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6">ALLOWED</span></div><div class="rowi" data-toast="Opens the phone&rsquo;s settings for Vision 360"><span class="mi">photo_camera</span><span class="t">Camera<small>Job photos, the driver&rsquo;s licence, receipts</small></span><span style="font:600 11px/1 Geist;border-radius:5px;padding:4px 7px;color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6">ALLOWED</span></div></div>
-            <div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px;margin-bottom:12px"><span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">settings</span><div style="font:400 12.5px/1.45 Geist;color:#546478">The phone asks the first time the app needs each one. Change them any time in the phone&rsquo;s settings.</div></div>
+            <div class="card" style="overflow:hidden;margin-bottom:12px"><div class="rowi" style="align-items:flex-start"><span class="mi">my_location</span><span class="t">Location<small>Checked when you start a job</small><span style="display:flex;align-items:center;gap:10px;margin-top:8px"><span style="font:600 11px/1 Geist;border-radius:5px;padding:4px 7px;color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6">Allowed while using the app</span><span class="lnk" style="font-size:13px" data-toast="Opens the phone&rsquo;s settings for Vision 360">Open settings</span></span></span></div><div class="rowi" style="align-items:flex-start"><span class="mi">photo_camera</span><span class="t">Camera<small>Job photos, receipts, scanning cards</small><span style="display:flex;align-items:center;gap:10px;margin-top:8px"><span style="font:600 11px/1 Geist;border-radius:5px;padding:4px 7px;color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6">Allowed while using the app</span><span class="lnk" style="font-size:13px" data-toast="Opens the phone&rsquo;s settings for Vision 360">Open settings</span></span></span></div><div class="rowi" style="align-items:flex-start"><span class="mi">mic</span><span class="t">Microphone<small>Videos with sound, voice notes</small><span style="display:flex;align-items:center;gap:10px;margin-top:8px"><span style="font:600 11px/1 Geist;border-radius:5px;padding:4px 7px;color:#546478;background:#F5F7FA;border:1px solid #DDE3EE">Not asked yet</span><span class="lnk" style="font-size:13px" data-toast="Opens the phone&rsquo;s settings for Vision 360">Open settings</span></span></span></div><div class="rowi" style="align-items:flex-start"><span class="mi">notifications</span><span class="t">Notifications<small>New jobs and changes from the office</small><span style="display:flex;align-items:center;gap:10px;margin-top:8px"><span style="font:600 11px/1 Geist;border-radius:5px;padding:4px 7px;color:#DC2626;background:#FEF2F2;border:1px solid #F5C2C2">Not allowed</span><span class="lnk" style="font-size:13px" data-toast="Opens the phone&rsquo;s settings for Vision 360">Open settings</span></span></span></div></div>
+            <div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px;margin-bottom:12px"><span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">settings</span><div style="font:400 12.5px/1.45 Geist;color:#546478">The phone asks the first time the app needs each one. The app never changes them itself &mdash; Open settings takes you to the phone&rsquo;s settings for Vision 360.</div></div>
           </div>
         </div>
 
@@ -751,7 +752,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
               <div style="width:60px;height:60px;border-radius:30px;background:#1C2B3A;color:#fff;font:600 21px/60px Geist;text-align:center;flex:none">MS</div>
               <div style="flex:1">
                 <div style="font:600 19px/1.2 Geist;letter-spacing:-.01em">Marek Stroz</div>
-                <div style="font:400 13.5px/1.4 Geist;color:#546478;margin-top:4px">Senior Technician &middot; Employee #4471</div>
+                <div style="font:400 13.5px/1.4 Geist;color:#546478;margin-top:4px">Senior Technician &middot; AND Services</div>
                 <div style="display:flex;gap:6px;margin-top:8px">
                   <span style="font:600 11px/1 Geist;color:#4A6FA5;background:#EBF0F8;border:1px solid #C8D5E8;border-radius:5px;padding:4px 7px">NATE certified</span>
                   <span style="font:600 11px/1 Geist;color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6;border-radius:5px;padding:4px 7px">EPA 608</span>
@@ -761,8 +762,9 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
             <!-- Marek, 10.11: certifications and the trades he is assigned, entered by the office in User management -->
             <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:4px 0 9px">Certifications &amp; trades</div>
             <div class="card" style="overflow:hidden;margin-bottom:6px">
-              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1 Geist;color:#546478">NATE certified</span><span style="font:500 14px/1 Geist">until Mar 2028</span></div>
-              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1 Geist;color:#546478">EPA 608 &middot; Universal</span><span style="font:500 14px/1 Geist">no expiry</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1.35 Geist;color:#546478">NATE certified<small style="display:block;font:400 12px/1.3 Geist;color:#8A97A8">No. 2049-118</small></span><span style="font:500 14px/1 Geist">Expires 03/31/2028</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1.35 Geist;color:#546478">EPA 608 &middot; Universal<small style="display:block;font:400 12px/1.3 Geist;color:#8A97A8">No. 123456</small></span><span style="font:500 14px/1 Geist">No expiry</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1.35 Geist;color:#546478">OSHA 10<small style="display:block;font:400 12px/1.3 Geist;color:#8A97A8">No. 36-0042871</small></span><span style="font:600 14px/1 Geist;color:#DC2626">Expired 03/31/2026</span></div>
               <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px"><span style="font:500 14px/1 Geist;color:#546478">Trades</span><span style="font:500 14px/1 Geist">HVAC, Plumbing</span></div>
             </div>
             <div style="font:400 12px/1.5 Geist;color:#8A97A8;margin:0 2px 16px">Your office keeps these in the web app, under User management.</div>
@@ -770,7 +772,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
             <div class="card" style="overflow:hidden;margin-bottom:16px">
               <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1 Geist;color:#546478">Phone</span><span style="font:500 14.5px/1 Geist;color:#4A6FA5">(813) 555-4471</span></div>
               <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid #EDF0F5"><span style="font:500 14px/1 Geist;color:#546478">Email</span><span style="font:500 14.5px/1 Geist">m.stroz@andservices.com</span></div>
-              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px"><span style="font:500 14px/1 Geist;color:#546478">Truck</span><span style="font:500 14.5px/1 Geist">Truck 14 &middot; Tampa</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px"><span style="font:500 14px/1 Geist;color:#546478">Company</span><span style="font:500 14.5px/1 Geist">AND Services</span></div>
             </div>
             <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:4px 0 9px">My targets &middot; this month</div>
             <div class="card" style="overflow:hidden">
@@ -1433,20 +1435,20 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
 
 <!-- ============ MY DEVICES ============ -->
         <div class="screen" id="more-devices" data-tabs="on">
-          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">My device</span></div>
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">My devices</span></div>
           <div class="sc" style="flex:1;overflow-y:auto;padding:16px 16px 20px">
-            <!-- Call 05.11: one device, one technician; signed in for 30 days -->
+            <!-- M1-10b: all his own devices, read only; revoke and allow stay with the admin in the web -->
             <div class="card" style="overflow:hidden;margin-bottom:12px">
-              <div class="rowi"><span class="mi">smartphone</span><span class="t">This phone<small>Samsung Galaxy S23 &middot; active now</small></span><span style="font:600 11px/1 Geist;color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6;border-radius:5px;padding:4px 7px">SIGNED IN</span></div>
-              <div class="rowi"><span class="mi">event_available</span><span class="t">Signed in until Dec 9, 2026<small>30 days from your last sign-in &middot; then the password again</small></span></div>
+              <div class="rowi"><span class="mi">smartphone</span><span class="t">Marek&rsquo;s phone<small>Samsung Galaxy S23 &middot; active now</small></span><span style="font:600 11px/1 Geist;color:#4A6FA5;background:#EBF0F8;border:1px solid #C8D5E8;border-radius:5px;padding:4px 7px">This device</span></div>
+              <div class="rowi"><span class="mi">tablet_android</span><span class="t">Marek&rsquo;s tablet<small>Samsung Galaxy Tab A8 &middot; last active Nov 11, 2026</small></span></div>
             </div>
             <div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px;margin-bottom:10px">
               <span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">phonelink_lock</span>
-              <div style="font:400 12.5px/1.45 Geist;color:#546478">One technician, one device. Signing in on another phone signs this one out &mdash; anything not sent yet is sent first.</div>
+              <div style="font:400 12.5px/1.45 Geist;color:#546478">Each device stays signed in while you use it. Signing out on one does not sign out the others.</div>
             </div>
             <div style="display:flex;align-items:flex-start;gap:9px;background:#F5F7FA;border:1px solid #DDE3EE;border-radius:11px;padding:12px 13px">
               <span class="mi" style="font-size:18px;color:#4A6FA5;margin-top:1px">admin_panel_settings</span>
-              <div style="font:400 12.5px/1.45 Geist;color:#546478">Lost the phone? Your admin signs it out and erases its data in the web app.</div>
+              <div style="font:400 12.5px/1.45 Geist;color:#546478">Lost a device? Your admin signs it out and erases its data in the web app.</div>
             </div>
           </div>
         </div>
@@ -2331,7 +2333,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   </div>
 </div>
 
-<div class="screen" id="est-customer" data-tabs="on">
+<div class="screen" id="est-customer" data-tabs="off">
 <div style="display:flex;align-items:center;gap:12px;padding:13px 16px;background:#1C2B3A;color:#fff;flex:none">
     <span class="mi" style="font-size:23px">close</span>
     <span style="flex:1;font:600 17px/1.2 Geist">Customer options</span>
@@ -3375,7 +3377,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   </div>
 </div>
 
-<script>window.__SCREENS__=[{"id":"home","title":"Home — next job","desc":"KPI grid + the job you're driving to. Announcements collapse to one line.","section":"home","tabs":true,"sb":false,"overlay":false},{"id":"home-active","title":"Home — job in progress","desc":"Live timer promoted into the header so it stays visible while scrolling.","section":"home","tabs":true,"sb":false,"overlay":false},{"id":"ov-notes","title":"Notes sheet","desc":"Detailed, technician's and private notes in one segmented sheet instead of three separate drawers.","section":"home","sb":false,"overlay":true},{"id":"photos","title":"Photos (24)","desc":"Before / After grouping added — techs shoot in pairs, so the grid now says which is which.","section":"home","tabs":true,"sb":false,"overlay":false},{"id":"photo-detail","title":"Photo detail","desc":"Full-bleed viewer, 1/24 counter, type + description editable inline.","section":"home","tabs":false,"sb":true,"overlay":false},{"id":"cust-jobs","title":"Customer job history","desc":"Job number, item count and estimate value per visit — $0.00 visits are dimmed so real revenue stands out.","section":"home","tabs":true,"sb":false,"overlay":false},{"id":"job-general","title":"General","desc":"Two-column label/value rows so the whole job fits above the fold. Service agreement tier gets a badge.","section":"job","tabs":true,"sb":false,"overlay":false},{"id":"ov-job-actions","title":"Job actions menu","desc":"En route / Equipment / Assets / Completed","section":"job","sb":false,"overlay":true},{"id":"rc-overview","title":"Report Card — overview","desc":"Condition legend now reads as a bar per section, so a tech sees where the red is before opening anything.","section":"job","tabs":true,"sb":false,"overlay":false},{"id":"rc-section","title":"Report Card — section open","desc":"Numbered rows, inline pickers, photo slots tied to the [P#] markers. Unsaved-changes bar is sticky.","section":"job","tabs":true,"sb":false,"overlay":false},{"id":"rc-changes","title":"Report Card — changes history","desc":"Old → new values with the item number preserved, grouped by edit session.","section":"job","tabs":true,"sb":false,"overlay":false},{"id":"est-empty","title":"1 · No estimate yet","desc":"Empty state carries the 6-option limit up front rather than as a footnote.","section":"estimate","tabs":true,"sb":false,"overlay":false},{"id":"est-new-option","title":"2 · Add new option (empty)","desc":"Pricing preview type as three explicit choices instead of a dropdown — it's the field's most-changed setting.","section":"estimate","tabs":true,"sb":false,"overlay":false},{"id":"est-catalog","title":"3 · Item catalog","desc":"Sticky search + category chips. Added items turn green and stay in place so the list never jumps.","section":"estimate","tabs":true,"sb":false,"overlay":false},{"id":"est-custom-item","title":"4 · Add custom item","desc":"Live subtotal at the bottom so the tech sees the number before saving.","section":"estimate","tabs":true,"sb":false,"overlay":false},{"id":"est-option","title":"5 · Option with items + price adjust","desc":"Qty steppers replace the tiny number field; the −20/+20% adjuster shows the resulting total live.","section":"estimate","tabs":true,"sb":false,"overlay":false},{"id":"est-draft","title":"6 · Draft","desc":"Option cards are collapsed to line items; monthly / total flips on tap. Sticky footer holds the count, range and next action.","section":"estimate-states","tabs":true,"sb":false,"overlay":false},{"id":"ov-option-menu","title":"7 · Option menu + share sheet","desc":"All option actions in one sheet; destructive action separated and red.","section":"estimate-states","sb":false,"overlay":true},{"id":"est-preview","title":"8 · Preview mode","desc":"The customer-facing read: descriptions and warranties expanded, notes shown, editing chrome gone.","section":"estimate-states","tabs":true,"sb":false,"overlay":false},{"id":"est-review","title":"9 · In review","desc":"Amber lock state. Options become read-only and the footer action disappears — nothing to tap by mistake.","section":"estimate-states","tabs":true,"sb":false,"overlay":false},{"id":"est-ready","title":"10 · Ready to present","desc":"Green approved state with the one action that matters at the door.","section":"estimate-states","tabs":true,"sb":false,"overlay":false},{"id":"est-customer","title":"11 · Customer options + signature","desc":"Customer-held screen: job facts at the top, selected option, signature pad, one confirm.","section":"estimate-states","tabs":true,"sb":false,"overlay":false},{"id":"est-approved","title":"12 · Approved","desc":"The winning option only; rejected ones collapse into a single expandable row.","section":"estimate-states","tabs":true,"sb":false,"overlay":false},{"id":"fin-empty","title":"Finance — no invoice yet","desc":"Four collapsible blocks in the order the tech works them. Approved estimate is expanded by default.","section":"finance","tabs":true,"sb":false,"overlay":false},{"id":"ov-pay-method","title":"Payment method","desc":"Offline methods grouped under one row instead of a flat list of nine.","section":"finance","sb":false,"overlay":true},{"id":"pay-card","title":"Card payment","desc":"Amount owed pinned above the button — the number the customer is agreeing to.","section":"finance","tabs":true,"sb":false,"overlay":false},{"id":"inv-paid","title":"Invoice paid","desc":"Invoice number, status chip and timeline; receipt actions replace the payment form.","section":"finance","tabs":true,"sb":false,"overlay":false},{"id":"history","title":"Jobs history","desc":"Job type is a colored chip so Estimate / Maintenance / Demand Service are scannable at arm's length.","section":"history","tabs":true,"sb":false,"overlay":false},{"id":"hist-filters","title":"Filters","desc":"Dual-handle price range with live values; estimate status as chips, not checkboxes.","section":"history","tabs":true,"sb":false,"overlay":false},{"id":"hist-search","title":"Search","desc":"Type-ahead on customer name with matched text emphasised; recent searches below.","section":"history","tabs":true,"sb":false,"overlay":false},{"id":"rc-furnace","title":"System Analysis 20–33 · Furnace","desc":"Sub-tabs split the 29 rows into the three physical units a tech actually walks to. R / SA reading pairs stay side by side.","section":"rc-system","tabs":true,"sb":false,"overlay":false},{"id":"rc-condenser","title":"System Analysis 34–44 · Condenser","desc":"Rated vs Actual readings get an inline delta chip — 110% reads as a warning without the tech doing the math.","section":"rc-system","tabs":true,"sb":false,"overlay":false},{"id":"rc-refrigerant","title":"System Analysis 45–48 · Refrigerant","desc":"Before / After pressure pairs sit in one card so the change is readable, and 48 closes the section with a single confirm.","section":"rc-system","tabs":true,"sb":false,"overlay":false},{"id":"rc-customer","title":"Customer Section 49–50","desc":"The waiver is a legal acknowledgement — set in a bordered block with an explicit checkbox above the signature.","section":"rc-system","tabs":true,"sb":false,"overlay":false},{"id":"rc-tech","title":"Technician Section 51–54","desc":"Two yes/no confirmations as switches, notes thread, then the tech's own signature to close the card.","section":"rc-system","tabs":true,"sb":false,"overlay":false},{"id":"add-empty","title":"Additional items — empty","desc":"Same empty-state pattern as the Estimate, so the two lists feel like one system.","section":"finance-2","tabs":true,"sb":false,"overlay":false},{"id":"add-catalog","title":"Additional items — catalog","desc":"Shorter catalog for parts and consumables, with \"Add custom item\" as a persistent row rather than a hidden menu item.","section":"finance-2","tabs":true,"sb":false,"overlay":false},{"id":"add-items","title":"Additional items — 2 added","desc":"Qty stepper + subtotal per line, and a section total the invoice will pick up.","section":"finance-2","tabs":true,"sb":false,"overlay":false},{"id":"pay-cash","title":"Cash payment","desc":"No form at all — just the amount and a confirm. Change-due helper added for cash handling.","section":"finance-2","tabs":true,"sb":false,"overlay":false},{"id":"pay-check","title":"Check payment","desc":"Four check fields plus a photo-of-check capture, which is what techs do anyway.","section":"finance-2","tabs":true,"sb":false,"overlay":false},{"id":"pay-apps","title":"Zelle / Venmo / Cash App","desc":"One shared form for all three app transfers — the provider is a chip row, not three separate screens.","section":"finance-2","tabs":true,"sb":false,"overlay":false},{"id":"inv-details","title":"Change invoice details","desc":"Seven fields, grouped contact / address, with the city-state-zip row on one line.","section":"finance-2","tabs":true,"sb":false,"overlay":false},{"id":"inv-sent","title":"Invoice sent","desc":"Sent state with a chase action","section":"finance-2","tabs":true,"sb":false,"overlay":false},{"id":"ov-inv-share","title":"Invoice share menu","desc":"Email / SMS / print / edit","section":"finance-2","sb":false,"overlay":true},{"id":"ov-period","title":"Period menu","desc":"Thirteen options grouped into Current / Previous / Custom, so the list stops being a wall.","section":"home-2","sb":false,"overlay":true},{"id":"ov-period-month","title":"Custom month","desc":"Year stepper above a 3-column month grid — two taps instead of scrolling a list of twelve.","section":"home-2","sb":false,"overlay":true},{"id":"period-quarter","title":"Custom quarter &amp; year","desc":"Quarters show their month span; years are a two-column grid rather than a long scroll.","section":"home-2","tabs":true,"sb":false,"overlay":false},{"id":"period-week","title":"Custom week","desc":"Week numbers carry their date span, which is what a tech actually recognises.","section":"home-2","tabs":true,"sb":false,"overlay":false},{"id":"ov-note-detailed","title":"Detailed description (2)","desc":"PDF version — one sheet per note type, read-only, no add button.","section":"notes-media","sb":false,"overlay":true},{"id":"ov-note-tech","title":"Technician's Notes (2)","desc":"Editable by the tech — hence the add button at the bottom.","section":"notes-media","sb":false,"overlay":true},{"id":"ov-note-private","title":"Private Notes (1)","desc":"Amber border + lock icon so a tech never reads it out loud in front of the customer.","section":"notes-media","sb":false,"overlay":true},{"id":"files","title":"Files (2)","desc":"File type icon, size, date and uploader on one row; upload target at the bottom.","section":"notes-media","tabs":true,"sb":false,"overlay":false},{"id":"ov-media-source","title":"Media source sheet","desc":"Two large targets — this is tapped with gloves on.","section":"notes-media","sb":false,"overlay":true},{"id":"image-desc","title":"Image description","desc":"Before / After is a two-button choice, not a dropdown — there are only ever two.","section":"notes-media","tabs":true,"sb":false,"overlay":false}];
+<script>window.__SCREENS__=[{"id":"home","title":"Home — next job","desc":"KPI grid + the job you're driving to. Announcements collapse to one line.","section":"home","tabs":true,"sb":false,"overlay":false},{"id":"home-active","title":"Home — job in progress","desc":"Live timer promoted into the header so it stays visible while scrolling.","section":"home","tabs":true,"sb":false,"overlay":false},{"id":"ov-notes","title":"Notes sheet","desc":"Detailed, technician's and private notes in one segmented sheet instead of three separate drawers.","section":"home","sb":false,"overlay":true},{"id":"photos","title":"Photos (24)","desc":"Before / After grouping added — techs shoot in pairs, so the grid now says which is which.","section":"home","tabs":true,"sb":false,"overlay":false},{"id":"photo-detail","title":"Photo detail","desc":"Full-bleed viewer, 1/24 counter, type + description editable inline.","section":"home","tabs":false,"sb":true,"overlay":false},{"id":"cust-jobs","title":"Customer job history","desc":"Job number, item count and estimate value per visit — $0.00 visits are dimmed so real revenue stands out.","section":"home","tabs":true,"sb":false,"overlay":false},{"id":"job-general","title":"General","desc":"Two-column label/value rows so the whole job fits above the fold. Service agreement tier gets a badge.","section":"job","tabs":true,"sb":false,"overlay":false},{"id":"ov-job-actions","title":"Job actions menu","desc":"En route / Equipment / Assets / Completed","section":"job","sb":false,"overlay":true},{"id":"rc-overview","title":"Report Card — overview","desc":"Condition legend now reads as a bar per section, so a tech sees where the red is before opening anything.","section":"job","tabs":true,"sb":false,"overlay":false},{"id":"rc-section","title":"Report Card — section open","desc":"Numbered rows, inline pickers, photo slots tied to the [P#] markers. Unsaved-changes bar is sticky.","section":"job","tabs":true,"sb":false,"overlay":false},{"id":"rc-changes","title":"Report Card — changes history","desc":"Old → new values with the item number preserved, grouped by edit session.","section":"job","tabs":true,"sb":false,"overlay":false},{"id":"est-empty","title":"1 · No estimate yet","desc":"Empty state carries the 6-option limit up front rather than as a footnote.","section":"estimate","tabs":true,"sb":false,"overlay":false},{"id":"est-new-option","title":"2 · Add new option (empty)","desc":"Pricing preview type as three explicit choices instead of a dropdown — it's the field's most-changed setting.","section":"estimate","tabs":true,"sb":false,"overlay":false},{"id":"est-catalog","title":"3 · Item catalog","desc":"Sticky search + category chips. Added items turn green and stay in place so the list never jumps.","section":"estimate","tabs":true,"sb":false,"overlay":false},{"id":"est-custom-item","title":"4 · Add custom item","desc":"Live subtotal at the bottom so the tech sees the number before saving.","section":"estimate","tabs":true,"sb":false,"overlay":false},{"id":"est-option","title":"5 · Option with items + price adjust","desc":"Qty steppers replace the tiny number field; the −20/+20% adjuster shows the resulting total live.","section":"estimate","tabs":true,"sb":false,"overlay":false},{"id":"est-draft","title":"6 · Draft","desc":"Option cards are collapsed to line items; monthly / total flips on tap. Sticky footer holds the count, range and next action.","section":"estimate-states","tabs":true,"sb":false,"overlay":false},{"id":"ov-option-menu","title":"7 · Option menu + share sheet","desc":"All option actions in one sheet; destructive action separated and red.","section":"estimate-states","sb":false,"overlay":true},{"id":"est-preview","title":"8 · Preview mode","desc":"The customer-facing read: descriptions and warranties expanded, notes shown, editing chrome gone.","section":"estimate-states","tabs":true,"sb":false,"overlay":false},{"id":"est-review","title":"9 · In review","desc":"Amber lock state. Options become read-only and the footer action disappears — nothing to tap by mistake.","section":"estimate-states","tabs":true,"sb":false,"overlay":false},{"id":"est-ready","title":"10 · Ready to present","desc":"Green approved state with the one action that matters at the door.","section":"estimate-states","tabs":true,"sb":false,"overlay":false},{"id":"est-customer","title":"11 · Customer options + signature","desc":"Customer-held screen: job facts at the top, selected option, signature pad, one confirm.","section":"estimate-states","tabs":false,"sb":false,"overlay":false},{"id":"est-approved","title":"12 · Approved","desc":"The winning option only; rejected ones collapse into a single expandable row.","section":"estimate-states","tabs":true,"sb":false,"overlay":false},{"id":"fin-empty","title":"Finance — no invoice yet","desc":"Four collapsible blocks in the order the tech works them. Approved estimate is expanded by default.","section":"finance","tabs":true,"sb":false,"overlay":false},{"id":"ov-pay-method","title":"Payment method","desc":"Offline methods grouped under one row instead of a flat list of nine.","section":"finance","sb":false,"overlay":true},{"id":"pay-card","title":"Card payment","desc":"Amount owed pinned above the button — the number the customer is agreeing to.","section":"finance","tabs":true,"sb":false,"overlay":false},{"id":"inv-paid","title":"Invoice paid","desc":"Invoice number, status chip and timeline; receipt actions replace the payment form.","section":"finance","tabs":true,"sb":false,"overlay":false},{"id":"history","title":"Jobs history","desc":"Job type is a colored chip so Estimate / Maintenance / Demand Service are scannable at arm's length.","section":"history","tabs":true,"sb":false,"overlay":false},{"id":"hist-filters","title":"Filters","desc":"Dual-handle price range with live values; estimate status as chips, not checkboxes.","section":"history","tabs":true,"sb":false,"overlay":false},{"id":"hist-search","title":"Search","desc":"Type-ahead on customer name with matched text emphasised; recent searches below.","section":"history","tabs":true,"sb":false,"overlay":false},{"id":"rc-furnace","title":"System Analysis 20–33 · Furnace","desc":"Sub-tabs split the 29 rows into the three physical units a tech actually walks to. R / SA reading pairs stay side by side.","section":"rc-system","tabs":true,"sb":false,"overlay":false},{"id":"rc-condenser","title":"System Analysis 34–44 · Condenser","desc":"Rated vs Actual readings get an inline delta chip — 110% reads as a warning without the tech doing the math.","section":"rc-system","tabs":true,"sb":false,"overlay":false},{"id":"rc-refrigerant","title":"System Analysis 45–48 · Refrigerant","desc":"Before / After pressure pairs sit in one card so the change is readable, and 48 closes the section with a single confirm.","section":"rc-system","tabs":true,"sb":false,"overlay":false},{"id":"rc-customer","title":"Customer Section 49–50","desc":"The waiver is a legal acknowledgement — set in a bordered block with an explicit checkbox above the signature.","section":"rc-system","tabs":true,"sb":false,"overlay":false},{"id":"rc-tech","title":"Technician Section 51–54","desc":"Two yes/no confirmations as switches, notes thread, then the tech's own signature to close the card.","section":"rc-system","tabs":true,"sb":false,"overlay":false},{"id":"add-empty","title":"Additional items — empty","desc":"Same empty-state pattern as the Estimate, so the two lists feel like one system.","section":"finance-2","tabs":true,"sb":false,"overlay":false},{"id":"add-catalog","title":"Additional items — catalog","desc":"Shorter catalog for parts and consumables, with \"Add custom item\" as a persistent row rather than a hidden menu item.","section":"finance-2","tabs":true,"sb":false,"overlay":false},{"id":"add-items","title":"Additional items — 2 added","desc":"Qty stepper + subtotal per line, and a section total the invoice will pick up.","section":"finance-2","tabs":true,"sb":false,"overlay":false},{"id":"pay-cash","title":"Cash payment","desc":"No form at all — just the amount and a confirm. Change-due helper added for cash handling.","section":"finance-2","tabs":true,"sb":false,"overlay":false},{"id":"pay-check","title":"Check payment","desc":"Four check fields plus a photo-of-check capture, which is what techs do anyway.","section":"finance-2","tabs":true,"sb":false,"overlay":false},{"id":"pay-apps","title":"Zelle / Venmo / Cash App","desc":"One shared form for all three app transfers — the provider is a chip row, not three separate screens.","section":"finance-2","tabs":true,"sb":false,"overlay":false},{"id":"inv-details","title":"Change invoice details","desc":"Seven fields, grouped contact / address, with the city-state-zip row on one line.","section":"finance-2","tabs":true,"sb":false,"overlay":false},{"id":"inv-sent","title":"Invoice sent","desc":"Sent state with a chase action","section":"finance-2","tabs":true,"sb":false,"overlay":false},{"id":"ov-inv-share","title":"Invoice share menu","desc":"Email / SMS / print / edit","section":"finance-2","sb":false,"overlay":true},{"id":"ov-period","title":"Period menu","desc":"Thirteen options grouped into Current / Previous / Custom, so the list stops being a wall.","section":"home-2","sb":false,"overlay":true},{"id":"ov-period-month","title":"Custom month","desc":"Year stepper above a 3-column month grid — two taps instead of scrolling a list of twelve.","section":"home-2","sb":false,"overlay":true},{"id":"period-quarter","title":"Custom quarter &amp; year","desc":"Quarters show their month span; years are a two-column grid rather than a long scroll.","section":"home-2","tabs":true,"sb":false,"overlay":false},{"id":"period-week","title":"Custom week","desc":"Week numbers carry their date span, which is what a tech actually recognises.","section":"home-2","tabs":true,"sb":false,"overlay":false},{"id":"ov-note-detailed","title":"Detailed description (2)","desc":"PDF version — one sheet per note type, read-only, no add button.","section":"notes-media","sb":false,"overlay":true},{"id":"ov-note-tech","title":"Technician's Notes (2)","desc":"Editable by the tech — hence the add button at the bottom.","section":"notes-media","sb":false,"overlay":true},{"id":"ov-note-private","title":"Private Notes (1)","desc":"Amber border + lock icon so a tech never reads it out loud in front of the customer.","section":"notes-media","sb":false,"overlay":true},{"id":"files","title":"Files (2)","desc":"File type icon, size, date and uploader on one row; upload target at the bottom.","section":"notes-media","tabs":true,"sb":false,"overlay":false},{"id":"ov-media-source","title":"Media source sheet","desc":"Two large targets — this is tapped with gloves on.","section":"notes-media","sb":false,"overlay":true},{"id":"image-desc","title":"Image description","desc":"Before / After is a two-button choice, not a dropdown — there are only ever two.","section":"notes-media","tabs":true,"sb":false,"overlay":false}];
 /* =========================================================
    Vision 360 Mobile — clickable prototype
    Router + wiring over the accepted design screens.
@@ -3535,7 +3537,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   function monthlyFor(total, p) {
     p = p || PLANS[formPlanIdx];
     if (!p.rate) return 0;
-    return Math.max(0, total - effectiveDeposit(total)) * planFactor(p);   // a deposit under the total is financed
+    return Math.round(total * planFactor(p) * 100 + 1e-9) / 100;   // M6-5: the deposit is not taken off the monthly
   }
   var MONTHLY_FACTOR = 0.0129;        // kept for anything still reading it directly
 
@@ -3669,6 +3671,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
 
     if (isOv(id)) {
       if (topId() === id) return;
+      if (id === 'ov-job-actions' && typeof paintJobActions === 'function') paintJobActions();
       stack.push({ id: id, mode: 'overlay' });
       el.classList.add('on', 'anim-inF');
       setTimeout(function () { el.classList.remove('anim-inF'); }, 250);
@@ -3736,7 +3739,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     chat: 'chat', 'chat-thread': 'chat', timesheet: 'timesheet', more: 'more'
   };
 
-  var tabOrigin = 'home';
+  var tabOrigin = 'home', tabStacks = {};
   function chrome() {
     var pid = curPage(); if (!pid) return;
     if (pid === 'est-draft' && typeof paintDraftAction === 'function') paintDraftAction();
@@ -4221,7 +4224,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     start: function () {
       if (pausePrompt('start')) return;
       // A9: Start again after a pause is not checked against the address
-      if ((JOBS[jobIdx] || {}).paused) { beginJob(); return; }
+      if ((JOBS[jobIdx] || {}).paused && (JOBS[jobIdx] || {}).pausedFrom !== 'drive') { beginJob(); return; }
       /* Marek, Oct 12: the phone's distance from the job address can gate
          Start — payroll checks timesheets against GPS by hand today. */
       /* Marek, Oct 21: no location, no start — "You need to trigger turning
@@ -4262,6 +4265,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       }, 4000);
     },
     enroute: function () {
+      if (!state.enroute && curStatus() === 'inprogress') { closeOverlays(true); toast('The job is in progress — En route is not available', 'block'); return; }
       if (pausePrompt('enroute')) return;
       /* M3-3, A20: Stop while en route closes the drive and opens a pause,
          so a lunch on the way is not paid as drive time. */
@@ -4296,8 +4300,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       closeOverlays(false);
       queued('Job status');
       queuedFix(state.enroute ? 'Status: En route' : 'Status: Not en route');
-      toast(state.enroute ? (net.online ? 'Marked en route · customer notified'
-        : 'Marked en route · customer will be notified when you’re back online') : 'No longer en route',
+      toast(state.enroute ? (net.online ? 'Marked en route' : 'Marked en route · sends when you’re back online') : 'No longer en route',
         state.enroute ? 'navigation' : 'undo');
     },
     dismissBanner: function (el) {
@@ -4695,7 +4698,10 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       histJob = who;
       // History is the past: whatever is opened from it is read, not worked.
       // A finished job can be set back to active; a visit cannot.
-      viewPast = { idx: jobIdx, visit: !JOBS[at].done,
+      /* M4-15: History lists only his own completed jobs — a card opens as
+         his completed job ("Completed … · read-only", Ask manager to
+         reopen), never as another technician's visit. */
+      viewPast = { idx: jobIdx, visit: false,
         // the card it was opened from says which visit this is: its date,
         // what it was for and its type are what the job shows (M1-1b, M4-15)
         card: histCard(el, who) };
@@ -4773,6 +4779,20 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       var n = Math.max(1, mediaBatch);
       var wasEditing = mediaEditing;
       mediaEditing = false;
+      if (wasEditing && !bound) {
+        var vp = viewedPhoto, to = photoType in mediaBlk ? photoType : 'Other';
+        if (vp && vp.type !== to) {
+          movePhoto(vp.type, to);
+          var bdg = vp.tile && $$('span', vp.tile).filter(function (e) { return /position:absolute/.test(e.getAttribute('style') || '') && /^(BEFORE|AFTER|OTHER)$/.test(norm(e.textContent)); })[0];
+          if (bdg) bdg.textContent = to.toUpperCase();
+          vp.type = to;
+        }
+        mediaBatch = 1;
+        queued('Photo', 'Photo details changed');
+        back();
+        toast(vp && vp.type === to ? 'Saved · the photo is in ' + to : 'Saved', 'check_circle');
+        return;
+      }
       if (bound) {
         markSlotFilled(bound);
         pendingSlot = null;
@@ -4813,12 +4833,17 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
        nothing owed (warranty, free maintenance) closes without payment. */
     complete: function () {
       closeOverlays(true);
+      var st0 = curStatus();
+      if (st0 !== 'inprogress' && st0 !== 'paused') { toast('Start the job first', 'play_circle'); return; }
       /* M8-1 (#52, #75): hints that never block — "Before you complete"
          lists what is usually missing, each with Go to; Complete anyway or
          Back. With no hint, one tap completes. */
       var hj = JOBS[jobIdx] || {}, hints = [];
       var jp0 = hj.plan;
-      if (!(jp0 && jp0.prepaid) && state.inv === 'none' && invoiceTotal() > 0) hints.push(['This job needs an invoice', function () { go(finScreen(), 'push'); }]);
+      if (state.inv === 'none') {
+        if (invNeeded(hj) && !(jp0 && jp0.prepaid)) hints.push(['This job needs an invoice', function () { go(finScreen(), 'push'); }]);
+        else if (!invNeeded(hj) && hj.type !== 'Install' && invoiceTotal() > 0) hints.push(['Items for ' + fmt(invoiceTotal()) + ' are not invoiced', function () { go(finScreen(), 'push'); }]);
+      }
       if (!hj.rcFilled) hints.push(['AC Report Card not filled in', function () { formsList(false); go('rc-overview', 'push'); }]);
       if (installMissing().length) hints.push(['Install template not filled in', function () { go('closeout', 'push'); }]);
       function completeNow() {
@@ -4877,8 +4902,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     },
     signoffLink: function () {
       var j = JOBS[jobIdx];
-      if (j) j.signoff = { state: 'awaiting', at: stamp(), via: 'link' };
-      if (finishJob() && j) toast('Sign-off link emailed to ' + j.name + ' · job is Awaiting sign-off', 'mark_email_read');
+      if (j) j.signoff = { state: 'sent', at: stamp(), via: 'link' };
+      if (finishJob() && j) toast(jobNo(j) + ' completed · sign-off link emailed to ' + j.name, 'mark_email_read');
     },
     closeoutSave: function () {
       queued('Closeout');
@@ -4997,7 +5022,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     ],
     'photo-detail': [
       ['@edit^1', 'image-desc', 'modal'],
-      ['@delete_outline', 'BACK'],
+      ['@delete_outline', 'act:photoDelete'],
       ['@ios_share', null]
     ],
     'cust-jobs': [
@@ -5637,6 +5662,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     var TYPE_OF = { B: 'Before', A: 'After', O: 'Other' };
     document.addEventListener('click', function (ev) {
       var scr = ev.target.closest('#photos, #job-general'); if (!scr) return;
+      var bt = ev.target.closest('[data-ptype]');
+      if (bt) { viewedPhoto = { tile: bt, type: bt.dataset.ptype, mine: bt.dataset.photomine === '1' }; paintViewed(viewedPhoto); return; }
       var tile = ev.target.closest('[data-photomine], #photos .sc > div[style*="grid-template-columns"] > div, #job-general [data-go="photo-detail"]');
       if (!tile) return;
       if (!tile.matches('[data-photomine]') && !tile.parentElement.matches('[style*="grid-template-columns"]')) {
@@ -5644,7 +5671,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       }
       var badge = $$('span,div', tile).filter(function (e) { return !e.children.length && /^(BEFORE|AFTER|OTHER|B|A|O)$/.test(norm(e.textContent)); })[0];
       var key = badge ? norm(badge.textContent).charAt(0) : 'A';
-      paintViewed({ type: TYPE_OF[key] || 'After', mine: tile.dataset.photomine === '1' });
+      viewedPhoto = { tile: tile, type: badge ? (TYPE_OF[key] || 'After') : 'Other', mine: tile.dataset.photomine === '1' };
+      paintViewed(viewedPhoto);
     }, true);
   })();
 
@@ -5749,7 +5777,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     // and not the value
     var lowest = Math.min.apply(null, Object.keys(OPTION_TOTALS || {})
       .slice(0, optCount).map(function (k) { return OPTION_TOTALS[k]; }).concat([Infinity]));
-    if (depositPct > 0) return depositPct + '% of each option, part of its price — taken off before the monthly is worked out.';
+    if (depositPct > 0) return depositPct + '% of each option, part of its price. The monthly is worked out on the whole total.';
     return !deposit ? 'No deposit — the whole price is financed or paid on the day.'
       : deposit >= lowest ? 'Covers the cheaper options outright — nothing left to finance on those.'
         : fmt(deposit) + ' down, the rest financed.';
@@ -6770,7 +6798,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   function openStripeSheet() {
     var sh = byId('ov-stripe'); if (!sh) return;
     var amtEl = $$('[data-payamt]').filter(function (e) { return e.offsetParent; })[0];
-    var taking = amtEl ? parseFloat(String(amtEl.value).replace(/[^0-9.]/g, '')) : NaN;
+    var taking = amtEl && /^\$?\d+(\.\d{1,2})?$/.test(String(amtEl.value).trim()) ? parseFloat(String(amtEl.value).trim().replace(/^\$/, '')) : NaN;
     if (!isFinite(taking) || taking <= 0) taking = payAmount;
     $('[data-stripeamt]', sh).textContent = fmt(Math.min(taking, payAmount));
     $('[data-stripebtn]', sh).textContent = 'Pay ' + fmt(Math.min(taking, payAmount));
@@ -6794,8 +6822,22 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     toast('Payment link for ' + fmt(payAmount) + ' emailed to ' + (j.name || 'the customer') + ' — the invoice stays open until it is paid', 'mark_email_read');
   };
 
+  /* M7-7b: "609,00" or "1.109,00" is refused, not read as $60,900 or $1.11;
+     card, financing and payment apps take no more than the balance; cash
+     above it is kept and marked Overpaid. */
+  function readPayAmount(m) {
+    var amtEl = $$('[data-payamt]').filter(function (e) { return e.offsetParent; })[0];
+    var raw = amtEl ? String(amtEl.value).trim().replace(/^\$/, '') : '';
+    if (!raw) return payAmount;
+    if (!/^\d+(\.\d{1,2})?$/.test(raw)) { toast('Enter the amount in dollars and cents, for example 1109.00', 'edit'); return null; }
+    var v = parseFloat(raw);
+    if (v <= 0 || (v > payAmount + 0.005 && m.id !== 'cash')) { toast('Amount must be more than $0.00 and not more than the balance, ' + fmt(payAmount), 'edit'); return null; }
+    if (m.id === 'card' && v < 0.5) { toast('A card payment is at least $0.50', 'edit'); return null; }
+    return v;
+  }
   ACT.payInline = function () {
     var m = payMethodDef();
+    if (readPayAmount(m) === null) return;
     if (m.id === 'card' && !stripeApproved) { cardSig = ''; }
     if (m.id !== 'card' && !paySigned) { cardSig = ''; }
     var miss = [];
@@ -6820,20 +6862,19 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     if (state.inv === 'none') ACT.createInvoice();
     /* Marek, Oct 12: partial payments are supported. Less than the balance
        is taken, recorded, and the invoice stays open for the rest. */
-    var amtEl = $$('[data-payamt]').filter(function (e) { return e.offsetParent; })[0];
-    var taking = amtEl ? parseFloat(String(amtEl.value).replace(/[^0-9.]/g, '')) : NaN;
-    if (!isFinite(taking) || taking <= 0) taking = payAmount;
+    var taking = readPayAmount(m); if (taking === null) return;
+    var overpaid = taking > payAmount + 0.005 ? taking - payAmount : 0;
     if (taking < payAmount - 0.005) {
       invPaidSoFar += taking; remember('invPaidSoFar', invPaidSoFar);
       if (!invSentAt) { invSentAt = stamp(); remember('invSentAt', invSentAt); if (state.inv === 'created') state.inv = 'sent'; }
-      kpiPaid(taking);
+      if (m.id !== 'financing') kpiPaid(taking);
       pay.values = {}; pay.dates = {}; pay.dl = {}; savePay();
       payPanels.forEach(function (P) { P.rendered = ''; });
       paintPayScreens();
       closeOverlays(true);
       go(finScreen(), 'root');
       queued('Payment', 'Payment ' + fmt(taking) + ' ' + m.name.toLowerCase());
-      toast('Partial payment · ' + fmt(taking) + ' received · ' + fmt(payAmount) + ' still due', 'payments');
+      toast(m.id === 'financing' ? 'Financing ' + fmt(taking) + ' recorded · pending with the lender · ' + fmt(payAmount) + ' balance' : 'Partial payment · ' + fmt(taking) + ' received · ' + fmt(payAmount) + ' still due', 'payments');
       return;
     }
     invPaidAt = stamp(); remember('invPaidAt', invPaidAt);
@@ -6841,7 +6882,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     state.inv = 'paid';
     payMethod = m.name;
     paintReceipt('inline');
-    kpiPaid(payAmount);
+    if (m.id !== 'financing') kpiPaid(payAmount);
     var paidNow = payAmount;                       // the sum is recomputed to $0 below
     pay.values = {}; pay.dates = {}; pay.dl = {}; savePay();
     payPanels.forEach(function (P) { P.rendered = ''; });
@@ -6853,6 +6894,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     queued('Payment', 'Payment ' + fmt(paidNow) + ' ' + m.name.toLowerCase());
     setTimeout(paintFinChip, 60);   // after the paid card has painted its own lines
     if (invFinancing) { toast('Financing pending · no Pay button for the customer, and the invoice won’t go overdue', 'account_balance'); return; }
+    if (overpaid) { toast('Paid · Overpaid ' + fmt(overpaid) + ' — change due ' + fmt(overpaid), 'payments'); return; }
     toast(net.online ? 'Payment received · ' + fmt(paidNow)
       : 'Payment recorded offline · will post when you have signal');
   };
@@ -7295,11 +7337,11 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     // M4-16 (#56): his own completed job says when — "Completed Oct 29, 2026, 4:32 PM · read-only"
     var cj = JOBS[jobIdx] || {};
     if (label) label.textContent = viewPast && viewPast.visit ? 'Past visit · read only'
-      : so && so.state === 'awaiting' ? 'Awaiting sign-off · link sent ' + so.at + ' to ' + custEmail(cj)
+      : cj.reopenReq ? 'Reopen requested · ' + cj.reopenReq.at + ' · waiting'
       : so && so.state === 'signed' ? 'Completed · signed off on the device'
       : so && so.state === 'sent' ? 'Completed ' + (cj.completedAt || so.at) + ' · sign-off link sent to ' + custEmail(cj)
       : cj.reopenReq ? 'Reopen requested · ' + cj.reopenReq.at + ' · waiting'
-      : 'Completed ' + (cj.completedAt || 'Oct 29, 2026, 4:32 PM') + ' · read-only';
+      : 'Completed ' + (cj.completedAt || (viewPast && viewPast.card && viewPast.card.when) || 'Oct 29, 2026, 4:32 PM') + ' · read-only';
     /* M4-14 (#57): another technician's past visit shows General, its Job
        and Field notes, photos and files — no Report Card, Estimate,
        Finance, Internal notes or expenses */
@@ -7380,6 +7422,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     if (!hit) return;
     if (hit.dataset.back !== undefined) return;
     if (hit.dataset.act && VIEW_ACTS[hit.dataset.act]) return;
+    if (!viewPast.visit && (/^(payApps|payDone|payInline|payLink|payOffline|stripePay|openPaySign)$/.test(hit.dataset.act || '') ||
+      /^(pay-|ov-pay)/.test(hit.dataset.go || '') || /^(pay-|ov-pay)/.test(scr.id))) return;
     if (hit.dataset.go && VIEW_GO[hit.dataset.go]) return;
     // a section head that only folds open is reading, not editing
     if (!hit.dataset.act && !hit.dataset.go && hit.tagName !== 'INPUT' && hit.tagName !== 'TEXTAREA' &&
@@ -8087,6 +8131,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
      figure and the confirmation all recorded an option nobody chose. */
   var pickedOption = 'Option A';        // the design's own checked radio
   seg('est-customer', ['Option A^1', 'Option B^1', 'Option C^1'], 0, function (i, label) {
+    if (pickedOption !== label.split('^')[0] && estSigned) resetCustomerSignature();
     pickedOption = label.split('^')[0];
   });
   /* The customer's screen drew the board's three cards — A, B and C, with
@@ -8137,6 +8182,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       card.firstElementChild.addEventListener('click', function () {
         if (pickedOption === n) return;
         pickedOption = n;
+        if (estSigned) resetCustomerSignature();   // M6-11: the signature was for the other option
         paintCustomerOptions();
       });
       box.appendChild(card);
@@ -8415,7 +8461,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     // A deposit only counts once the customer has signed for the option it
     // was quoted against. On an estimate nobody bought, no money changed
     // hands, so there is nothing to take off the invoice.
-    var paid = j.sold && !j.sold.invoiced ? Math.min(effectiveDeposit(j.sold.total), jobTotal) : 0;
+    var paid = 0;   // M7-7b: no deposit is taken off until it is recorded as a payment
     payAmount = Math.max(0, jobTotal - paid - invPaidSoFar);
     PAY_SCREENS.forEach(function (id) {
       var root = byId(id); if (!root) return;
@@ -9907,6 +9953,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   /* Call 11.11 (M4-1 / M4-6): Media on General is three blocks — Before,
      After, Other — each with its own +, which files the photos under it. */
   var mediaBlk = recall('mediaBlk', { Before: 1, After: 1, Other: 0 });
+  var mineBlk = recall('mineBlk', { Before: 0, After: 0, Other: 0 });   // how many of each block he took (newest first)
+  var viewedPhoto = null;
   function paintMediaBlocks() {
     var root = byId('job-general'); if (!root) return;
     var box = byId('mediaBlocks');
@@ -9923,7 +9971,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     var BG = { Before: '#DDE3EE', After: '#D4DBE6', Other: '#E4E9F1' };
     box.innerHTML = ['Before', 'After', 'Other'].map(function (t) {
       var n = mediaBlk[t] || 0, tiles = '';
-      for (var i = 0; i < Math.min(n, 6); i++) tiles += '<div data-tap="1" data-go="photo-detail" data-mode="modal" style="flex:none;width:64px;height:64px;border-radius:9px;background:' + BG[t] + ';display:flex;align-items:center;justify-content:center"><span class="mi" style="font-size:22px;color:#A9B4C2">image</span></div>';
+      for (var i = 0; i < Math.min(n, 6); i++) tiles += '<div data-tap="1" data-go="photo-detail" data-mode="modal" data-ptype="' + t + '" data-photomine="' + (i < (mineBlk[t] || 0) ? '1' : '0') + '" style="flex:none;width:64px;height:64px;border-radius:9px;background:' + BG[t] + ';display:flex;align-items:center;justify-content:center"><span class="mi" style="font-size:22px;color:#A9B4C2">image</span></div>';
       if (n > 6) tiles += '<div data-tap="1" data-go="photos" data-mode="push" style="flex:none;width:64px;height:64px;border-radius:9px;background:#F2F5F9;display:flex;align-items:center;justify-content:center;font:600 13px/1 Geist;color:#546478">+' + (n - 6) + '</div>';
       var add = viewPast ? '' : '<div data-tap="1" data-act="mediaAddTyped" data-type="' + t + '" aria-label="Add ' + t + ' photos" style="flex:none;width:64px;height:64px;border-radius:9px;background:#EBF0F8;border:1px dashed #C8D5E8;display:flex;align-items:center;justify-content:center"><span class="mi" style="font-size:24px;color:#4A6FA5">add</span></div>';
       return '<div><div style="font:600 12.5px/1 Geist;color:#546478;margin-bottom:7px">' + t + ' <span style="color:#8A97A8;font-weight:500">' + n + '</span></div>' +
@@ -9932,6 +9980,34 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     var c = $('[data-mediacount]', root);
     if (c) c.textContent = String(mediaBlk.Before + mediaBlk.After + mediaBlk.Other);
   }
+  function movePhoto(from, to) {
+    if (from in mediaBlk && mediaBlk[from] > 0) { mediaBlk[from]--; if (mineBlk[from] > 0) mineBlk[from]--; }
+    if (to) { mediaBlk[to] = (mediaBlk[to] || 0) + 1; mineBlk[to] = (mineBlk[to] || 0) + 1; }
+    remember('mediaBlk', mediaBlk); remember('mineBlk', mineBlk);
+    [from, to].forEach(function (k) {
+      if (k && photoTypeCount[k] !== undefined) photoTypeCount[k] = Math.max(0, photoTypeCount[k] + (k === to ? 1 : -1));
+    });
+    remember('photoTypeCount', photoTypeCount);
+    if (typeof paintTypeCounts === 'function') paintTypeCounts();
+    paintMediaBlocks();
+  }
+  /* M4-8: delete asks first; the office no longer sees it */
+  ACT.photoDelete = function () {
+    var vp = viewedPhoto;
+    if (!vp || !vp.mine || viewPast) { toast('Only your own photos on an open job can be deleted', 'lock'); return; }
+    confirmSheet({
+      title: 'Delete this photo?', text: 'The office will no longer see it.', ok: 'Delete', danger: true,
+      onOk: function () {
+        movePhoto(vp.type, null);
+        if (vp.tile && vp.tile.closest('#photos')) vp.tile.remove();
+        var pc = recall('photoCount', 24); remember('photoCount', Math.max(0, pc - 1));
+        viewedPhoto = null;
+        queued('Photo', 'Photo deleted');
+        back();
+        toast('Photo deleted', 'delete');
+      }
+    });
+  };
   ACT.mediaAddTyped = function (el) {
     photoType = el.dataset.type; remember('photoType', photoType);
     typedByBlock = true;
@@ -9940,6 +10016,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   function addMediaThumbs(n) {
     var t = photoType in mediaBlk ? photoType : 'Other';
     mediaBlk[t] = (mediaBlk[t] || 0) + n; remember('mediaBlk', mediaBlk);
+    mineBlk[t] = (mineBlk[t] || 0) + n; remember('mineBlk', mineBlk);
     paintMediaBlocks();
   }
 
@@ -11380,6 +11457,31 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   var runIdx = recall('runIdx', -1);
   function setRun(i) { runIdx = i; remember('runIdx', i); }
   function mineRunning() { return runIdx < 0 || runIdx === jobIdx; }
+  /* M3-3 / M8-1b: the job's status, for what its buttons may offer —
+     Completed only from In Progress or Paused; En route never on a job
+     that is In Progress. */
+  function curStatus() {
+    var j = JOBS[jobIdx] || {};
+    if (j.done) return 'completed';
+    if (state.onsite && mineRunning()) return 'inprogress';
+    if (state.enroute && mineRunning()) return 'enroute';
+    if (j.paused) return 'paused';
+    return 'dispatched';
+  }
+  function paintJobActions() {
+    var ov = byId('ov-job-actions'); if (!ov) return;
+    var st = curStatus();
+    $$('.mi', ov).forEach(function (ic) {
+      var row = ic.parentElement, k = norm(ic.textContent); if (!row) return;
+      if (k !== 'task_alt' && k !== 'navigation') return;
+      var off = (k === 'task_alt' && !(st === 'inprogress' || st === 'paused')) || (k === 'navigation' && st === 'inprogress');
+      row.style.opacity = off ? '.45' : '';
+      var sm = $('[data-stnote]', row);
+      if (!sm) { sm = document.createElement('div'); sm.dataset.stnote = '1'; sm.setAttribute('style', 'font:400 12px/1.3 Geist;color:#8A97A8;margin-top:3px'); (ic.nextElementSibling || row).appendChild(sm); }
+      sm.textContent = off ? (k === 'task_alt' ? 'Start the job first' : 'The job is in progress') : '';
+      sm.style.display = off ? '' : 'none';
+    });
+  }
   var paintJob = function () { };
 
   /* A job is live from the moment the tech sets off, not from the moment
@@ -11494,7 +11596,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       refs.type.textContent = j.type;
       setPhone(refs.phone, j.phone);
       addr.childNodes[0].nodeValue = j.addr;
-      awaySpan.textContent = awayText(j.away);
+      awaySpan.textContent = j.gps === 'nomap' ? '' : awayText(j.away);
     };
   }
 
@@ -11772,10 +11874,9 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         enroute.innerHTML = '<span style="display:flex;align-items:center;gap:5px"><span class="mif" style="font-size:17px">pause</span>Pause</span>' +
           '<span data-jobtime style="font:500 11.5px/1 Geist;opacity:.85;font-variant-numeric:tabular-nums">0:00</span>';
       } else if (heldHere) {
-        enroute.dataset.act = 'start';
-        enroute.setAttribute('style', PAUSED + ';flex-direction:column;gap:3px');
-        enroute.innerHTML = '<span style="display:flex;align-items:center;gap:5px"><span class="mif" style="font-size:17px">pause</span>Paused</span>' +
-          '<span style="font:500 11.5px/1 Geist;opacity:.85">Tap to resume</span>';
+        enroute.dataset.act = 'enroute';
+        enroute.setAttribute('style', PRIMARY);
+        enroute.innerHTML = '<span class="mif" style="font-size:18px">navigation</span>En route';
       } else if (state.enroute && mine) {
         enroute.dataset.act = 'enroute';
         enroute.setAttribute('style', DRIVING);
@@ -11788,7 +11889,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       }
 
       start.dataset.cardbtn = '1';
-      var done = (state.onsite && mine) || heldHere;
+      var done = state.onsite && mine;   // M3-1: Paused offers En route and Start, not Complete
       start.dataset.act = done ? 'complete' : 'start';
       start.setAttribute('style', OUTLINE);
       // 'Complete' plus an icon is the widest this row ever gets: at 375px
@@ -13617,7 +13718,18 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
 
     var tab = t.closest && t.closest('#tabbar .tab');
     if (tab) {
-      var k = tab.dataset.tab;
+      /* M1-1: History and More keep their own back stack — leave Settings
+         open on More, look at History, come back: Settings is still there.
+         Tapping the tab you are on goes back to its first screen. */
+      if (curPage() === 'est-customer') return;   // M6-10: the customer's view is locked
+      var k = tab.dataset.tab, curK = stack[0] && TABOF[stack[0].id];
+      if (curK && curK !== k) tabStacks[curK] = stack.filter(function (e) { return !isOv(e.id); });
+      var saved = curK !== k ? tabStacks[k] : null; delete tabStacks[k];
+      if (saved && saved.length > 1 && (k === 'history' || k === 'more') && saved.every(function (e) { return TABOF[e.id] === k; })) {
+        go(saved[0].id, 'tab');
+        for (var si = 1; si < saved.length; si++) go(saved[si].id, saved[si].mode === 'modal' ? 'modal' : 'push');
+        return;
+      }
       go(k === 'home' ? homeScreen() : k, 'tab');
       return;
     }
@@ -13647,17 +13759,56 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   });
   byId('li-rm').addEventListener('click', function () { this.classList.toggle('on'); });
 
+  /* M1-5 / M1-5b. Demo answers: the password "vision360" signs in; any
+     other is the server's neutral "incorrect" (no field marked); the 5th
+     wrong one locks for 15:00; an email starting with "office" is a role
+     without the technician app; offline there is no sign-in at all. */
+  var liFails = 0, liLockTimer = null;
+  function liMsg(html, icon) {
+    var m = byId('li-msg'); if (!m) return;
+    m.style.display = html ? 'flex' : 'none';
+    m.innerHTML = html ? '<span class="mi" style="font-size:18px;margin-top:1px">' + (icon || 'error') + '</span><div style="flex:1">' + html + '</div>' : '';
+  }
+  function liLock() {
+    var b = byId('li-go'), left = 15 * 60;
+    b.disabled = true; b.style.opacity = '.5';
+    function tick() {
+      var mm = Math.floor(left / 60), ss = left % 60;
+      liMsg('Too many attempts. Try again in ' + mm + ':' + (ss < 10 ? '0' : '') + ss + '.', 'lock_clock');
+      if (left-- <= 0) { clearInterval(liLockTimer); liFails = 0; b.disabled = false; b.style.opacity = ''; liMsg(''); }
+    }
+    clearInterval(liLockTimer); tick(); liLockTimer = setInterval(tick, 1000);
+  }
   function signIn() {
     var em = byId('li-em'), pw = byId('li-pw'), ok = true;
+    if (byId('li-go').disabled) return;
     var emOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em.value.trim());
     em.classList.toggle('bad', !emOk); byId('li-em-e').classList.toggle('on', !emOk);
-    var pwOk = pw.value.length >= 6;
+    var pwOk = pw.value.length > 0;
     pw.classList.toggle('bad', !pwOk); byId('li-pw-e').classList.toggle('on', !pwOk);
+    liMsg('');
     if (!emOk || !pwOk) return;
+    if (!net.online) {
+      liMsg('Sign-in needs a connection. Connect to the internet and try again.<div data-tap="1" id="li-online" style="font:500 12.5px/1 Geist;color:#8A97A8;margin-top:9px">Demo: back online</div>', 'cloud_off');
+      var bo = byId('li-online'); if (bo) bo.onclick = function () { ACT.demoNet(); liMsg(''); };
+      return;
+    }
     var b = byId('li-go');
     b.disabled = true; b.innerHTML = '<span class="mi" style="font-size:19px">sync</span>Signing in…';
     setTimeout(function () {
       b.disabled = false; b.innerHTML = '<span class="mif" style="font-size:19px">login</span>Sign in';
+      if (/^office/i.test(em.value.trim())) {
+        liMsg('Your role doesn&rsquo;t use the technician app. Use the Vision360 web app, or ask your admin to turn the app on for your role.<div data-tap="1" id="li-other" style="font:600 13px/1 Geist;color:#4A6FA5;margin-top:9px">Use another account</div>', 'block');
+        var o = byId('li-other'); if (o) o.onclick = function () { em.value = ''; pw.value = ''; liMsg(''); em.focus(); };
+        return;
+      }
+      if (pw.value !== 'vision360') {
+        liFails++;
+        if (liFails >= 5) { liLock(); return; }
+        liMsg('Email or password is incorrect.' + (liFails >= 3 ? ' ' + (5 - liFails) + (5 - liFails === 1 ? ' attempt' : ' attempts') + ' left before a 15-minute lock.' : ''));
+        return;
+      }
+      liFails = 0;
       remember('signedIn', true);        // US-M02-2: stays signed in across days
       homeLoadingUntil = Date.now() + 900;          // M3-1: "Loading your day…"
       paintJob();
@@ -13674,30 +13825,38 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     var ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em.value.trim());
     em.classList.toggle('bad', !ok); byId('fg-em-e').classList.toggle('on', !ok);
     if (!ok) return;
+    if (!net.online) { toast('Resetting a password needs a connection', 'cloud_off'); return; }
     // M1-8: the code goes to the work email, never by SMS (SMS is Pro)
     var at = em.value.trim().split('@');
     var masked = at[0].slice(0, Math.min(5, Math.max(1, at[0].length - 2))) + '•••@' + at[1];
     var to = byId('otp-to'); if (to) to.textContent = masked;
-    go('otp', 'push'); startOtpTimer(); toast('Code emailed to ' + masked, 'mail');
+    go('otp', 'push'); startOtpTimer(); toast('If this email has an account, we sent a code', 'mail');
   });
 
   var otpTimer;
   function startOtpTimer() {
-    var left = 29;
-    byId('otp-rs').innerHTML = 'Resend in <span id="otp-t">0:29</span>';
+    var left = 60;
+    byId('otp-rs').innerHTML = 'Resend in <span id="otp-t">1:00</span>';
     clearInterval(otpTimer);
     otpTimer = setInterval(function () {
       left--;
       var t = byId('otp-t');
       if (left <= 0) { clearInterval(otpTimer); byId('otp-rs').textContent = 'Resend code'; return; }
-      if (t) t.textContent = '0:' + (left < 10 ? '0' : '') + left;
+      if (t) t.textContent = Math.floor(left / 60) + ':' + (left % 60 < 10 ? '0' : '') + (left % 60);
     }, 1000);
   }
   byId('otp-rs').addEventListener('click', function () {
-    if (/Resend code/.test(this.textContent)) { startOtpTimer(); toast('New code emailed', 'mail'); }
+    if (/Resend code/.test(this.textContent)) { otpFails = 0; byId('otp-go').disabled = false; byId('otp-e').classList.remove('on'); startOtpTimer(); toast('New code emailed', 'mail'); }
   });
-  var digits = $$('.otp-d');
+  var digits = $$('.otp-d'), otpFails = 0;
   digits.forEach(function (d, i) {
+    d.addEventListener('paste', function (e) {
+      var v = ((e.clipboardData || window.clipboardData).getData('text') || '').replace(/\D/g, '');
+      if (v.length !== 6) return;
+      e.preventDefault();
+      digits.forEach(function (x, k) { x.value = v[k]; });
+      digits[5].focus();
+    });
     d.addEventListener('input', function () {
       this.value = this.value.replace(/\D/g, '').slice(0, 1);
       if (this.value && digits[i + 1]) digits[i + 1].focus();
@@ -13712,6 +13871,17 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     var full = digits.every(function (d) { return d.value; });
     byId('otp-e').classList.toggle('on', !full);
     if (!full) { digits.forEach(function (d) { if (!d.value) d.classList.add('bad'); }); return; }
+    var code = digits.map(function (d) { return d.value; }).join('');
+    if (code === '000000') {
+      otpFails++;
+      digits.forEach(function (d) { d.value = ''; }); digits[0].focus();
+      var e = byId('otp-e');
+      e.textContent = otpFails >= 5 ? 'Too many attempts — request a new code.' : 'That code is not right. Check the email and try again.';
+      e.classList.add('on');
+      if (otpFails >= 5) byId('otp-go').disabled = true;
+      return;
+    }
+    otpFails = 0;
     clearInterval(otpTimer);
     go('newpass', 'push');
   });
@@ -13873,7 +14043,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       if (!ev.target.closest('[data-hrgo]')) return;
       if (!norm($('[data-hrtext]', b).value)) { toast('Write a line first', 'edit'); return; }
       closeOverlays(true);
-      toast(feature ? 'Feature request sent — thank you' : 'Problem report sent with recent app activity', feature ? 'lightbulb' : 'bug_report');
+      if (!net.online) { toast('Will send when online', 'cloud_off'); return; }
+      toast('Sent — thank you', feature ? 'lightbulb' : 'bug_report');
     };
     go('ov-helpreport', 'overlay');
   };
@@ -14059,17 +14230,39 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   /* Nov 5: signing out with something still waiting to sync asks first.
      The waiting items stay on the phone either way and go up on the
      next sign-in; the question is so he does not lose track of them. */
+  /* M1-11 (epic 12.11): sign-out never leaves work behind. Empty queue —
+     a confirm. Online with a queue — it sends first and signs out by
+     itself when the queue is empty. Offline with a queue — refused;
+     there is no "Sign out anyway". */
+  var soTimer = null;
+  function soCounts() {
+    var a = syncQ.length, ph = upPending + (typeof dpWaiting === 'function' ? dpWaiting() : 0);
+    return { a: a, ph: ph, text: (a ? a + (a === 1 ? ' action' : ' actions') : '') + (a && ph ? ' and ' : '') + (ph ? ph + (ph === 1 ? ' photo' : ' photos') : '') };
+  }
   byId('logout').addEventListener('click', function () {
     var n = typeof waitingTotal === 'function' ? waitingTotal() : 0;
-    if (!n) { ACT.logout(); return; }
-    confirmSheet({
-      title: n + (n === 1 ? ' item is' : ' items are') + ' waiting to sync — sign out anyway?',
-      text: net.online ? 'The upload is still going. What is waiting stays on this phone and goes up when you sign in again.'
-        : 'No signal — nothing has been sent yet. What is waiting stays on this phone and goes up when you sign in again.',
-      ok: 'Sign out anyway', danger: true, alt: 'Wait for sync',
-      onOk: function () { ACT.logout(); },
-      onAlt: function () { go('sync', 'push'); }
-    });
+    if (!n) {
+      confirmSheet({ title: 'Sign out?', text: 'Everything is sent. Signing out removes the jobs and photos kept on this phone; they stay in Vision360.',
+        ok: 'Sign out', danger: true, onOk: function () { ACT.logout(); } });
+      return;
+    }
+    var c = soCounts();
+    if (!net.online) {
+      confirmSheet({ title: 'Not signed out', text: c.text.charAt(0).toUpperCase() + c.text.slice(1) + (n === 1 ? ' is' : ' are') + ' not sent yet. Connect to the internet to send ' + (n === 1 ? 'it' : 'them') + ', then sign out.',
+        ok: 'OK', neutral: true, alt: 'See what is waiting', onAlt: function () { go('sync', 'push'); } });
+      return;
+    }
+    confirmSheet({ title: 'Sending ' + c.text + ' before signing out…', text: 'You are signed out as soon as everything is sent.', ok: null,
+      onCancel: function () { clearInterval(soTimer); } });
+    goOnline();
+    clearInterval(soTimer);
+    soTimer = setInterval(function () {
+      var left = waitingTotal();
+      var tt = $('[data-cftitle]', confirmEl);
+      if (left && tt) tt.textContent = 'Sending ' + soCounts().text + ' before signing out…';
+      if (!net.online) { clearInterval(soTimer); closeOverlays(true); toast('Lost the connection — still signed in, nothing lost', 'cloud_off'); return; }
+      if (!left) { clearInterval(soTimer); closeOverlays(true); ACT.logout(); }
+    }, 400);
   });
 
   /* chat compose */

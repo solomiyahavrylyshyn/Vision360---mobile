@@ -157,7 +157,7 @@
   function monthlyFor(total, p) {
     p = p || PLANS[formPlanIdx];
     if (!p.rate) return 0;
-    return Math.max(0, total - effectiveDeposit(total)) * planFactor(p);   // a deposit under the total is financed
+    return Math.round(total * planFactor(p) * 100 + 1e-9) / 100;   // M6-5: the deposit is not taken off the monthly
   }
   var MONTHLY_FACTOR = 0.0129;        // kept for anything still reading it directly
 
@@ -291,6 +291,7 @@
 
     if (isOv(id)) {
       if (topId() === id) return;
+      if (id === 'ov-job-actions' && typeof paintJobActions === 'function') paintJobActions();
       stack.push({ id: id, mode: 'overlay' });
       el.classList.add('on', 'anim-inF');
       setTimeout(function () { el.classList.remove('anim-inF'); }, 250);
@@ -358,7 +359,7 @@
     chat: 'chat', 'chat-thread': 'chat', timesheet: 'timesheet', more: 'more'
   };
 
-  var tabOrigin = 'home';
+  var tabOrigin = 'home', tabStacks = {};
   function chrome() {
     var pid = curPage(); if (!pid) return;
     if (pid === 'est-draft' && typeof paintDraftAction === 'function') paintDraftAction();
@@ -843,7 +844,7 @@
     start: function () {
       if (pausePrompt('start')) return;
       // A9: Start again after a pause is not checked against the address
-      if ((JOBS[jobIdx] || {}).paused) { beginJob(); return; }
+      if ((JOBS[jobIdx] || {}).paused && (JOBS[jobIdx] || {}).pausedFrom !== 'drive') { beginJob(); return; }
       /* Marek, Oct 12: the phone's distance from the job address can gate
          Start — payroll checks timesheets against GPS by hand today. */
       /* Marek, Oct 21: no location, no start — "You need to trigger turning
@@ -884,6 +885,7 @@
       }, 4000);
     },
     enroute: function () {
+      if (!state.enroute && curStatus() === 'inprogress') { closeOverlays(true); toast('The job is in progress — En route is not available', 'block'); return; }
       if (pausePrompt('enroute')) return;
       /* M3-3, A20: Stop while en route closes the drive and opens a pause,
          so a lunch on the way is not paid as drive time. */
@@ -918,8 +920,7 @@
       closeOverlays(false);
       queued('Job status');
       queuedFix(state.enroute ? 'Status: En route' : 'Status: Not en route');
-      toast(state.enroute ? (net.online ? 'Marked en route · customer notified'
-        : 'Marked en route · customer will be notified when you’re back online') : 'No longer en route',
+      toast(state.enroute ? (net.online ? 'Marked en route' : 'Marked en route · sends when you’re back online') : 'No longer en route',
         state.enroute ? 'navigation' : 'undo');
     },
     dismissBanner: function (el) {
@@ -1317,7 +1318,10 @@
       histJob = who;
       // History is the past: whatever is opened from it is read, not worked.
       // A finished job can be set back to active; a visit cannot.
-      viewPast = { idx: jobIdx, visit: !JOBS[at].done,
+      /* M4-15: History lists only his own completed jobs — a card opens as
+         his completed job ("Completed … · read-only", Ask manager to
+         reopen), never as another technician's visit. */
+      viewPast = { idx: jobIdx, visit: false,
         // the card it was opened from says which visit this is: its date,
         // what it was for and its type are what the job shows (M1-1b, M4-15)
         card: histCard(el, who) };
@@ -1395,6 +1399,20 @@
       var n = Math.max(1, mediaBatch);
       var wasEditing = mediaEditing;
       mediaEditing = false;
+      if (wasEditing && !bound) {
+        var vp = viewedPhoto, to = photoType in mediaBlk ? photoType : 'Other';
+        if (vp && vp.type !== to) {
+          movePhoto(vp.type, to);
+          var bdg = vp.tile && $$('span', vp.tile).filter(function (e) { return /position:absolute/.test(e.getAttribute('style') || '') && /^(BEFORE|AFTER|OTHER)$/.test(norm(e.textContent)); })[0];
+          if (bdg) bdg.textContent = to.toUpperCase();
+          vp.type = to;
+        }
+        mediaBatch = 1;
+        queued('Photo', 'Photo details changed');
+        back();
+        toast(vp && vp.type === to ? 'Saved · the photo is in ' + to : 'Saved', 'check_circle');
+        return;
+      }
       if (bound) {
         markSlotFilled(bound);
         pendingSlot = null;
@@ -1435,12 +1453,17 @@
        nothing owed (warranty, free maintenance) closes without payment. */
     complete: function () {
       closeOverlays(true);
+      var st0 = curStatus();
+      if (st0 !== 'inprogress' && st0 !== 'paused') { toast('Start the job first', 'play_circle'); return; }
       /* M8-1 (#52, #75): hints that never block — "Before you complete"
          lists what is usually missing, each with Go to; Complete anyway or
          Back. With no hint, one tap completes. */
       var hj = JOBS[jobIdx] || {}, hints = [];
       var jp0 = hj.plan;
-      if (!(jp0 && jp0.prepaid) && state.inv === 'none' && invoiceTotal() > 0) hints.push(['This job needs an invoice', function () { go(finScreen(), 'push'); }]);
+      if (state.inv === 'none') {
+        if (invNeeded(hj) && !(jp0 && jp0.prepaid)) hints.push(['This job needs an invoice', function () { go(finScreen(), 'push'); }]);
+        else if (!invNeeded(hj) && hj.type !== 'Install' && invoiceTotal() > 0) hints.push(['Items for ' + fmt(invoiceTotal()) + ' are not invoiced', function () { go(finScreen(), 'push'); }]);
+      }
       if (!hj.rcFilled) hints.push(['AC Report Card not filled in', function () { formsList(false); go('rc-overview', 'push'); }]);
       if (installMissing().length) hints.push(['Install template not filled in', function () { go('closeout', 'push'); }]);
       function completeNow() {
@@ -1499,8 +1522,8 @@
     },
     signoffLink: function () {
       var j = JOBS[jobIdx];
-      if (j) j.signoff = { state: 'awaiting', at: stamp(), via: 'link' };
-      if (finishJob() && j) toast('Sign-off link emailed to ' + j.name + ' · job is Awaiting sign-off', 'mark_email_read');
+      if (j) j.signoff = { state: 'sent', at: stamp(), via: 'link' };
+      if (finishJob() && j) toast(jobNo(j) + ' completed · sign-off link emailed to ' + j.name, 'mark_email_read');
     },
     closeoutSave: function () {
       queued('Closeout');
@@ -1619,7 +1642,7 @@
     ],
     'photo-detail': [
       ['@edit^1', 'image-desc', 'modal'],
-      ['@delete_outline', 'BACK'],
+      ['@delete_outline', 'act:photoDelete'],
       ['@ios_share', null]
     ],
     'cust-jobs': [
@@ -2259,6 +2282,8 @@
     var TYPE_OF = { B: 'Before', A: 'After', O: 'Other' };
     document.addEventListener('click', function (ev) {
       var scr = ev.target.closest('#photos, #job-general'); if (!scr) return;
+      var bt = ev.target.closest('[data-ptype]');
+      if (bt) { viewedPhoto = { tile: bt, type: bt.dataset.ptype, mine: bt.dataset.photomine === '1' }; paintViewed(viewedPhoto); return; }
       var tile = ev.target.closest('[data-photomine], #photos .sc > div[style*="grid-template-columns"] > div, #job-general [data-go="photo-detail"]');
       if (!tile) return;
       if (!tile.matches('[data-photomine]') && !tile.parentElement.matches('[style*="grid-template-columns"]')) {
@@ -2266,7 +2291,8 @@
       }
       var badge = $$('span,div', tile).filter(function (e) { return !e.children.length && /^(BEFORE|AFTER|OTHER|B|A|O)$/.test(norm(e.textContent)); })[0];
       var key = badge ? norm(badge.textContent).charAt(0) : 'A';
-      paintViewed({ type: TYPE_OF[key] || 'After', mine: tile.dataset.photomine === '1' });
+      viewedPhoto = { tile: tile, type: badge ? (TYPE_OF[key] || 'After') : 'Other', mine: tile.dataset.photomine === '1' };
+      paintViewed(viewedPhoto);
     }, true);
   })();
 
@@ -2371,7 +2397,7 @@
     // and not the value
     var lowest = Math.min.apply(null, Object.keys(OPTION_TOTALS || {})
       .slice(0, optCount).map(function (k) { return OPTION_TOTALS[k]; }).concat([Infinity]));
-    if (depositPct > 0) return depositPct + '% of each option, part of its price — taken off before the monthly is worked out.';
+    if (depositPct > 0) return depositPct + '% of each option, part of its price. The monthly is worked out on the whole total.';
     return !deposit ? 'No deposit — the whole price is financed or paid on the day.'
       : deposit >= lowest ? 'Covers the cheaper options outright — nothing left to finance on those.'
         : fmt(deposit) + ' down, the rest financed.';
@@ -3392,7 +3418,7 @@
   function openStripeSheet() {
     var sh = byId('ov-stripe'); if (!sh) return;
     var amtEl = $$('[data-payamt]').filter(function (e) { return e.offsetParent; })[0];
-    var taking = amtEl ? parseFloat(String(amtEl.value).replace(/[^0-9.]/g, '')) : NaN;
+    var taking = amtEl && /^\$?\d+(\.\d{1,2})?$/.test(String(amtEl.value).trim()) ? parseFloat(String(amtEl.value).trim().replace(/^\$/, '')) : NaN;
     if (!isFinite(taking) || taking <= 0) taking = payAmount;
     $('[data-stripeamt]', sh).textContent = fmt(Math.min(taking, payAmount));
     $('[data-stripebtn]', sh).textContent = 'Pay ' + fmt(Math.min(taking, payAmount));
@@ -3416,8 +3442,22 @@
     toast('Payment link for ' + fmt(payAmount) + ' emailed to ' + (j.name || 'the customer') + ' — the invoice stays open until it is paid', 'mark_email_read');
   };
 
+  /* M7-7b: "609,00" or "1.109,00" is refused, not read as $60,900 or $1.11;
+     card, financing and payment apps take no more than the balance; cash
+     above it is kept and marked Overpaid. */
+  function readPayAmount(m) {
+    var amtEl = $$('[data-payamt]').filter(function (e) { return e.offsetParent; })[0];
+    var raw = amtEl ? String(amtEl.value).trim().replace(/^\$/, '') : '';
+    if (!raw) return payAmount;
+    if (!/^\d+(\.\d{1,2})?$/.test(raw)) { toast('Enter the amount in dollars and cents, for example 1109.00', 'edit'); return null; }
+    var v = parseFloat(raw);
+    if (v <= 0 || (v > payAmount + 0.005 && m.id !== 'cash')) { toast('Amount must be more than $0.00 and not more than the balance, ' + fmt(payAmount), 'edit'); return null; }
+    if (m.id === 'card' && v < 0.5) { toast('A card payment is at least $0.50', 'edit'); return null; }
+    return v;
+  }
   ACT.payInline = function () {
     var m = payMethodDef();
+    if (readPayAmount(m) === null) return;
     if (m.id === 'card' && !stripeApproved) { cardSig = ''; }
     if (m.id !== 'card' && !paySigned) { cardSig = ''; }
     var miss = [];
@@ -3442,20 +3482,19 @@
     if (state.inv === 'none') ACT.createInvoice();
     /* Marek, Oct 12: partial payments are supported. Less than the balance
        is taken, recorded, and the invoice stays open for the rest. */
-    var amtEl = $$('[data-payamt]').filter(function (e) { return e.offsetParent; })[0];
-    var taking = amtEl ? parseFloat(String(amtEl.value).replace(/[^0-9.]/g, '')) : NaN;
-    if (!isFinite(taking) || taking <= 0) taking = payAmount;
+    var taking = readPayAmount(m); if (taking === null) return;
+    var overpaid = taking > payAmount + 0.005 ? taking - payAmount : 0;
     if (taking < payAmount - 0.005) {
       invPaidSoFar += taking; remember('invPaidSoFar', invPaidSoFar);
       if (!invSentAt) { invSentAt = stamp(); remember('invSentAt', invSentAt); if (state.inv === 'created') state.inv = 'sent'; }
-      kpiPaid(taking);
+      if (m.id !== 'financing') kpiPaid(taking);
       pay.values = {}; pay.dates = {}; pay.dl = {}; savePay();
       payPanels.forEach(function (P) { P.rendered = ''; });
       paintPayScreens();
       closeOverlays(true);
       go(finScreen(), 'root');
       queued('Payment', 'Payment ' + fmt(taking) + ' ' + m.name.toLowerCase());
-      toast('Partial payment · ' + fmt(taking) + ' received · ' + fmt(payAmount) + ' still due', 'payments');
+      toast(m.id === 'financing' ? 'Financing ' + fmt(taking) + ' recorded · pending with the lender · ' + fmt(payAmount) + ' balance' : 'Partial payment · ' + fmt(taking) + ' received · ' + fmt(payAmount) + ' still due', 'payments');
       return;
     }
     invPaidAt = stamp(); remember('invPaidAt', invPaidAt);
@@ -3463,7 +3502,7 @@
     state.inv = 'paid';
     payMethod = m.name;
     paintReceipt('inline');
-    kpiPaid(payAmount);
+    if (m.id !== 'financing') kpiPaid(payAmount);
     var paidNow = payAmount;                       // the sum is recomputed to $0 below
     pay.values = {}; pay.dates = {}; pay.dl = {}; savePay();
     payPanels.forEach(function (P) { P.rendered = ''; });
@@ -3475,6 +3514,7 @@
     queued('Payment', 'Payment ' + fmt(paidNow) + ' ' + m.name.toLowerCase());
     setTimeout(paintFinChip, 60);   // after the paid card has painted its own lines
     if (invFinancing) { toast('Financing pending · no Pay button for the customer, and the invoice won’t go overdue', 'account_balance'); return; }
+    if (overpaid) { toast('Paid · Overpaid ' + fmt(overpaid) + ' — change due ' + fmt(overpaid), 'payments'); return; }
     toast(net.online ? 'Payment received · ' + fmt(paidNow)
       : 'Payment recorded offline · will post when you have signal');
   };
@@ -3917,11 +3957,11 @@
     // M4-16 (#56): his own completed job says when — "Completed Oct 29, 2026, 4:32 PM · read-only"
     var cj = JOBS[jobIdx] || {};
     if (label) label.textContent = viewPast && viewPast.visit ? 'Past visit · read only'
-      : so && so.state === 'awaiting' ? 'Awaiting sign-off · link sent ' + so.at + ' to ' + custEmail(cj)
+      : cj.reopenReq ? 'Reopen requested · ' + cj.reopenReq.at + ' · waiting'
       : so && so.state === 'signed' ? 'Completed · signed off on the device'
       : so && so.state === 'sent' ? 'Completed ' + (cj.completedAt || so.at) + ' · sign-off link sent to ' + custEmail(cj)
       : cj.reopenReq ? 'Reopen requested · ' + cj.reopenReq.at + ' · waiting'
-      : 'Completed ' + (cj.completedAt || 'Oct 29, 2026, 4:32 PM') + ' · read-only';
+      : 'Completed ' + (cj.completedAt || (viewPast && viewPast.card && viewPast.card.when) || 'Oct 29, 2026, 4:32 PM') + ' · read-only';
     /* M4-14 (#57): another technician's past visit shows General, its Job
        and Field notes, photos and files — no Report Card, Estimate,
        Finance, Internal notes or expenses */
@@ -4002,6 +4042,8 @@
     if (!hit) return;
     if (hit.dataset.back !== undefined) return;
     if (hit.dataset.act && VIEW_ACTS[hit.dataset.act]) return;
+    if (!viewPast.visit && (/^(payApps|payDone|payInline|payLink|payOffline|stripePay|openPaySign)$/.test(hit.dataset.act || '') ||
+      /^(pay-|ov-pay)/.test(hit.dataset.go || '') || /^(pay-|ov-pay)/.test(scr.id))) return;
     if (hit.dataset.go && VIEW_GO[hit.dataset.go]) return;
     // a section head that only folds open is reading, not editing
     if (!hit.dataset.act && !hit.dataset.go && hit.tagName !== 'INPUT' && hit.tagName !== 'TEXTAREA' &&
@@ -4709,6 +4751,7 @@
      figure and the confirmation all recorded an option nobody chose. */
   var pickedOption = 'Option A';        // the design's own checked radio
   seg('est-customer', ['Option A^1', 'Option B^1', 'Option C^1'], 0, function (i, label) {
+    if (pickedOption !== label.split('^')[0] && estSigned) resetCustomerSignature();
     pickedOption = label.split('^')[0];
   });
   /* The customer's screen drew the board's three cards — A, B and C, with
@@ -4759,6 +4802,7 @@
       card.firstElementChild.addEventListener('click', function () {
         if (pickedOption === n) return;
         pickedOption = n;
+        if (estSigned) resetCustomerSignature();   // M6-11: the signature was for the other option
         paintCustomerOptions();
       });
       box.appendChild(card);
@@ -5037,7 +5081,7 @@
     // A deposit only counts once the customer has signed for the option it
     // was quoted against. On an estimate nobody bought, no money changed
     // hands, so there is nothing to take off the invoice.
-    var paid = j.sold && !j.sold.invoiced ? Math.min(effectiveDeposit(j.sold.total), jobTotal) : 0;
+    var paid = 0;   // M7-7b: no deposit is taken off until it is recorded as a payment
     payAmount = Math.max(0, jobTotal - paid - invPaidSoFar);
     PAY_SCREENS.forEach(function (id) {
       var root = byId(id); if (!root) return;
@@ -6529,6 +6573,8 @@
   /* Call 11.11 (M4-1 / M4-6): Media on General is three blocks — Before,
      After, Other — each with its own +, which files the photos under it. */
   var mediaBlk = recall('mediaBlk', { Before: 1, After: 1, Other: 0 });
+  var mineBlk = recall('mineBlk', { Before: 0, After: 0, Other: 0 });   // how many of each block he took (newest first)
+  var viewedPhoto = null;
   function paintMediaBlocks() {
     var root = byId('job-general'); if (!root) return;
     var box = byId('mediaBlocks');
@@ -6545,7 +6591,7 @@
     var BG = { Before: '#DDE3EE', After: '#D4DBE6', Other: '#E4E9F1' };
     box.innerHTML = ['Before', 'After', 'Other'].map(function (t) {
       var n = mediaBlk[t] || 0, tiles = '';
-      for (var i = 0; i < Math.min(n, 6); i++) tiles += '<div data-tap="1" data-go="photo-detail" data-mode="modal" style="flex:none;width:64px;height:64px;border-radius:9px;background:' + BG[t] + ';display:flex;align-items:center;justify-content:center"><span class="mi" style="font-size:22px;color:#A9B4C2">image</span></div>';
+      for (var i = 0; i < Math.min(n, 6); i++) tiles += '<div data-tap="1" data-go="photo-detail" data-mode="modal" data-ptype="' + t + '" data-photomine="' + (i < (mineBlk[t] || 0) ? '1' : '0') + '" style="flex:none;width:64px;height:64px;border-radius:9px;background:' + BG[t] + ';display:flex;align-items:center;justify-content:center"><span class="mi" style="font-size:22px;color:#A9B4C2">image</span></div>';
       if (n > 6) tiles += '<div data-tap="1" data-go="photos" data-mode="push" style="flex:none;width:64px;height:64px;border-radius:9px;background:#F2F5F9;display:flex;align-items:center;justify-content:center;font:600 13px/1 Geist;color:#546478">+' + (n - 6) + '</div>';
       var add = viewPast ? '' : '<div data-tap="1" data-act="mediaAddTyped" data-type="' + t + '" aria-label="Add ' + t + ' photos" style="flex:none;width:64px;height:64px;border-radius:9px;background:#EBF0F8;border:1px dashed #C8D5E8;display:flex;align-items:center;justify-content:center"><span class="mi" style="font-size:24px;color:#4A6FA5">add</span></div>';
       return '<div><div style="font:600 12.5px/1 Geist;color:#546478;margin-bottom:7px">' + t + ' <span style="color:#8A97A8;font-weight:500">' + n + '</span></div>' +
@@ -6554,6 +6600,34 @@
     var c = $('[data-mediacount]', root);
     if (c) c.textContent = String(mediaBlk.Before + mediaBlk.After + mediaBlk.Other);
   }
+  function movePhoto(from, to) {
+    if (from in mediaBlk && mediaBlk[from] > 0) { mediaBlk[from]--; if (mineBlk[from] > 0) mineBlk[from]--; }
+    if (to) { mediaBlk[to] = (mediaBlk[to] || 0) + 1; mineBlk[to] = (mineBlk[to] || 0) + 1; }
+    remember('mediaBlk', mediaBlk); remember('mineBlk', mineBlk);
+    [from, to].forEach(function (k) {
+      if (k && photoTypeCount[k] !== undefined) photoTypeCount[k] = Math.max(0, photoTypeCount[k] + (k === to ? 1 : -1));
+    });
+    remember('photoTypeCount', photoTypeCount);
+    if (typeof paintTypeCounts === 'function') paintTypeCounts();
+    paintMediaBlocks();
+  }
+  /* M4-8: delete asks first; the office no longer sees it */
+  ACT.photoDelete = function () {
+    var vp = viewedPhoto;
+    if (!vp || !vp.mine || viewPast) { toast('Only your own photos on an open job can be deleted', 'lock'); return; }
+    confirmSheet({
+      title: 'Delete this photo?', text: 'The office will no longer see it.', ok: 'Delete', danger: true,
+      onOk: function () {
+        movePhoto(vp.type, null);
+        if (vp.tile && vp.tile.closest('#photos')) vp.tile.remove();
+        var pc = recall('photoCount', 24); remember('photoCount', Math.max(0, pc - 1));
+        viewedPhoto = null;
+        queued('Photo', 'Photo deleted');
+        back();
+        toast('Photo deleted', 'delete');
+      }
+    });
+  };
   ACT.mediaAddTyped = function (el) {
     photoType = el.dataset.type; remember('photoType', photoType);
     typedByBlock = true;
@@ -6562,6 +6636,7 @@
   function addMediaThumbs(n) {
     var t = photoType in mediaBlk ? photoType : 'Other';
     mediaBlk[t] = (mediaBlk[t] || 0) + n; remember('mediaBlk', mediaBlk);
+    mineBlk[t] = (mineBlk[t] || 0) + n; remember('mineBlk', mineBlk);
     paintMediaBlocks();
   }
 
@@ -8002,6 +8077,31 @@
   var runIdx = recall('runIdx', -1);
   function setRun(i) { runIdx = i; remember('runIdx', i); }
   function mineRunning() { return runIdx < 0 || runIdx === jobIdx; }
+  /* M3-3 / M8-1b: the job's status, for what its buttons may offer —
+     Completed only from In Progress or Paused; En route never on a job
+     that is In Progress. */
+  function curStatus() {
+    var j = JOBS[jobIdx] || {};
+    if (j.done) return 'completed';
+    if (state.onsite && mineRunning()) return 'inprogress';
+    if (state.enroute && mineRunning()) return 'enroute';
+    if (j.paused) return 'paused';
+    return 'dispatched';
+  }
+  function paintJobActions() {
+    var ov = byId('ov-job-actions'); if (!ov) return;
+    var st = curStatus();
+    $$('.mi', ov).forEach(function (ic) {
+      var row = ic.parentElement, k = norm(ic.textContent); if (!row) return;
+      if (k !== 'task_alt' && k !== 'navigation') return;
+      var off = (k === 'task_alt' && !(st === 'inprogress' || st === 'paused')) || (k === 'navigation' && st === 'inprogress');
+      row.style.opacity = off ? '.45' : '';
+      var sm = $('[data-stnote]', row);
+      if (!sm) { sm = document.createElement('div'); sm.dataset.stnote = '1'; sm.setAttribute('style', 'font:400 12px/1.3 Geist;color:#8A97A8;margin-top:3px'); (ic.nextElementSibling || row).appendChild(sm); }
+      sm.textContent = off ? (k === 'task_alt' ? 'Start the job first' : 'The job is in progress') : '';
+      sm.style.display = off ? '' : 'none';
+    });
+  }
   var paintJob = function () { };
 
   /* A job is live from the moment the tech sets off, not from the moment
@@ -8116,7 +8216,7 @@
       refs.type.textContent = j.type;
       setPhone(refs.phone, j.phone);
       addr.childNodes[0].nodeValue = j.addr;
-      awaySpan.textContent = awayText(j.away);
+      awaySpan.textContent = j.gps === 'nomap' ? '' : awayText(j.away);
     };
   }
 
@@ -8394,10 +8494,9 @@
         enroute.innerHTML = '<span style="display:flex;align-items:center;gap:5px"><span class="mif" style="font-size:17px">pause</span>Pause</span>' +
           '<span data-jobtime style="font:500 11.5px/1 Geist;opacity:.85;font-variant-numeric:tabular-nums">0:00</span>';
       } else if (heldHere) {
-        enroute.dataset.act = 'start';
-        enroute.setAttribute('style', PAUSED + ';flex-direction:column;gap:3px');
-        enroute.innerHTML = '<span style="display:flex;align-items:center;gap:5px"><span class="mif" style="font-size:17px">pause</span>Paused</span>' +
-          '<span style="font:500 11.5px/1 Geist;opacity:.85">Tap to resume</span>';
+        enroute.dataset.act = 'enroute';
+        enroute.setAttribute('style', PRIMARY);
+        enroute.innerHTML = '<span class="mif" style="font-size:18px">navigation</span>En route';
       } else if (state.enroute && mine) {
         enroute.dataset.act = 'enroute';
         enroute.setAttribute('style', DRIVING);
@@ -8410,7 +8509,7 @@
       }
 
       start.dataset.cardbtn = '1';
-      var done = (state.onsite && mine) || heldHere;
+      var done = state.onsite && mine;   // M3-1: Paused offers En route and Start, not Complete
       start.dataset.act = done ? 'complete' : 'start';
       start.setAttribute('style', OUTLINE);
       // 'Complete' plus an icon is the widest this row ever gets: at 375px
@@ -10239,7 +10338,18 @@
 
     var tab = t.closest && t.closest('#tabbar .tab');
     if (tab) {
-      var k = tab.dataset.tab;
+      /* M1-1: History and More keep their own back stack — leave Settings
+         open on More, look at History, come back: Settings is still there.
+         Tapping the tab you are on goes back to its first screen. */
+      if (curPage() === 'est-customer') return;   // M6-10: the customer's view is locked
+      var k = tab.dataset.tab, curK = stack[0] && TABOF[stack[0].id];
+      if (curK && curK !== k) tabStacks[curK] = stack.filter(function (e) { return !isOv(e.id); });
+      var saved = curK !== k ? tabStacks[k] : null; delete tabStacks[k];
+      if (saved && saved.length > 1 && (k === 'history' || k === 'more') && saved.every(function (e) { return TABOF[e.id] === k; })) {
+        go(saved[0].id, 'tab');
+        for (var si = 1; si < saved.length; si++) go(saved[si].id, saved[si].mode === 'modal' ? 'modal' : 'push');
+        return;
+      }
       go(k === 'home' ? homeScreen() : k, 'tab');
       return;
     }
@@ -10269,17 +10379,56 @@
   });
   byId('li-rm').addEventListener('click', function () { this.classList.toggle('on'); });
 
+  /* M1-5 / M1-5b. Demo answers: the password "vision360" signs in; any
+     other is the server's neutral "incorrect" (no field marked); the 5th
+     wrong one locks for 15:00; an email starting with "office" is a role
+     without the technician app; offline there is no sign-in at all. */
+  var liFails = 0, liLockTimer = null;
+  function liMsg(html, icon) {
+    var m = byId('li-msg'); if (!m) return;
+    m.style.display = html ? 'flex' : 'none';
+    m.innerHTML = html ? '<span class="mi" style="font-size:18px;margin-top:1px">' + (icon || 'error') + '</span><div style="flex:1">' + html + '</div>' : '';
+  }
+  function liLock() {
+    var b = byId('li-go'), left = 15 * 60;
+    b.disabled = true; b.style.opacity = '.5';
+    function tick() {
+      var mm = Math.floor(left / 60), ss = left % 60;
+      liMsg('Too many attempts. Try again in ' + mm + ':' + (ss < 10 ? '0' : '') + ss + '.', 'lock_clock');
+      if (left-- <= 0) { clearInterval(liLockTimer); liFails = 0; b.disabled = false; b.style.opacity = ''; liMsg(''); }
+    }
+    clearInterval(liLockTimer); tick(); liLockTimer = setInterval(tick, 1000);
+  }
   function signIn() {
     var em = byId('li-em'), pw = byId('li-pw'), ok = true;
+    if (byId('li-go').disabled) return;
     var emOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em.value.trim());
     em.classList.toggle('bad', !emOk); byId('li-em-e').classList.toggle('on', !emOk);
-    var pwOk = pw.value.length >= 6;
+    var pwOk = pw.value.length > 0;
     pw.classList.toggle('bad', !pwOk); byId('li-pw-e').classList.toggle('on', !pwOk);
+    liMsg('');
     if (!emOk || !pwOk) return;
+    if (!net.online) {
+      liMsg('Sign-in needs a connection. Connect to the internet and try again.<div data-tap="1" id="li-online" style="font:500 12.5px/1 Geist;color:#8A97A8;margin-top:9px">Demo: back online</div>', 'cloud_off');
+      var bo = byId('li-online'); if (bo) bo.onclick = function () { ACT.demoNet(); liMsg(''); };
+      return;
+    }
     var b = byId('li-go');
     b.disabled = true; b.innerHTML = '<span class="mi" style="font-size:19px">sync</span>Signing in…';
     setTimeout(function () {
       b.disabled = false; b.innerHTML = '<span class="mif" style="font-size:19px">login</span>Sign in';
+      if (/^office/i.test(em.value.trim())) {
+        liMsg('Your role doesn&rsquo;t use the technician app. Use the Vision360 web app, or ask your admin to turn the app on for your role.<div data-tap="1" id="li-other" style="font:600 13px/1 Geist;color:#4A6FA5;margin-top:9px">Use another account</div>', 'block');
+        var o = byId('li-other'); if (o) o.onclick = function () { em.value = ''; pw.value = ''; liMsg(''); em.focus(); };
+        return;
+      }
+      if (pw.value !== 'vision360') {
+        liFails++;
+        if (liFails >= 5) { liLock(); return; }
+        liMsg('Email or password is incorrect.' + (liFails >= 3 ? ' ' + (5 - liFails) + (5 - liFails === 1 ? ' attempt' : ' attempts') + ' left before a 15-minute lock.' : ''));
+        return;
+      }
+      liFails = 0;
       remember('signedIn', true);        // US-M02-2: stays signed in across days
       homeLoadingUntil = Date.now() + 900;          // M3-1: "Loading your day…"
       paintJob();
@@ -10296,30 +10445,38 @@
     var ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em.value.trim());
     em.classList.toggle('bad', !ok); byId('fg-em-e').classList.toggle('on', !ok);
     if (!ok) return;
+    if (!net.online) { toast('Resetting a password needs a connection', 'cloud_off'); return; }
     // M1-8: the code goes to the work email, never by SMS (SMS is Pro)
     var at = em.value.trim().split('@');
     var masked = at[0].slice(0, Math.min(5, Math.max(1, at[0].length - 2))) + '•••@' + at[1];
     var to = byId('otp-to'); if (to) to.textContent = masked;
-    go('otp', 'push'); startOtpTimer(); toast('Code emailed to ' + masked, 'mail');
+    go('otp', 'push'); startOtpTimer(); toast('If this email has an account, we sent a code', 'mail');
   });
 
   var otpTimer;
   function startOtpTimer() {
-    var left = 29;
-    byId('otp-rs').innerHTML = 'Resend in <span id="otp-t">0:29</span>';
+    var left = 60;
+    byId('otp-rs').innerHTML = 'Resend in <span id="otp-t">1:00</span>';
     clearInterval(otpTimer);
     otpTimer = setInterval(function () {
       left--;
       var t = byId('otp-t');
       if (left <= 0) { clearInterval(otpTimer); byId('otp-rs').textContent = 'Resend code'; return; }
-      if (t) t.textContent = '0:' + (left < 10 ? '0' : '') + left;
+      if (t) t.textContent = Math.floor(left / 60) + ':' + (left % 60 < 10 ? '0' : '') + (left % 60);
     }, 1000);
   }
   byId('otp-rs').addEventListener('click', function () {
-    if (/Resend code/.test(this.textContent)) { startOtpTimer(); toast('New code emailed', 'mail'); }
+    if (/Resend code/.test(this.textContent)) { otpFails = 0; byId('otp-go').disabled = false; byId('otp-e').classList.remove('on'); startOtpTimer(); toast('New code emailed', 'mail'); }
   });
-  var digits = $$('.otp-d');
+  var digits = $$('.otp-d'), otpFails = 0;
   digits.forEach(function (d, i) {
+    d.addEventListener('paste', function (e) {
+      var v = ((e.clipboardData || window.clipboardData).getData('text') || '').replace(/\D/g, '');
+      if (v.length !== 6) return;
+      e.preventDefault();
+      digits.forEach(function (x, k) { x.value = v[k]; });
+      digits[5].focus();
+    });
     d.addEventListener('input', function () {
       this.value = this.value.replace(/\D/g, '').slice(0, 1);
       if (this.value && digits[i + 1]) digits[i + 1].focus();
@@ -10334,6 +10491,17 @@
     var full = digits.every(function (d) { return d.value; });
     byId('otp-e').classList.toggle('on', !full);
     if (!full) { digits.forEach(function (d) { if (!d.value) d.classList.add('bad'); }); return; }
+    var code = digits.map(function (d) { return d.value; }).join('');
+    if (code === '000000') {
+      otpFails++;
+      digits.forEach(function (d) { d.value = ''; }); digits[0].focus();
+      var e = byId('otp-e');
+      e.textContent = otpFails >= 5 ? 'Too many attempts — request a new code.' : 'That code is not right. Check the email and try again.';
+      e.classList.add('on');
+      if (otpFails >= 5) byId('otp-go').disabled = true;
+      return;
+    }
+    otpFails = 0;
     clearInterval(otpTimer);
     go('newpass', 'push');
   });
@@ -10495,7 +10663,8 @@
       if (!ev.target.closest('[data-hrgo]')) return;
       if (!norm($('[data-hrtext]', b).value)) { toast('Write a line first', 'edit'); return; }
       closeOverlays(true);
-      toast(feature ? 'Feature request sent — thank you' : 'Problem report sent with recent app activity', feature ? 'lightbulb' : 'bug_report');
+      if (!net.online) { toast('Will send when online', 'cloud_off'); return; }
+      toast('Sent — thank you', feature ? 'lightbulb' : 'bug_report');
     };
     go('ov-helpreport', 'overlay');
   };
@@ -10681,17 +10850,39 @@
   /* Nov 5: signing out with something still waiting to sync asks first.
      The waiting items stay on the phone either way and go up on the
      next sign-in; the question is so he does not lose track of them. */
+  /* M1-11 (epic 12.11): sign-out never leaves work behind. Empty queue —
+     a confirm. Online with a queue — it sends first and signs out by
+     itself when the queue is empty. Offline with a queue — refused;
+     there is no "Sign out anyway". */
+  var soTimer = null;
+  function soCounts() {
+    var a = syncQ.length, ph = upPending + (typeof dpWaiting === 'function' ? dpWaiting() : 0);
+    return { a: a, ph: ph, text: (a ? a + (a === 1 ? ' action' : ' actions') : '') + (a && ph ? ' and ' : '') + (ph ? ph + (ph === 1 ? ' photo' : ' photos') : '') };
+  }
   byId('logout').addEventListener('click', function () {
     var n = typeof waitingTotal === 'function' ? waitingTotal() : 0;
-    if (!n) { ACT.logout(); return; }
-    confirmSheet({
-      title: n + (n === 1 ? ' item is' : ' items are') + ' waiting to sync — sign out anyway?',
-      text: net.online ? 'The upload is still going. What is waiting stays on this phone and goes up when you sign in again.'
-        : 'No signal — nothing has been sent yet. What is waiting stays on this phone and goes up when you sign in again.',
-      ok: 'Sign out anyway', danger: true, alt: 'Wait for sync',
-      onOk: function () { ACT.logout(); },
-      onAlt: function () { go('sync', 'push'); }
-    });
+    if (!n) {
+      confirmSheet({ title: 'Sign out?', text: 'Everything is sent. Signing out removes the jobs and photos kept on this phone; they stay in Vision360.',
+        ok: 'Sign out', danger: true, onOk: function () { ACT.logout(); } });
+      return;
+    }
+    var c = soCounts();
+    if (!net.online) {
+      confirmSheet({ title: 'Not signed out', text: c.text.charAt(0).toUpperCase() + c.text.slice(1) + (n === 1 ? ' is' : ' are') + ' not sent yet. Connect to the internet to send ' + (n === 1 ? 'it' : 'them') + ', then sign out.',
+        ok: 'OK', neutral: true, alt: 'See what is waiting', onAlt: function () { go('sync', 'push'); } });
+      return;
+    }
+    confirmSheet({ title: 'Sending ' + c.text + ' before signing out…', text: 'You are signed out as soon as everything is sent.', ok: null,
+      onCancel: function () { clearInterval(soTimer); } });
+    goOnline();
+    clearInterval(soTimer);
+    soTimer = setInterval(function () {
+      var left = waitingTotal();
+      var tt = $('[data-cftitle]', confirmEl);
+      if (left && tt) tt.textContent = 'Sending ' + soCounts().text + ' before signing out…';
+      if (!net.online) { clearInterval(soTimer); closeOverlays(true); toast('Lost the connection — still signed in, nothing lost', 'cloud_off'); return; }
+      if (!left) { clearInterval(soTimer); closeOverlays(true); ACT.logout(); }
+    }, 400);
   });
 
   /* chat compose */
