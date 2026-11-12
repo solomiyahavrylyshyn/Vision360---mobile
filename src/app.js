@@ -10475,7 +10475,7 @@
         '<small>' + x.sub + '</small></span>' + tagHtml(x.tag) + '<span class="mi ch">chevron_right</span></div>';
     }).join('');
     var n = byId('managerNote');
-    if (n) n.textContent = demoManager ? 'Demo: back to a technician' : 'Demo: show as manager';
+    if (n) n.textContent = demoManager ? 'Demo: back to a technician (M1-13)' : 'Demo: show as manager (M1-13)';
   }
   ACT.demoManager = function () {
     demoManager = !demoManager; remember('demoManager', demoManager);
@@ -11090,7 +11090,7 @@
     paintDemoNet();
   };
   function paintDemoNet() {
-    var e = byId('demoNetNote'); if (e) e.textContent = net.online ? 'Demo: go offline' : 'Demo: back online';
+    var e = byId('demoNetNote'); if (e) e.textContent = net.online ? 'Demo: go offline (M2-2)' : 'Demo: back online (M2-2)';
   }
   setTimeout(paintDemoNet, 0);
 
@@ -11815,7 +11815,7 @@
     else if (!upcomingBox.parentElement) sc.appendChild(upcomingBox);
     toggleDisplay(upcomingBox, warrantyTech);
     var n = byId('warrantyNote');
-    if (n) n.textContent = warrantyTech ? 'Demo: showing a warranty technician · tap to undo' : 'Demo: show as a warranty technician';
+    if (n) n.textContent = warrantyTech ? 'Demo: showing a warranty technician · tap to undo (M3-12)' : 'Demo: show as a warranty technician (M3-12)';
   }
   /* Nov 5: for the demo — a draft estimate with the three ready options
      (A, B, C) on the current job, so the options list can be shown without
