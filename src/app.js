@@ -428,7 +428,7 @@
       remember('jobIdx', viewPast ? viewPast.idx : jobIdx);   // a job being looked at is not the job
       remember('jobs', JOBS.map(function (j) {
         return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, estDeclined: j.estDeclined || null, invNeeded: typeof j.invNeeded === 'boolean' ? j.invNeeded : null, paperApproved: j.paperApproved || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', pauseReason: j.pauseReason || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
+          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, estDeclined: j.estDeclined || null, invNeeded: typeof j.invNeeded === 'boolean' ? j.invNeeded : null, paperApproved: j.paperApproved || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', pauseReason: j.pauseReason || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '', invList: j.invList || null, estSig: j.estSig || '', estBelow: j.estBelow || null, estMismatch: j.estMismatch || null };
       }));
     }
     paintDash();
@@ -1111,6 +1111,7 @@
       var pick = pickedOption;
       var total = OPTION_TOTALS[pick] || 0;
       var j = JOBS[jobIdx];
+      if (j && !j.paperApproved) j.estSig = signatureImage($('#est-customer canvas')) || j.estSig || '';
       state.est = 'approved';
       paintApproved();
       // M6-14: what the customer signed earlier is on an invoice — the job
@@ -7416,7 +7417,7 @@
   function saveJobs() {
     remember('jobs', JOBS.map(function (j) {
       return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, estDeclined: j.estDeclined || null, invNeeded: typeof j.invNeeded === 'boolean' ? j.invNeeded : null, paperApproved: j.paperApproved || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', pauseReason: j.pauseReason || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '' };
+        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, estDeclined: j.estDeclined || null, invNeeded: typeof j.invNeeded === 'boolean' ? j.invNeeded : null, paperApproved: j.paperApproved || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', pauseReason: j.pauseReason || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '', invList: j.invList || null, estSig: j.estSig || '', estBelow: j.estBelow || null, estMismatch: j.estMismatch || null };
     }));
   }
 
@@ -8473,6 +8474,10 @@
     if (s.sentAt) JOBS[i].sentAt = s.sentAt;
     if (s.estType) JOBS[i].estType = s.estType;
     if (s.signoff) JOBS[i].signoff = s.signoff;
+    if (s.invList) JOBS[i].invList = s.invList;
+    if (s.estSig) JOBS[i].estSig = s.estSig;
+    if (s.estBelow) JOBS[i].estBelow = s.estBelow;
+    if (s.estMismatch) JOBS[i].estMismatch = s.estMismatch;
   });
   /* A day is empty when there are no jobs left in it — nothing else.
      Before the queue could be browsed, progress was a cursor and
@@ -8790,6 +8795,22 @@
     };
   }
 
+  /* the drawn signature, cut to the ink, for the approved record */
+  function signatureImage(cv) {
+    if (!cv) return '';
+    try {
+      var w = cv.width, h = cv.height, d = cv.getContext('2d').getImageData(0, 0, w, h).data;
+      var x0 = w, y0 = h, x1 = -1, y1 = -1;
+      for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) if (d[(y * w + x) * 4 + 3] > 0) {
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      }
+      if (x1 < 0) return '';
+      var pad = 6; x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(w - 1, x1 + pad); y1 = Math.min(h - 1, y1 + pad);
+      var c = document.createElement('canvas'); c.width = x1 - x0 + 1; c.height = y1 - y0 + 1;
+      c.getContext('2d').drawImage(cv, x0, y0, c.width, c.height, 0, 0, c.width, c.height);
+      return c.toDataURL('image/png');
+    } catch (e) { return ''; }
+  }
   function stamp() {
     var d = new Date();
     var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -8808,6 +8829,7 @@
     var pad = signaturePad('est-customer', 'Sign here', function () {
       estSigned = true;
       estSignedAt = stamp();
+      var sj = JOBS[jobIdx]; if (sj) sj.paperApproved = null;
       paintOrderBtn();
       if (when) when.textContent = estSignedAt;
       if (pending) {
@@ -9242,7 +9264,20 @@
     var when = estSignedAt || stamp();
     R.stamp.textContent = when;
     var j = typeof JOBS !== 'undefined' ? JOBS[jobIdx] : null;
-    R.sig.textContent = (j ? j.name : 'Customer') + ' · ' + when;
+    R.sig.textContent = 'Signed by ' + (j ? j.name : 'the customer') + ' · ' + when;
+    var A = R.sigArea;
+    if (A) {
+      A.style.display = 'flex'; A.style.alignItems = 'center'; A.style.justifyContent = 'flex-start';
+      if (j && j.paperApproved) {
+        A.innerHTML = '<span class="mi" style="font-size:22px;color:#546478;margin-right:9px">history_edu</span>' +
+          '<span style="font:400 13.5px/1.4 Geist;color:#546478">Signed on paper · marked approved by ' + (j.paperApproved.by || 'the office') +
+          (j.paperApproved.photo ? ' · photo of the paper copy attached' : ' · no photo') + '</span>';
+      } else if (j && j.estSig) {
+        A.innerHTML = '<img alt="Customer signature" src="' + j.estSig + '" style="display:block;height:64px;max-width:100%">';
+      } else {
+        A.innerHTML = '<span style="font:italic 400 22px/1 Georgia,serif;color:#1A2332">' + (j ? j.name : '') + '</span>';
+      }
+    }
     R.rej.textContent = String(Math.max(0, optCount - 1));
     R.planName.textContent = planLine();
     R.planTerms.textContent = planTerms();
@@ -9328,6 +9363,7 @@
       itemTpl: items.children[0].cloneNode(true),
       total: totalRow.children[1],
       sig: sig.children[2],
+      sigArea: sig.children[1],
       rej: rej.children[1],
       planName: pl.children[1],
       planTerms: pl.children[2],
