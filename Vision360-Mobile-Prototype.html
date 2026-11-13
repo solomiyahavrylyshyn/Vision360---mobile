@@ -3501,7 +3501,53 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   function invDisplay() { var n = invNo(); return invTemp ? n + ' · number after sync' : n; }
   var invSeq = recall('invSeq', 122);         // the board's INV-26-03-123 was the 123rd
   var invPaidSoFar = recall('invPaidSoFar', 0);   // partial payments taken against the invoice
-  var invBase = recall('invBase', null);          // an invoice kept as it was when the estimate changed
+  var invBase = null;                             // retired: an issued invoice is frozen (invFrozen)
+  var invFrozen = recall('invFrozen', null);      // M7-2: the invoice's own lines and total, as made
+  /* M7-6: every job has its own invoice — number, lines, payments, dates.
+     The fields below hold the open job's; another job's wait in invByJob. */
+  var invByJob = recall('invByJob', {});
+  var invOwner = recall('invOwner', null);
+  function invSnap() {
+    return { invNum: invNum, invTemp: invTemp, invPaidSoFar: invPaidSoFar, invCreatedAt: invCreatedAt, invSentAt: invSentAt,
+      invPaidAt: invPaidAt, invFrozen: invFrozen, invFinancing: invFinancing, payMethod: payMethod };
+  }
+  function invRestore(o) {
+    o = o || {};
+    invNum = o.invNum || ''; invTemp = !!o.invTemp; invPaidSoFar = o.invPaidSoFar || 0;
+    invCreatedAt = o.invCreatedAt || ''; invSentAt = o.invSentAt || ''; invPaidAt = o.invPaidAt || '';
+    invFrozen = o.invFrozen || null; invFinancing = !!o.invFinancing; payMethod = o.payMethod || '';
+    remember('invNum', invNum); remember('invTemp', invTemp); remember('invPaidSoFar', invPaidSoFar);
+    remember('invCreatedAt', invCreatedAt); remember('invSentAt', invSentAt); remember('invPaidAt', invPaidAt);
+    remember('invFrozen', invFrozen); remember('invFinancing', invFinancing);
+  }
+  function syncInvOwner() {
+    if (typeof JOBS === 'undefined' || !JOBS[jobIdx]) return;
+    var k = String(jobIdx);
+    if (invOwner === null) { invOwner = k; remember('invOwner', k); return; }
+    if (invOwner === k) return;
+    invByJob[invOwner] = invSnap();
+    invRestore(invByJob[k]);
+    invOwner = k; remember('invOwner', k); remember('invByJob', invByJob);
+  }
+  /* The lines go on the invoice as they are now and stay so: the job's
+     lines are marked with the invoice's number, and a line marked so is
+     locked (M7-3). */
+  function freezeInvoice(j, no) {
+    var rows = invoiceRows(j).map(function (r) { return { name: r.name, price: r.price, disc: !!r.disc, est: !!r.est }; });
+    var total = Math.round(rows.reduce(function (a, r) { return a + r.price; }, 0) * 100) / 100;
+    if (j) {
+      if (j.sold && !j.sold.invoiced) {
+        j.sold.invoiced = no;
+        (j.items || []).forEach(function (it) { if (it.from === 'estimate' && !it.inv) it.inv = no; });
+      }
+      siteItems(j).forEach(function (it) { if (!it.inv) it.inv = no; });
+      saveJobs();
+    }
+    invFrozen = { no: no, rows: rows, total: total };
+    remember('invFrozen', invFrozen);
+    if (typeof renderJobItems === 'function') renderJobItems();
+    return invFrozen;
+  }
   var quickClose = false;                         // completing the job without the closeout form
   var COMPANY_NAME = 'AND Services';             // the company's name from its settings (M5-7)
   var SIGNOFF_REQUIRED = true;                    // company setting: AND Services asks for a completion sign-off
@@ -4321,7 +4367,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       if (state.est === 'none' && jt && !jt.estType) { askEstType(); return; }
       optionItems = [];              // a new option starts empty
       optAdjust = 0;
-      optRevised = null;
+      optRevised = null; optDisc = 0; optDiscKept = false; adjMsg = null;
       editingOption = null;
       paintFormTitle();
       optionNoteText = '';
@@ -4345,7 +4391,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         editingOption = null;
         addOption(optionAdjusted(), optionItems, false, en);
         keepOptionExtras(en, typedWarranty());
-        optionItems = []; optAdjust = 0; optRevised = null;
+        optionItems = []; optAdjust = 0; optRevised = null; optDisc = 0; optDiscKept = false; adjMsg = null;
         renderOptionItems();
         paintFormTitle();
         go('est-draft', 'root');
@@ -4379,7 +4425,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       }
       optionItems = [];
       optAdjust = 0;
-      optRevised = null;
+      optRevised = null; optDisc = 0; optDiscKept = false; adjMsg = null;
       renderOptionItems();
       paintOptionName();
       go('est-draft', 'root');
@@ -4447,7 +4493,10 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       var j = JOBS[jobIdx];
       state.est = 'approved';
       paintApproved();
-      if (j) {
+      // M6-14: what the customer signed earlier is on an invoice — the job
+      // and the invoice change only by the technician's answer below
+      var was = j && j.sold && j.sold.invoiced ? j.sold : null;
+      if (j && !was) {
         /* Marek, Oct 21: a revised price is not a lower price on the items.
            The items keep their list prices and the difference is a discount
            line of its own — reports can then say who discounted how much. */
@@ -4471,18 +4520,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       go('est-approved', 'root');
       queued('Estimate');
       toast('Order confirmed · ' + pick + ' signed — ' + fmt(total), 'check_circle');
-      /* Marek, Oct 12: estimate items populate the invoice, but a change to
-         an estimate that already has an invoice must ask, not update it. */
-      if (changesPrevTotal !== null && state.inv !== 'none' && state.inv !== 'paid' && changesPrevTotal !== total) {
-        var was = changesPrevTotal;
-        confirmSheet({
-          title: 'Update the invoice?',
-          text: invNo() + ' was made from the previous estimate (' + fmt(was) + '). The approved estimate is now ' + fmt(total) + '.',
-          ok: 'Update invoice', alt: 'Keep invoice as it is',
-          onOk: function () { invBase = null; remember('invBase', null); paintPayScreens(); toast('Invoice updated to ' + fmt(invoiceTotal()), 'receipt_long'); },
-          onAlt: function () { invBase = was; remember('invBase', was); paintPayScreens(); toast('Invoice kept at ' + fmt(invoiceTotal()), 'lock'); }
-        });
-      }
+      if (was && (was.option !== pick || Math.abs(was.total - total) > 0.004)) resignedOnInvoice(j, was, pick, total);
       changesPrevTotal = null;
     },
     /* M6-12 (#79): "Decline all options" — confirmed, with an optional
@@ -4553,24 +4591,25 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       toast('Declined — the estimate stays open', 'history_toggle_off');
     },
     openExtras: function () { go(extraItems.length ? 'add-items' : 'add-empty', 'replace'); },
-    reinvoice: function () {
+    reinvoice: function (el) {
       /* Marek, Oct 21: a job can have several invoices — the next one bills
          only what the earlier ones did not, e.g. an upsell sold after. */
       var j = JOBS[jobIdx];
+      if (j && !notInvoiced(j).length) { toast('Everything on this job is on ' + invNo() + ' — add the extra work to the job first', 'info'); return; }
       if (j) {
-        if (j.sold) j.sold.invoiced = true;
-        (j.items || []).forEach(function (it) { it.inv = true; });
+        j.invList = (j.invList || []).concat([{ no: invNo(), total: invoiceTotal(), paid: state.inv === 'paid' ? invoiceTotal() : invPaidSoFar, status: invStatus() }]);
         saveJobs();
       }
-      invBase = null; remember('invBase', null);
+      invFrozen = null; remember('invFrozen', null);
+      invFinancing = false; remember('invFinancing', false);
       invPaidSoFar = 0; remember('invPaidSoFar', 0);
-      renderJobItems();
-      paintPayScreens();
       state.inv = 'none';                  // a second invoice on the same job
       invCreatedAt = invSentAt = invPaidAt = '';
       remember('invCreatedAt', ''); remember('invSentAt', ''); remember('invPaidAt', '');
+      renderJobItems();
+      paintPayScreens();
       go('fin-empty', 'root');
-      toast('Start a new invoice for this job', 'note_add');
+      ACT.createInvoice(el);
     },
     optAddItem: function () { catalogTarget = 'option'; go('est-catalog', 'push'); },
     jobAddItem: function () {
@@ -4595,14 +4634,16 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
           qty: n
         });
       });
+      if (picked.length && optDisc > 0.004) { optDiscKept = true; adjMsg = null; }
       renderOptionItems();
       back();
       toast(picked.length ? picked.length + (picked.length === 1 ? ' item added' : ' items added') + ' to the option'
         : 'Nothing selected', picked.length ? 'check_circle' : 'info');
     },
 
-    createInvoice: function () {
+    createInvoice: function (el) {
       var jn = JOBS[jobIdx];
+      if (el && jn && invoiceRows(jn).length) { invPreview(jn); return; }
       if (jn && !invoiceRows(jn).length && (jn.sold && jn.sold.invoiced || (jn.items || []).some(function (it) { return it.inv; }))) {
         toast('Everything on this job is already invoiced — add the extra work to the job first', 'info');
         return;
@@ -4623,6 +4664,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       invTemp = !net.online;
       invNum = invTemp ? nextTempNo(cj, 'I') : nextDocNo(cj, 'I');
       remember('invNum', invNum); remember('invTemp', invTemp);
+      freezeInvoice(cj, invNum);
+      invFinancing = false; remember('invFinancing', false);
       state.inv = 'created';
       paintPayScreens();
       go('inv-sent', 'replace');
@@ -7006,7 +7049,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       track.style.background = on ? '#4A6FA5' : '#DDE3EE';
       knob.style.left = on ? '21px' : '3px';
       $('[data-attachsub]', A.row).textContent = has
-        ? j.sold.option + ' · ' + fmt(j.sold.total) + (estSignedAt ? ' · signed ' + estSignedAt : '')
+        ? (frozenOption() && frozenOption() !== j.sold.option ? frozenOption() + ' is on this invoice · ' + j.sold.option + ' signed since' : j.sold.option + ' · ' + fmt(j.sold.total) + (estSignedAt ? ' · signed ' + estSignedAt : ''))
         : 'No approved estimate on this job yet';
       toggleDisplay(A.card, !!on);
     });
@@ -7095,18 +7138,71 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       add: $('[data-go="add-catalog"]', items), change: details && $('[data-go="inv-details"]', details) };
   })();
 
+  /* M7-1b / M7-3: "Not invoiced · 1 item · $215.00" under the invoice,
+     with Create invoice for those lines only */
+  var niBoxes = {};
+  function paintNotInvoiced() {
+    if (typeof JOBS === 'undefined') return;
+    var j = JOBS[jobIdx] || {}, rows = notInvoiced(j);
+    var tot = Math.round(rows.reduce(function (a, r) { return a + r.price; }, 0) * 100) / 100;
+    ['inv-sent', 'inv-paid'].forEach(function (id) {
+      var root = byId(id); if (!root) return;
+      var box = niBoxes[id];
+      if (!box) {
+        var anchor = id === 'inv-sent' ? (invLines && invLines.lines.parentElement) : $('[data-act="reinvoice"]', root);
+        if (!anchor || !anchor.parentElement) return;
+        box = document.createElement('div');
+        box.dataset.notinv = '1';
+        box.setAttribute('style', 'background:#FEF8EC;border:1px solid #F3D9A4;border-radius:12px;padding:13px 14px;margin:12px 0');
+        if (id === 'inv-sent') anchor.parentElement.insertBefore(box, anchor.nextSibling);
+        else anchor.parentElement.insertBefore(box, anchor);
+        niBoxes[id] = box;
+      }
+      toggleDisplay(box, rows.length > 0);
+      if (!rows.length) return;
+      box.innerHTML = '<div style="display:flex;justify-content:space-between;gap:10px;font:600 14.5px/1.3 Geist;color:#8A6114">' +
+        '<span>Not invoiced · ' + rows.length + (rows.length === 1 ? ' item' : ' items') + '</span><span>' + fmt(tot) + '</span></div>' +
+        '<div data-nilines style="font:400 12.5px/1.45 Geist;color:#8A6114;margin-top:5px"></div>' +
+        '<div data-act="reinvoice" data-tap="1" style="height:44px;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:10px;background:#fff;border:1px solid #E8C77E;border-radius:10px;color:#8A6114;font:600 14px/1 Geist">' +
+        '<span class="mi" style="font-size:18px">note_add</span>Create invoice for these</div>';
+      $('[data-nilines]', box).textContent = rows.map(function (r) { return r.name; }).join(' · ') + ' — not on ' + invNo() + ', which stays as it is.';
+    });
+    var list = (j.invList || []);
+    ['inv-sent', 'inv-paid'].forEach(function (id) {
+      var root = byId(id); if (!root) return;
+      var el = $('[data-earlier]', root);
+      if (!el) {
+        var head = $$('span', root).filter(function (e) { return !e.children.length && /^\d{4,6}-I(\d{2}|XX)/.test(norm(e.textContent)); })[0];
+        var card = head; while (card && !/border-radius:12px/.test(card.getAttribute('style') || '')) card = card.parentElement;
+        if (!card || !card.parentElement) return;
+        el = document.createElement('div'); el.dataset.earlier = '1';
+        el.setAttribute('style', 'font:400 12.5px/1.45 Geist;color:#546478;background:#F3F6FA;border-radius:10px;padding:9px 12px;margin:0 0 10px');
+        card.parentElement.insertBefore(el, card);
+      }
+      toggleDisplay(el, list.length > 0);
+      el.textContent = list.length ? 'Other invoices on this job: ' + list.map(function (x) {
+        var due = Math.max(0, x.total - (x.paid || 0));
+        return x.no + ' · ' + fmt(x.total) + ' · ' + (x.status === 'Paid' ? 'Paid' : due < x.total ? 'Partially paid, ' + fmt(due) + ' due' : 'Unpaid');
+      }).join(' · ') : '';
+    });
+  }
+  function frozenOption() {
+    var r = invFrozen && state.inv !== 'none' ? invFrozen.rows.filter(function (x) { return x.est && !x.disc; })[0] : null;
+    return r ? r.name.split(' — ')[0] : null;
+  }
   function paintInvLines() {
     if (!invLines) return;
     var j = JOBS[jobIdx] || {};
     // the signed option at list price, its discount as a line of its own,
     // then whatever was added on site — the same lines the job adds up
-    var rows = invoiceRows(j);
+    var issued = state.inv !== 'none' && invFrozen;
+    var rows = issued ? invFrozen.rows : invoiceRows(j);
     invLines.lines.innerHTML = '';
-    if (state.est === 'approved' && j.sold && !j.sold.invoiced && invAttachEst) {
+    if (state.est === 'approved' && j.sold && (issued ? invFrozen.rows.some(function (r) { return r.est; }) : !j.sold.invoiced) && invAttachEst) {
       var a = document.createElement('div');
       a.setAttribute('style', 'display:flex;align-items:center;gap:7px;padding:6px 0 10px;font:500 13px/1.3 Geist;color:#4A6FA5');
       a.innerHTML = '<span class="mi" style="font-size:17px">attach_file</span><span></span>';
-      a.children[1].textContent = 'Approved estimate attached — ' + j.sold.option;
+      a.children[1].textContent = 'Approved estimate attached — ' + (frozenOption() || j.sold.option);
       invLines.lines.appendChild(a);
     }
     rows.forEach(function (r, i) {
@@ -7120,13 +7216,15 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       invLines.lines.appendChild(d);
     });
     invLines.total.textContent = fmt(invoiceTotal());
+    paintNotInvoiced();
 
     // created: send first, payment offered; sent: payment is the step —
     // and what went out is what went out: nothing is added or changed on a
     // sent invoice, it is voided and made again
     var sent = state.inv === 'sent';
     toggleDisplay(invLines.send, !sent);
-    if (invLines.add) toggleDisplay(invLines.add, !sent);
+    // M7-2: nothing is added to an issued invoice — new work goes on the job
+    if (invLines.add) toggleDisplay(invLines.add, false);
     // OD-15: the technician never changes who the invoice is made out to
     if (invLines.change) toggleDisplay(invLines.change, false);
     invLines.take.setAttribute('style', 'height:52px;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:11px;font:600 15.5px/1 Geist;' +
@@ -7992,6 +8090,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     ['Emergency HVAC Call', '24/7 emergency service visit fee', 150, 'Services'],
     ['R-410A Refrigerant (lb)', 'Refrigerant, per pound', 18, 'Materials'],
     ['Capacitor 45/5 MFD', 'Dual run capacitor', 25, 'Materials'],
+    ['Capacitor 45/5 µF', 'Dual run capacitor, installed', 200, 'Materials'],
+    ['Condenser Fan Motor', 'Outdoor condenser fan motor, installed', 1000, 'Equipment'],
     ['HVAC Filter Replacement', 'Replace standard air filter', 40, 'Materials'],
     ['Blower Motor 1/2 HP', 'Replacement blower motor', 225, 'Equipment'],
     ['Thermostat Replacement', 'Replace existing thermostat with programmable or smart unit', 220, 'Equipment'],
@@ -8023,7 +8123,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       row.setAttribute('style', 'background:#fff;border:1px solid #DDE3EE;border-radius:12px;padding:13px 14px');
       var p = parts(row);
       p.name.textContent = spec[0];
-      p.desc.textContent = spec[1];
+      p.desc.textContent = spec[1] + (taxPct({ name: spec[0] }) ? ' · taxable ' + taxPct({ name: spec[0] }) + '%' : '');
       p.price.textContent = fmt(spec[2]);
     });
     mocks.slice(CATALOG_ROWS.length).forEach(function (r) { r.remove(); });
@@ -8428,6 +8528,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     return extraItems.reduce(function (a, it) { return a + it.qty; }, 0);
   }
   function invoiceTotal() {
+    // M7-2: an issued invoice keeps the total it was made with
+    if (typeof state !== 'undefined' && state.inv && state.inv !== 'none' && invFrozen) return invFrozen.total;
     // the extras render before the job list exists, so this is asked early
     var j = (typeof JOBS === 'undefined' ? null : JOBS[jobIdx]) || {};
     var sum = invoiceRows(j).reduce(function (a, r) { return a + r.price; }, 0);
@@ -8454,9 +8556,17 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     var lbl = $('[data-createlbl]', fin);
     if (lbl) lbl.textContent = zero ? 'Create $0 invoice' : 'Create invoice';
   }
+  /* M7-1b / M7-3: what is on the job and on no invoice yet */
+  function notInvoiced(j) {
+    if (state.inv === 'none') return [];
+    return invoiceRows(j).filter(function (r) { return r.price !== 0 || !r.disc; });
+  }
   function paintPayScreens() {
     if (typeof JOBS === 'undefined') return;
+    syncInvOwner();
     var j = JOBS[jobIdx] || {};
+    // an invoice already on the job from before has its lines frozen now
+    if (state.inv !== 'none' && state.inv !== 'void' && !invFrozen && JOBS[jobIdx]) freezeInvoice(j, invNo());
     var jobTotal = invoiceTotal();
     // A deposit only counts once the customer has signed for the option it
     // was quoted against. On an estimate nobody bought, no money changed
@@ -9132,15 +9242,20 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
      that tapped it. */
   var optAdjust = 0;                       // kept for anything still reading it
   var optRevised = null;                   // the price the technician typed, if any
+  var optDisc = 0;                          // M6-7: the Discount line's amount — it is what is kept
+  var optDiscKept = false;                  // lines changed since the price was typed
+  var adjMsg = null;                        // a refusal of what was typed
   function optionBase() {
-    return optionItems.reduce(function (a, it) { return a + it.price * it.qty; }, 0);
+    return Math.round(optionItems.reduce(function (a, it) { return a + lineGross(it); }, 0) * 100) / 100;
   }
+  function optionTax() { return optionItems.reduce(function (a, it) { return a + lineTax(it); }, 0); }
   // the app already has an optionTotal() that reads a card; this one is the
   // option being built, after whatever the slider did to it
   function optionAdjusted() {
     // a revised price only ever comes down from the list — up is not a discount
-    if (optRevised !== null && optRevised > 0 && optRevised <= optionBase()) return Math.round(optRevised * 100) / 100;
-    return Math.round(optionBase() * (1 + optAdjust / 100) * 100) / 100;
+    var b = optionBase();
+    if (optDisc > 0.004 && b - optDisc > 0.004) return Math.round((b - optDisc) * 100) / 100;
+    return b;
   }
 
   function paintOptionSummary() {
@@ -9160,13 +9275,14 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     var list = byId('adjList'), inp = byId('adjPrice'), sav = byId('adjSave');
     if (!list || !inp || !sav) return;
     var base = optionBase(), now = optionAdjusted();
-    list.textContent = fmt(base);
-    if (document.activeElement !== inp) inp.value = optRevised !== null ? optRevised.toFixed(2) : '';
+    var tx = optionTax();
+    list.textContent = fmt(base) + (tx ? ' · incl. ' + fmt(tx) + ' tax' : '');
+    if (document.activeElement !== inp) inp.value = optDisc > 0.004 ? now.toFixed(2) : '';
     inp.placeholder = base.toFixed(2);
-    var diff = base - now;
-    if (optRevised !== null && optRevised > base + 0.005) { sav.textContent = 'Can’t be above the list price — the list price stays'; sav.style.color = '#DC2626'; }
-    else if (optRevised === null || Math.abs(diff) < 0.005) { sav.textContent = 'List price — no change'; sav.style.color = '#8A97A8'; }
-    else { sav.textContent = 'Discount line −' + fmt(diff) + ' (' + Math.round(diff / base * 100) + '%) · item prices stay as listed'; sav.style.color = '#16A34A'; }
+    if (adjMsg) { sav.textContent = adjMsg[0]; sav.style.color = adjMsg[1]; }
+    else if (optDisc > 0.004 && optDiscKept) { sav.textContent = 'Discount kept at −' + fmt(optDisc) + ' · new total ' + fmt(now) + ' (list ' + fmt(base) + ')'; sav.style.color = '#B45309'; }
+    else if (optDisc > 0.004) { sav.textContent = 'List ' + fmt(base) + ' · Discount −' + fmt(optDisc) + ' (' + Math.round(optDisc / base * 100) + '%) · New total ' + fmt(now) + ' · item prices stay as listed'; sav.style.color = '#16A34A'; }
+    else { sav.textContent = 'List price — no change'; sav.style.color = '#8A97A8'; }
   }
 
   /* It was a button, then a sheet over the numbers it changes, then a link
@@ -9210,8 +9326,19 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
 
     var inp = $('#adjPrice', adjustBox);
     inp.addEventListener('input', function () {
-      var v = parseFloat(String(inp.value).replace(/[^0-9.]/g, ''));
-      optRevised = isFinite(v) && v > 0 ? v : null;
+      var raw = String(inp.value).trim().replace(/^\$/, '');
+      if (/^\d{1,3}(,\d{3})+(\.\d{1,2})?$/.test(raw)) raw = raw.replace(/,/g, '');
+      var base = optionBase(), RED = '#DC2626';
+      optDiscKept = false; adjMsg = null;
+      if (!raw) { optRevised = null; optDisc = 0; }
+      else if (!/^-?\d+(\.\d{1,2})?$/.test(raw)) adjMsg = ['Enter the price in dollars and cents, for example 900.00', RED];
+      else {
+        var v = parseFloat(raw);
+        if (v <= 0) adjMsg = ['The new price must be above $0.00', RED];
+        else if (v > base + 0.005) adjMsg = ['New price must be lower than the list price; to charge more, add an item or change a line price', RED];
+        else if (Math.abs(v - base) < 0.005) { optRevised = null; optDisc = 0; adjMsg = ['Back to list price', '#8A97A8']; }
+        else { optRevised = v; optDisc = Math.round((base - v) * 100) / 100; }
+      }
       paintAdjust();
       paintOptionSummary();
     });
@@ -9269,7 +9396,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         '<div data-minus style="width:42px;height:42px;display:flex;align-items:center;justify-content:center;color:#4A6FA5"><span class="mi" style="font-size:20px">remove</span></div>' +
         '<div data-qty style="width:38px;text-align:center;font:600 15px/1 Geist;border-left:1px solid #DDE3EE;border-right:1px solid #DDE3EE;line-height:42px"></div>' +
         '<div data-plus style="width:42px;height:42px;display:flex;align-items:center;justify-content:center;color:#4A6FA5"><span class="mi" style="font-size:20px">add</span></div>' +
-        '</div><span data-line style="font:600 15.5px/1 Geist"></span></div>';
+        '</div><span style="display:flex;align-items:center;gap:4px"><span data-line style="font:600 15.5px/1 Geist"></span>' +
+        '<span data-odrop class="mi" style="font-size:20px;color:#A9B4C2;padding:8px;margin-right:-8px">delete_outline</span></span></div>';
 
       var parts = card.children;
       parts[0].textContent = it.name;
@@ -9277,18 +9405,33 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       if (it.desc) parts[k++].textContent = it.desc;
       if (it.warranty) parts[k++].textContent = it.warranty;
       var qtyEl = $('[data-qty]', card), lineEl = $('[data-line]', card);
-      function paintRow() { qtyEl.textContent = String(it.qty); lineEl.textContent = fmt(it.price * it.qty); }
+      function paintRow() { qtyEl.textContent = String(it.qty); lineEl.textContent = fmt(it.price * it.qty) + taxNote(it); }
       paintRow();
       [['[data-minus]', -1], ['[data-plus]', 1]].forEach(function (p) {
         var b = $(p[0], card);
         b.dataset.tap = '1';
         b.addEventListener('click', function (ev) {
           ev.stopPropagation();
-          it.qty = Math.max(1, it.qty + p[1]);
+          var nq = Math.max(1, it.qty + p[1]);
+          if (nq === it.qty) return;
+          var after = optionBase() - lineGross(it) + lineGross({ price: it.price, qty: nq, name: it.name, taxPct: it.taxPct });
+          if (optDisc > 0.004 && after - optDisc <= 0.004) { toast('Lower the price adjustment first', 'block'); return; }
+          it.qty = nq;
+          if (optDisc > 0.004) { optDiscKept = true; adjMsg = null; }
           paintRow();
           paintOptionSummary();
         }, true);
       });
+      var drop = $('[data-odrop]', card);
+      drop.dataset.tap = '1';
+      drop.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        var after = optionBase() - lineGross(it);
+        if (optDisc > 0.004 && (optionItems.length < 2 || after - optDisc <= 0.004)) { toast('Lower the price adjustment first', 'block'); return; }
+        optionItems.splice(i, 1);
+        if (optDisc > 0.004) { optDiscKept = true; adjMsg = null; }
+        renderOptionItems();
+      }, true);
       optItemsBox.insertBefore(card, optEmptyState);
     });
     paintOptionSummary();
@@ -10477,11 +10620,34 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     });
   })();
 
+  /* M6-3 / M7-3 / M7-5: an item carries its own tax, frozen on the line.
+     The price book is not taxable unless said; these items are, at 7.5%.
+     A line = quantity × unit price + that line's tax (rounded per line). */
+  function taxTable() { return {
+    'Capacitor 45/5 µF': 7.5, 'Capacitor 45/5 MFD': 7.5, 'Condenser Fan Motor': 7.5, 'Blower Motor 1/2 HP': 7.5,
+    'Thermostat Replacement': 7.5, 'R-410A Refrigerant (lb)': 7.5, 'Compressor, scroll 3-ton': 7.5,
+    'Refrigerant R-410A, 4 lb': 7.5, 'UV Air Purifier': 7.5, 'Copper pipe 3/4 in': 7.5
+  }; }
+  var TAX_PCT = taxTable();
+  function taxPct(it) {
+    if (!it) return 0;
+    if (typeof it.taxPct === 'number') return it.taxPct;
+    return (TAX_PCT || taxTable())[it.name] || 0;
+  }
+  function lineTax(it) {
+    if (!it || it.incl) return 0;
+    return Math.round((it.price || 0) * (it.qty || 1) * taxPct(it)) / 100;
+  }
+  function lineGross(it) {
+    if (!it || it.incl) return 0;
+    return Math.round(((it.price || 0) * (it.qty || 1) + lineTax(it)) * 100) / 100;
+  }
+  function taxNote(it) { var t = lineTax(it); return t ? ' + ' + fmt(t) + ' tax' : ''; }
   function jobLabor(j) {
     return ((j && j.items) || []).reduce(function (a, it) { return a + it.labor * it.qty; }, 0);
   }
   function jobItemsTotal(j) {
-    return ((j && j.items) || []).reduce(function (a, it) { return a + it.price * it.qty; }, 0);
+    return ((j && j.items) || []).reduce(function (a, it) { return a + lineGross(it); }, 0);
   }
   /* Marek, Oct 21: "We want the job amount and invoice amount to match."
      Work added on site goes on the job, so the job is worth the signed
@@ -10492,7 +10658,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   }
   function jobAmount(j) {
     if (!j) return 0;
-    var site = siteItems(j).reduce(function (a, it) { return a + (it.incl ? 0 : it.price * it.qty); }, 0);
+    var site = siteItems(j).reduce(function (a, it) { return a + (it.diff ? 0 : lineGross(it)); }, 0);
     return Math.round(((j.sold ? j.sold.total : 0) + site) * 100) / 100;
   }
   /* The invoice is made from the job. A job can have several invoices (an
@@ -10502,17 +10668,16 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     var rows = [];
     if (!j) return rows;
     if (j.sold && !j.sold.invoiced) {
-      if (invBase !== null) rows.push({ name: j.sold.option + ' — approved estimate (as invoiced)', price: invBase });
-      else {
-        rows.push({ name: j.sold.option + ' — approved estimate', price: j.sold.list || j.sold.total });
-        if (j.sold.discount) rows.push({ name: 'Discount', price: -j.sold.discount, disc: true });
-      }
+      rows.push({ name: j.sold.option + ' — approved estimate', price: j.sold.list || j.sold.total, est: true });
+      if (j.sold.discount) rows.push({ name: 'Discount', price: -j.sold.discount, disc: true, est: true });
     }
     siteItems(j).forEach(function (it) {
       if (it.inv) return;
+      var t = lineTax(it);
       rows.push({
-        name: (it.qty > 1 ? it.qty + ' × ' : '') + it.name + (it.incl ? ' (included in the sold price)' : it.from === 'site' || it.from === 'manual' ? ' (added on site)' : ''),
-        price: it.incl ? 0 : (it.price || 0) * (it.qty || 1)
+        name: (it.qty > 1 ? it.qty + ' × ' : '') + it.name + (it.incl ? ' (included in the sold price)' : it.diff ? ' (from ' + (j.estNo || 'the estimate') + ' · difference)' : it.from === 'site' || it.from === 'manual' ? ' (added on site)' : '') +
+          (t ? ' · incl. ' + fmt(t) + ' tax' : ''),
+        price: lineGross(it), tax: t
       });
     });
     return rows;
@@ -10553,12 +10718,17 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
      the only way to correct it was to delete the line and add it again.
      It gets the same stepper the option builder uses, and the line, the
      total and the count all move with it. */
+  function lockedMsg(it) {
+    return 'This item is on invoice ' + (typeof it.inv === 'string' ? it.inv : invNo()) + '. Add a new line for the extra work';
+  }
   function jobItemRow(it, idx) {
     var row = document.createElement('div');
     row.setAttribute('data-jobitem', '1');
     row.setAttribute('style', 'padding:12px 0;border-top:1px solid #EDF0F5');
     var meta = [it.sku, it.cat].filter(Boolean).join(' \u00b7 ');
     if (it.from === 'estimate') meta += (meta ? ' \u00b7 ' : '') + 'from the estimate';
+    if (it.inv) meta += (meta ? ' \u00b7 ' : '') + 'On ' + (typeof it.inv === 'string' ? it.inv : invNo());
+    else if (it.diff) meta += (meta ? ' \u00b7 ' : '') + 'difference · not invoiced';
 
     row.innerHTML =
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">' +
@@ -10586,8 +10756,10 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
 
     function paintRow() {
       $('[data-qty]', row).textContent = String(it.qty);
-      $('[data-price]', row).textContent = fmt(it.price * it.qty);
-      $('[data-minus]', row).style.opacity = it.qty > 1 ? '' : '.35';
+      $('[data-price]', row).textContent = fmt(lineGross(it));
+      if (lineTax(it)) $('[data-unit]', row).textContent = fmt(it.price) + ' each' + taxNote(it);
+      $('[data-minus]', row).style.opacity = it.qty > 1 && !it.inv ? '' : '.35';
+      $('[data-plus]', row).style.opacity = it.inv ? '.35' : '';
     }
     paintRow();
 
@@ -10596,6 +10768,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       b.dataset.tap = '1';
       b.addEventListener('click', function (ev) {
         ev.stopPropagation();
+        if (it.inv) { toast(lockedMsg(it), 'lock'); return; }
         var next = it.qty + p[1];
         if (next < 1) return;
         it.qty = next;
@@ -10609,6 +10782,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     drop.dataset.tap = '1';
     drop.addEventListener('click', function (ev) {
       ev.stopPropagation();
+      if (it.inv) { toast(lockedMsg(it), 'lock'); return; }
       var j = JOBS[jobIdx]; if (!j) return;
       j.items.splice(idx, 1);
       saveJobs();
@@ -10665,7 +10839,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       }
       /* M7-5 (#88): a part the sold price already covers is on the job for
          the record and bills $0 */
-      if (j.sold && it.from !== 'estimate') {
+      if (j.sold && it.from !== 'estimate' && !it.inv && !it.diff) {
         var inc = document.createElement('div');
         inc.dataset.incl = String(i); inc.dataset.tap = '1';
         inc.setAttribute('style', 'display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;font:500 13px/1.3 Geist;color:#33475B');
@@ -10681,6 +10855,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         var t = ev.target.closest('[data-incl]'); if (!t) return;
         ev.stopPropagation();
         var jj = JOBS[jobIdx], it = jj && jj.items[+t.dataset.incl]; if (!it) return;
+        if (it.inv) { toast(lockedMsg(it), 'lock'); return; }
         it.incl = !it.incl; saveJobs();
         renderJobItems(); paintPayScreens();
         toast(it.incl ? it.name + ' — included in the sold price · $0.00' : it.name + ' — billed at ' + fmt(it.price * it.qty), 'sell');
@@ -11209,7 +11384,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
      technician took off it as a separate discount line. */
   function optionList(name) {
     return Math.round((OPTION_ITEMS[name] || []).reduce(function (a, it) {
-      return a + (it.price || 0) * (it.qty || 1);
+      return a + lineGross(it);
     }, 0) * 100) / 100;
   }
   function optionDiscount(name) {
@@ -11509,6 +11684,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   /* The job's own estimate/invoice stage becomes the session state, so the
      Estimate and Finance tabs open where this job actually is. */
   function loadJob() {
+    syncInvOwner();
     var j = JOBS[jobIdx];
     state.est = j ? j.est : 'none';
     state.inv = j ? j.inv : 'none';
@@ -12698,6 +12874,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     var list = optionList(n);
     optAdjust = 0;
     optRevised = list && OPTION_TOTALS[n] < list - 0.005 ? OPTION_TOTALS[n] : null;
+    optDisc = optRevised !== null ? Math.round((list - optRevised) * 100) / 100 : 0; optDiscKept = false; adjMsg = null;
     editingOption = n;
     renderOptionItems();
     fillWarranty(optionWarranties[n] || null);
@@ -14812,6 +14989,115 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
 
   /* M8-1 (#52, #75): the "Before you complete" sheet — the hints, each
      with Go to, then Complete anyway or Back. Nothing is greyed or blocked. */
+  /* M7-2 / M7-3: the preview before an invoice is made — every job line,
+     the ones on an earlier invoice marked "On …" and not ticked */
+  /* M6-14 / M7-3b (D1, D2, PM 05.11): the estimate is signed again while
+     the earlier option is on an invoice.
+     - no payment on that invoice: Update invoice (same number, new lines)
+       or Keep invoice as it is;
+     - paid or partly paid: it never changes — Add the difference puts the
+       extra on the job for a new invoice; below the paid amount the office
+       settles it. */
+  function resignedOnInvoice(j, was, pick, total) {
+    var no = typeof was.invoiced === 'string' ? was.invoiced : invNo();
+    var current = no === invNo() && state.inv !== 'none';
+    var unpaid = current && state.inv !== 'paid' && invPaidSoFar <= 0 && !invFinancing;
+    function newEstItems(mark) {
+      return (OPTION_ITEMS[pick] || []).map(function (it) {
+        var c = {}; for (var k in it) c[k] = it[k];
+        c.from = 'estimate'; if (mark) c.inv = mark;
+        return c;
+      });
+    }
+    function soldNow(inv) { return { option: pick, total: total, list: optionList(pick) || total, discount: optionDiscount(pick), invoiced: inv }; }
+    function update() {
+      var before = invFrozen ? invFrozen.total : was.total;
+      j.items = (j.items || []).filter(function (it) { return it.from !== 'estimate'; }).concat(newEstItems(no));
+      j.sold = soldNow(no);
+      var keep = invFrozen ? invFrozen.rows.filter(function (r) { return !r.est; }) : [];
+      var est = [{ name: pick + ' — approved estimate', price: j.sold.list, est: true }];
+      if (j.sold.discount) est.push({ name: 'Discount', price: -j.sold.discount, disc: true, est: true });
+      var rows = est.concat(keep);
+      invFrozen = { no: no, rows: rows, total: Math.round(rows.reduce(function (a, r) { return a + r.price; }, 0) * 100) / 100 };
+      remember('invFrozen', invFrozen);
+      saveJobs(); renderJobItems(); paintPayScreens();
+      queued('Invoice', no + ' updated after ' + (j.estNo || 'the estimate') + ' was signed again');
+      toast(no + ' updated: ' + fmt(before) + ' → ' + fmt(invFrozen.total) + ' · email the updated invoice', 'receipt_long');
+    }
+    function difference() {
+      var diff = Math.round((total - was.total) * 100) / 100;
+      if (diff < -0.004) {
+        j.estBelow = { option: pick, total: total, invoiced: was.total };
+        saveJobs();
+        toast(pick + ' is ' + fmt(-diff) + ' less than what ' + no + ' already bills — the office settles the difference', 'info');
+        return;
+      }
+      // per item: what the new option has above what is already invoiced
+      var had = {};
+      (j.items || []).filter(function (it) { return it.from === 'estimate' || it.diff; }).forEach(function (it) { if (it.price > 0) had[it.name] = (had[it.name] || 0) + (it.qty || 1); });
+      var add = [];
+      (OPTION_ITEMS[pick] || []).forEach(function (it) {
+        var more = (it.qty || 1) - (had[it.name] || 0);
+        if (more > 0) { var c = {}; for (var k in it) c[k] = it[k]; c.qty = more; c.from = 'site'; c.diff = true; add.push(c); }
+      });
+      var sum = add.reduce(function (a, it) { return a + lineGross(it); }, 0);
+      var rest = Math.round((diff - sum) * 100) / 100;
+      if (Math.abs(rest) > 0.004) add.push({ name: 'Price difference', price: rest, qty: 1, from: 'site', diff: true, type: 'admin' });
+      var what = add.map(function (it) { return (it.qty > 1 ? it.qty + ' × ' : '') + it.name; }).join(', ');
+      confirmSheet({
+        title: no + ' is paid and stays as it is',
+        text: 'Add the difference to this job for a new invoice? ' + what + ' · +' + fmt(diff),
+        ok: 'Add the difference', alt: 'Keep the job as it is',
+        onOk: function () {
+          j.items = (j.items || []).concat(add);
+          j.sold = soldNow(was.invoiced);
+          saveJobs(); renderJobItems(); paintPayScreens();
+          queued('Job', 'Difference added from ' + (j.estNo || 'the estimate'));
+          toast('Not invoiced · ' + add.length + (add.length === 1 ? ' item' : ' items') + ' · ' + fmt(diff) + ' — ready for a new invoice', 'note_add');
+        },
+        onAlt: function () { j.estMismatch = { option: pick, total: total }; saveJobs(); toast('Job kept as it is — its items differ from the approved ' + pick + ' (' + fmt(total) + ')', 'info'); }
+      });
+    }
+    if (unpaid) {
+      confirmSheet({
+        title: 'Invoice ' + no + ' is not paid yet',
+        text: 'Update it to ' + pick + '? ' + fmt(was.total) + ' → ' + fmt(total),
+        ok: 'Update invoice', alt: 'Keep invoice as it is',
+        onOk: update, onAlt: function () { setTimeout(difference, 0); }
+      });
+    } else difference();
+  }
+  function invPreview(j) {
+    var el = sheetEl('ov-invprev'), b = $('[data-sheetbody]', el);
+    var rows = invoiceRows(j), tot = Math.round(rows.reduce(function (a, r) { return a + r.price; }, 0) * 100) / 100;
+    var onInv = (j.items || []).filter(function (it) { return it.inv; });
+    if (j.sold && j.sold.invoiced) onInv = [{ name: j.sold.option + ' — approved estimate', inv: j.sold.invoiced, est: 1 }].concat(onInv.filter(function (it) { return it.from !== 'estimate'; }));
+    var ROW = 'display:flex;align-items:flex-start;gap:9px;padding:9px 0;border-top:1px solid #EDF0F5;font:400 13.5px/1.35 Geist';
+    b.innerHTML = '<div style="display:flex;justify-content:center;padding:0 0 10px"><div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div></div>' +
+      '<div style="font:600 18px/1.25 Geist">Invoice preview</div>' +
+      '<div style="font:400 13px/1.45 Geist;color:#546478;margin:4px 0 8px">Bill to ' + (j.name || 'the customer') + ' · the lines go on the invoice as they are and cannot be changed after.</div>' +
+      '<div style="max-height:42vh;overflow:auto">' +
+      rows.map(function (r) {
+        return '<div style="' + ROW + '"><span class="mif" style="font-size:19px;color:#4A6FA5">check_box</span><span style="flex:1"></span><span style="font-weight:600;white-space:nowrap;color:' + (r.disc ? '#16A34A' : '#1A2332') + '">' + (r.price < 0 ? '−' + fmt(-r.price) : fmt(r.price)) + '</span></div>';
+      }).join('') +
+      onInv.map(function (it) {
+        return '<div style="' + ROW + ';color:#A9B4C2"><span class="mi" style="font-size:19px">check_box_outline_blank</span><span style="flex:1"></span><span style="white-space:nowrap">On ' + (typeof it.inv === 'string' ? it.inv : invNo()) + '</span></div>';
+      }).join('') + '</div>' +
+      '<div style="display:flex;justify-content:space-between;padding:12px 0 4px;border-top:1px solid #C8D5E8;font:600 16px/1 Geist"><span>Total</span><span>' + (net.online ? '' : '≈ ') + fmt(tot) + '</span></div>' +
+      '<div data-tap="1" data-ipgo style="height:52px;display:flex;align-items:center;justify-content:center;margin-top:12px;border-radius:11px;background:#4A6FA5;color:#fff;font:600 16px/1 Geist">Create invoice · ' + fmt(tot) + '</div>' +
+      '<div data-back data-tap="1" style="height:44px;display:flex;align-items:center;justify-content:center;font:500 14.5px/1 Geist;color:#546478;margin-top:4px">Cancel</div>';
+    var names = $$('span[style*="flex:1"]', b);
+    rows.forEach(function (r, i) { names[i].textContent = r.name; });
+    onInv.forEach(function (it, i) { names[rows.length + i].textContent = (it.qty > 1 ? it.qty + ' × ' : '') + it.name; });
+    if (tot < 0) { var g = $('[data-ipgo]', b); g.style.background = '#A9B4C2'; }
+    b.onclick = function (ev) {
+      if (!ev.target.closest('[data-ipgo]')) return;
+      if (tot < 0) { toast('An invoice cannot be below $0.00', 'block'); return; }
+      closeOverlays(true);
+      ACT.createInvoice();
+    };
+    go('ov-invprev', 'overlay');
+  }
   function sheetEl(id) {
     var el = byId(id);
     if (el) return el;
