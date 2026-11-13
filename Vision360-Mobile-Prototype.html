@@ -730,17 +730,27 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         <!-- ============ MY SCHEDULE (Marek 10.11, 63–65 min: a calendar, as in Workiz; past days are the history) ============ -->
         <div class="screen" id="more-schedule" data-tabs="on">
           <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl">My schedule</span><span data-tap data-act="schedToday" style="margin-left:auto;font:600 14px/1 Geist;color:#4A6FA5;padding:6px 2px">Today</span></div>
-          <div style="background:#fff;border-bottom:1px solid #DDE3EE;padding:4px 12px 12px;flex:none">
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 4px 10px">
-              <span class="mi" data-tap data-act="schedWeek" data-step="-1" style="font-size:24px;color:#4A6FA5;padding:4px">chevron_left</span>
-              <span id="schedMonth" style="font:600 15.5px/1 Geist">November 2026</span>
-              <span class="mi" data-tap data-act="schedWeek" data-step="1" style="font-size:24px;color:#4A6FA5;padding:4px">chevron_right</span>
+          <div style="background:#fff;border-bottom:1px solid #DDE3EE;padding:10px 12px 12px;flex:none">
+            <!-- Marek 10.11 (63 min), as in Workiz: a Timeline of past and coming jobs, and a Day view with a date picker -->
+            <div id="schedSeg" style="display:grid;grid-template-columns:1fr 1fr;background:#EDF0F5;border-radius:10px;padding:3px;margin-bottom:10px">
+              <div data-tap data-act="schedView" data-view="timeline" style="height:34px;display:flex;align-items:center;justify-content:center;border-radius:8px;font:600 14px/1 Geist">Timeline</div>
+              <div data-tap data-act="schedView" data-view="day" style="height:34px;display:flex;align-items:center;justify-content:center;border-radius:8px;font:600 14px/1 Geist">Day</div>
             </div>
-            <div id="schedWeekStrip" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px"></div>
+            <div id="schedDayHead">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:0 4px 10px">
+                <span class="mi" data-tap data-act="schedWeek" data-step="-1" style="font-size:24px;color:#4A6FA5;padding:4px">chevron_left</span>
+                <span id="schedMonth" style="font:600 15.5px/1 Geist">November 2026</span>
+                <span class="mi" data-tap data-act="schedWeek" data-step="1" style="font-size:24px;color:#4A6FA5;padding:4px">chevron_right</span>
+              </div>
+              <div id="schedWeekStrip" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px"></div>
+            </div>
           </div>
-          <div class="sc" style="flex:1;overflow-y:auto;padding:14px 16px 20px">
-            <div id="schedDay" style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">Today</div>
-            <div id="schedList"></div>
+          <div class="sc" id="schedScroll" style="flex:1;overflow-y:auto;padding:14px 16px 20px">
+            <div id="schedTimeline"></div>
+            <div id="schedDayBody">
+              <div id="schedDay" style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 0 9px">Today</div>
+              <div id="schedList"></div>
+            </div>
           </div>
         </div>
 
@@ -14247,10 +14257,17 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
      already dispatched. */
   var schedSel = null;
   var SCHED_AHEAD = [
-    [1, 'Maria Lopez', '9:00 AM', 'Maintenance', '10531-J02', 'Seasonal tune-up'],
-    [1, 'Daniel Ruiz', '1:30 PM', 'Demand Service', '10533-J01', 'No heat upstairs'],
-    [2, 'Karen Webb', '10:00 AM', 'Estimate', '10536-J01', 'Replace 15-year-old system'],
-    [7, 'Tom Alvarez', '8:00 AM', 'Install', '10529-J03', 'Heat pump install, day 1']
+    [1, 'Maria Lopez', '9:00 AM', 'Maintenance', '10531-J02', 'Seasonal tune-up', '2210 W Swann Ave, Tampa, FL 33606', '10:30 AM'],
+    [1, 'Daniel Ruiz', '1:30 PM', 'Demand Service', '10533-J01', 'No heat upstairs', '8131 N Armenia Ave, Tampa, FL 33604', '3:00 PM'],
+    [2, 'Karen Webb', '10:00 AM', 'Estimate', '10536-J01', 'Replace 15-year-old system', '1502 E Fletcher Ave, Tampa, FL 33612', '11:30 AM'],
+    [7, 'Tom Alvarez', '8:00 AM', 'Install', '10529-J03', 'Heat pump install, day 1', '6019 Gunn Hwy, Tampa, FL 33625', '4:00 PM'],
+    [22, 'Linda Park', '7:30 AM', 'Maintenance', '10540-J01', 'Spring maintenance plan visit', '3310 W Bay to Bay Blvd, Tampa, FL 33629', '9:00 AM']
+  ];
+  /* earlier visits beyond the History demo cards: completed, read-only */
+  var SCHED_PAST = [
+    [-9, 'Gary Mills', '8:00 AM', 'Demand Service', '10498-J04', 'Thermostat blank', '4719 N Habana Ave, Tampa, FL 33614', '9:15 AM'],
+    [-33, 'Sofia Reyes', '1:00 PM', 'Maintenance', '10467-J02', 'Fall tune-up', '905 S Dale Mabry Hwy, Tampa, FL 33609', '2:30 PM'],
+    [-41, 'Mark Chen', '9:30 AM', 'Estimate', '10455-J01', 'Second opinion on a new system', '12020 N 56th St, Tampa, FL 33617', '11:00 AM']
   ];
   var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   var DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -14261,18 +14278,30 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     var diff = Math.round((d - today) / 86400000);
     if (diff === 0) openJobs().forEach(function (i) {
       var j = JOBS[i];
-      out.push({ kind: 'open', idx: i, name: j.name, time: j.when.replace(/^Today, /, ''), type: j.type, no: jobNo(j), brief: j.brief });
+      var running = state.onsite && runIdx === i;
+      out.push({ kind: 'open', idx: i, name: j.name, time: j.when.replace(/^Today, /, ''), type: j.type, no: jobNo(j), brief: j.brief, addr: j.addr,
+        status: running ? 'In progress' : j.paused ? 'Paused' : state.enroute && jobIdx === i ? 'En route' : 'Dispatched' });
     });
     // done visits are the history's own cards
     $$('#history [data-act="histDetails"]').forEach(function (l) {
       var w = new Date(l.dataset.when);
       // a customer whose job is still open today is not also done today
       var openNow = diff === 0 && out.some(function (o) { return o.kind === 'open' && o.name === l.dataset.job; });
-      if (!isNaN(w) && sameDay(w, d) && !openNow) out.push({ kind: 'done', el: l, name: l.dataset.job, time: 'Completed', type: l.dataset.type, brief: l.dataset.brief });
+      var hj = JOBS.filter(function (x) { return x.name === l.dataset.job; })[0];
+      if (!isNaN(w) && sameDay(w, d) && !openNow) out.push({ kind: 'done', el: l, name: l.dataset.job, time: 'Completed', type: l.dataset.type, brief: l.dataset.brief,
+        addr: hj ? hj.addr : '', no: '', status: 'Completed' });
+    });
+    SCHED_PAST.forEach(function (a) {
+      if (a[0] === diff) out.push({ kind: 'past', name: a[1], time: a[2], end: a[7], type: a[3], no: a[4], brief: a[5], addr: a[6], status: 'Completed' });
     });
     SCHED_AHEAD.forEach(function (a) {
-      if (a[0] === diff) out.push({ kind: 'ahead', name: a[1], time: a[2], type: a[3], no: a[4], brief: a[5] });
+      if (a[0] === diff) out.push({ kind: 'ahead', name: a[1], time: a[2], end: a[7], type: a[3], no: a[4], brief: a[5], addr: a[6], status: 'Dispatched' });
     });
+    function mins(t) {
+      var m = /(\d{1,2}):(\d{2})\s*(AM|PM)/i.exec(t || ''); if (!m) return -1;
+      return (+m[1] % 12 + (/pm/i.test(m[3]) ? 12 : 0)) * 60 + +m[2];
+    }
+    out.sort(function (a, b) { return mins(a.time) - mins(b.time); });
     return out;
   }
   function paintSchedule() {
@@ -14300,8 +14329,9 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     list.innerHTML = items.length ? '<div class="card" style="overflow:hidden">' + items.map(function (it, n) {
       var act = it.kind === 'open' ? ' data-act="openNextJob" data-idx="' + it.idx + '"'
         : it.kind === 'done' ? ' data-act="schedDone" data-n="' + n + '"'
+          : it.kind === 'past' ? ' data-toast="Completed · read-only · older jobs open from History"'
           : ' data-toast="Dispatched to you · it opens on the day"';
-      var chip = it.kind === 'done' ? '<span style="' + CHIP + 'color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6">Completed</span>'
+      var chip = it.kind === 'done' || it.kind === 'past' ? '<span style="' + CHIP + 'color:#16A34A;background:#E8F6ED;border:1px solid #B6E3C6">Completed</span>'
         : it.kind === 'ahead' ? '<span style="' + CHIP + 'color:#4A6FA5;background:#EBF0F8;border:1px solid #C8D5E8">Dispatched</span>' : '';
       return '<div class="rowi"' + act + '><span class="mi">' + (it.kind === 'done' ? 'task_alt' : 'work_outline') + '</span><span class="t">' + it.name +
         '<small>' + it.time + ' · ' + it.type + (it.no ? ' · ' + it.no : '') + ' · ' + it.brief + '</small></span>' + chip + '<span class="mi ch">chevron_right</span></div>';
@@ -14310,10 +14340,87 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     schedCache = items;
   }
   var schedCache = [];
-  ACT.openSchedule = function () { schedSel = dayStart(new Date()); paintSchedule(); go('more-schedule', 'push'); };
+  /* Marek 10.11 (63 min), Workiz: "the previous timeline… and then there is
+     a daily schedule". Timeline is one list, past and coming, grouped by
+     month, each day with its date on the left and today marked; it opens
+     on today. Day is the week strip with a date picked. Both are the same
+     jobs History lists (65 min: "the history in the list version or in the
+     schedule version"). */
+  var schedView = recall('schedView', 'timeline');
+  var TL_STATUS = { 'Completed': '#16A34A', 'Dispatched': '#4A6FA5', 'En route': '#7C5CC4', 'In progress': '#D97706', 'Paused': '#8A97A8' };
+  var tlCache = [];
+  function paintTimeline() {
+    var box = byId('schedTimeline'); if (!box) return;
+    var today = dayStart(new Date()), html = '', lastMonth = -1, n = 0;
+    tlCache = [];
+    for (var off = -60; off <= 30; off++) {
+      var d = new Date(today); d.setDate(today.getDate() + off);
+      var items = schedItems(d);
+      if (!items.length && off !== 0) continue;
+      if (d.getMonth() !== lastMonth) {
+        lastMonth = d.getMonth();
+        html += '<div style="display:flex;align-items:center;gap:10px;margin:' + (html ? '18px' : '2px') + ' 0 10px;font:600 12px/1 Geist;letter-spacing:.08em;color:#8A97A8">' +
+          MONTHS[d.getMonth()].slice(0, 3).toUpperCase() + (d.getFullYear() !== today.getFullYear() ? ' ' + d.getFullYear() : '') +
+          '<span style="flex:1;height:1px;background:#DDE3EE"></span></div>';
+      }
+      var isToday = off === 0;
+      html += '<div' + (isToday ? ' id="tlToday"' : '') + ' style="display:flex;gap:10px;margin-bottom:10px">' +
+        '<div style="width:38px;flex:none;text-align:center;padding-top:6px">' +
+        '<div style="font:500 11.5px/1 Geist;color:#8A97A8">' + DOW[d.getDay()] + '</div>' +
+        '<div style="margin:5px auto 0;width:30px;height:30px;border-radius:15px;display:flex;align-items:center;justify-content:center;font:600 15px/1 Geist;' +
+        (isToday ? 'background:#4A6FA5;color:#fff' : 'color:#1A2332') + '">' + d.getDate() + '</div></div>' +
+        '<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px">';
+      if (!items.length) html += '<div style="padding:13px 14px;border:1px dashed #DDE3EE;border-radius:11px;font:400 13.5px/1.3 Geist;color:#8A97A8">No jobs today</div>';
+      items.forEach(function (it) {
+        var col = TL_STATUS[it.status] || '#4A6FA5';
+        var act = it.kind === 'open' ? ' data-act="openNextJob" data-idx="' + it.idx + '"'
+          : it.kind === 'done' ? ' data-act="tlDone" data-n="' + n + '"'
+            : it.kind === 'past' ? ' data-toast="Completed · read-only · older jobs open from History"'
+              : ' data-toast="Dispatched to you · it opens on the day"';
+        tlCache[n++] = it;
+        html += '<div data-tap="1"' + act + ' style="background:#fff;border:1px solid #DDE3EE;border-left:3px solid ' + col + ';border-radius:11px;padding:11px 13px">' +
+          '<div style="display:flex;gap:7px;align-items:center;font:600 11px/1 Geist;letter-spacing:.05em;color:#8A97A8;text-transform:uppercase">' +
+          '<span>' + (it.no ? 'Job ' + it.no : 'Job') + '</span><span style="width:1px;height:10px;background:#DDE3EE"></span><span style="color:' + col + '">' + it.status + '</span></div>' +
+          '<div style="font:600 14.5px/1.3 Geist;margin-top:7px">' + (it.kind === 'done' ? 'Completed' : it.time + (it.end ? ' – ' + it.end : '')) +
+          ' <span style="font-weight:400;color:#8A97A8">(' + it.type + ')</span></div>' +
+          '<div style="font:500 14px/1.3 Geist;color:#1A2332;margin-top:3px">' + it.name + ' <span style="font-weight:400;color:#546478">· ' + it.brief + '</span></div>' +
+          (it.addr ? '<div style="display:flex;gap:5px;align-items:flex-start;font:400 13px/1.35 Geist;color:#546478;margin-top:5px"><span class="mi" style="font-size:16px;color:#8A97A8">location_on</span><span>' + it.addr + '</span></div>' : '') +
+          '</div>';
+      });
+      html += '</div></div>';
+    }
+    box.innerHTML = html + '<div style="font:400 12px/1.5 Geist;color:#8A97A8;margin-top:6px">Past jobs open read-only. Jobs ahead open on their day.</div>';
+  }
+  function paintSchedView() {
+    var tl = schedView === 'timeline';
+    $$('#schedSeg [data-view]').forEach(function (b) {
+      var on = b.dataset.view === schedView;
+      b.style.background = on ? '#fff' : 'transparent';
+      b.style.color = on ? '#1A2332' : '#546478';
+      b.style.boxShadow = on ? '0 1px 3px rgba(26,35,50,.12)' : 'none';
+    });
+    toggleDisplay(byId('schedDayHead'), !tl);
+    toggleDisplay(byId('schedDayBody'), !tl);
+    toggleDisplay(byId('schedTimeline'), tl);
+    if (tl) paintTimeline(); else paintSchedule();
+  }
+  function scrollToToday() {
+    var t = byId('tlToday'), sc = byId('schedScroll');
+    if (t && sc) sc.scrollTop = Math.max(0, t.offsetTop - sc.offsetTop - 10);
+  }
+  ACT.schedView = function (el) {
+    schedView = el.dataset.view; remember('schedView', schedView);
+    paintSchedView();
+    if (schedView === 'timeline') scrollToToday(); else byId('schedScroll').scrollTop = 0;
+  };
+  ACT.tlDone = function (el) { var it = tlCache[+el.dataset.n]; if (it && it.el) ACT.histDetails(it.el); };
+  ACT.openSchedule = function () {
+    schedSel = dayStart(new Date()); paintSchedule(); paintSchedView(); go('more-schedule', 'push');
+    if (schedView === 'timeline') setTimeout(scrollToToday, 30);
+  };
   ACT.schedPick = function (el) { schedSel = new Date(+el.dataset.day); paintSchedule(); };
   ACT.schedWeek = function (el) { var d = new Date(schedSel); d.setDate(d.getDate() + 7 * (+el.dataset.step)); schedSel = d; paintSchedule(); };
-  ACT.schedToday = function () { schedSel = dayStart(new Date()); paintSchedule(); };
+  ACT.schedToday = function () { schedSel = dayStart(new Date()); paintSchedule(); if (schedView === 'timeline') scrollToToday(); };
   ACT.schedDone = function (el) { var it = schedCache[+el.dataset.n]; if (it && it.el) ACT.histDetails(it.el); };
   paintPermBlock();
 
