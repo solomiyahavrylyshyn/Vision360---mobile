@@ -114,7 +114,7 @@
   function nextDocNo(j, letter) {
     var key = letter === 'E' ? 'estSeqs' : 'invSeqs';
     var seqs = recall(key, {}), c = (j && j.cust) || '10512';
-    seqs[c] = (seqs[c] || (letter === 'E' ? 2 : 0)) + 1; remember(key, seqs);
+    seqs[c] = (seqs[c] || (letter === 'E' && c === '10512' ? 2 : 0)) + 1; remember(key, seqs);
     return c + '-' + letter + String(seqs[c]).padStart(2, '0');
   }
   // the technician's own screens say a temporary number is one
@@ -412,6 +412,7 @@
     if (pid === 'est-customer' && typeof paintCustomerOptions === 'function') paintCustomerOptions();
     if (pid === 'home' && typeof paintUpcoming === 'function') paintUpcoming();
     if (pid === 'est-customer' && typeof paintCustomerEstNo === 'function') paintCustomerEstNo();
+    if (pid === 'est-customer' && typeof paintBillTo === 'function') paintBillTo();
     if (pid === 'history' && typeof paintHistTags === 'function') paintHistTags();
     // while a job is In Progress, Home shows it, whichever job was opened from the list
     if ((pid === 'home' || pid === 'home-active') && state.onsite && typeof runIdx !== 'undefined' && runIdx > -1 && jobIdx !== runIdx) {
@@ -7201,6 +7202,14 @@
       est: 'none', inv: 'none',
       items: [], sold: null,
       plan: { visit: 3, of: 10, prepaid: true, total: 6000 }
+    },
+    /* 13.11 demo: an estimate visit with nothing on it — no items, no
+       estimate — to build the estimate from the first option */
+    {
+      cust: '10655', no: 1, newCust: true,
+      name: 'Paul Bennett', when: 'Today, 6:30 PM', brief: 'Old AC, wants options for a new system', type: 'Estimate',
+      addr: '7012 N Himes Ave, Tampa, FL 33614', away: '4.6 miles away', phone: '(813) 555-0142',
+      est: 'none', inv: 'none', items: [], sold: null
     }
   ];
   /* M3-11 demo: the job the office dispatches during the call. It lives at
@@ -8456,10 +8465,11 @@
   /* The seed changed: the third job used to arrive already quoted, and a
      phone that saved that keeps it quoted for good. A new seed number lets
      that one job start the way the data now says, once. */
-  var JOBS_SEED = 2;
+  var JOBS_SEED = 3;
   var seedWas = recall('jobsSeed', 1);
   if (seedWas !== JOBS_SEED) {
-    if (savedJobs[2] && savedJobs[2].done !== true) savedJobs[2] = null;
+    if (seedWas < 2 && savedJobs[2] && savedJobs[2].done !== true) savedJobs[2] = null;
+    savedJobs[4] = null; savedJobs[5] = null;   // the empty estimate job takes place 4; Lisa moves after it
     remember('jobsSeed', JOBS_SEED);
   }
   savedJobs.forEach(function (s, i) {
@@ -12480,7 +12490,10 @@
       refs.contact.appendChild(tel);
       // M4-13 (#58): the row names whose history it opens
       var hrow = $$('[data-go="cust-jobs"]', root).filter(function (e) { return byIcon(e, 'history').length; })[0], hsub = hrow && $('span span', hrow);
-      if (hsub) hsub.textContent = '12 jobs for ' + j.name;
+      if (hsub) hsub.textContent = j.newCust ? 'New customer · no jobs here before' : '12 jobs for ' + j.name;
+      if (hrow) { if (j.newCust) { hrow.removeAttribute('data-go'); hrow.dataset.toast = 'No earlier jobs for ' + j.name + ' — this is the first one'; } else { hrow.dataset.go = 'cust-jobs'; delete hrow.dataset.toast; } }
+      var jchip = $$('span,div', root).filter(function (e) { return !e.children.length && /^\d+ Jobs?$/.test(norm(e.textContent)); })[0];
+      if (jchip) jchip.textContent = j.newCust ? '1 Job' : '12 Jobs';
       paintCustHead(j);
       // More → Current job names the job in hand by its number
       var cur = byId('moreCurJob'), live = viewPast ? JOBS[viewPast.idx] : j;
