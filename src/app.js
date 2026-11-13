@@ -10754,15 +10754,9 @@
       if (!title || !byIcon(hdr, 'arrow_back').length) return;
       title.insertAdjacentElement('afterend', icon());
     });
-    // Home: next to the Overview heading, so it is there on site too
-    var home = byId('home');
-    var ov = home && sel(home, '~Overview')[0];
-    var row = ov && ov.parentElement;
-    if (row) {
-      var c = icon();
-      c.style.marginLeft = 'auto'; c.style.marginRight = '8px';
-      ov.insertAdjacentElement('afterend', c);
-    }
+    /* 13.11: not on Home beside Overview any more — next to the KPI tiles
+       it read as part of the numbers. Dispatch is one tap from every job
+       screen's header and first in Help center (Marek 10.11). */
   })();
 
   /* =========================================================
