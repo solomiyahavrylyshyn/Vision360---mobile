@@ -10762,18 +10762,15 @@
   /* =========================================================
      Marek, 10.11: More, top to bottom — the technician's profile, Sync
      now, the items the office turned on for him in the web app, Help
-     center, Legal, Settings, Log out. A technician sees My schedule; the
-     rest follow his permissions. "Demo: show as manager" shows them all.
+     center, Legal, Settings, Log out. In Core a technician has two
+     modules, My schedule and Price book. The Pro and manager modules
+     (Estimates, Invoices, Team performance, Reports, Approvals) are not
+     shown in the first release (13.11).
      ========================================================= */
-  var demoManager = recall('demoManager', false);
+  var demoManager = false;
   var PERMS = [
     { key: 'schedule', icon: 'calendar_month', name: 'My schedule', sub: 'Your jobs, day by day', all: true },
     { key: 'pricebook', icon: 'menu_book', name: 'Price book items', sub: 'Customer prices, no cost', all: true },
-    { key: 'estimates', icon: 'request_quote', name: 'Estimates', sub: 'Every estimate you made' },
-    { key: 'invoices', icon: 'receipt_long', name: 'Invoices', sub: 'Unpaid, partially paid, paid' },
-    { key: 'team', icon: 'groups', name: 'Team performance', sub: 'Revenue and closing, by technician', mgr: true },
-    { key: 'reports', icon: 'bar_chart', name: 'Reports', sub: 'Revenue, closing, exports', mgr: true },
-    { key: 'approvals', icon: 'task_alt', name: 'Approvals', sub: 'Discounts and reopen requests', mgr: true }
   ];
 
 
@@ -10806,21 +10803,14 @@
   }
   function paintPermBlock() {
     var box = byId('permBlock'); if (!box) return;
-    box.innerHTML = PERMS.filter(function (x) { return x.all || demoManager; }).map(function (x) {
+    box.innerHTML = PERMS.map(function (x) {
       var go = x.key === 'schedule' ? ' data-act="openSchedule"'
         : x.key === 'pricebook' ? ' data-go="est-catalog" data-mode="push" data-pbbrowse="1"'
           : ' data-act="openPerm" data-perm="' + x.key + '"';
       return '<div class="rowi"' + go + '><span class="mi">' + x.icon + '</span><span class="t">' + x.name +
         '<small>' + x.sub + '</small></span>' + tagHtml(x.tag) + '<span class="mi ch">chevron_right</span></div>';
     }).join('');
-    var n = byId('managerNote');
-    if (n) n.textContent = demoManager ? 'Demo: back to a technician (M1-13)' : 'Demo: show as manager (M1-13)';
   }
-  ACT.demoManager = function () {
-    demoManager = !demoManager; remember('demoManager', demoManager);
-    paintPermBlock();
-    toast(demoManager ? 'More shows what a manager sees: estimates, invoices, the team, reports, approvals' : 'More shows what a technician sees', 'admin_panel_settings');
-  };
   ACT.helpReport = function (el) {
     var feature = el.dataset.kind === 'feature';
     var sh = sheetEl('ov-helpreport'), b = $('[data-sheetbody]', sh);
