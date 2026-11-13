@@ -4417,7 +4417,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
          Option A — its name, but the demo's items and price, so what the
          technician built was thrown away and B and C came along with it.
          The demo options go; the estimate holds what was built. */
-      if (first) { clearSeedOptions(); remember('seedCleared', true); }
+      if (first) { clearSeedOptions(); estSeedCleared = true; remember('seedCleared', true); }
       // M2-9: the estimate gets its number when it is first saved — a
       // temporary one when there is no signal
       var ej = JOBS[jobIdx];
@@ -11707,6 +11707,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     var j = JOBS[jobIdx];
     state.est = j ? j.est : 'none';
     state.inv = j ? j.inv : 'none';
+    syncEstOwner();                  // after the stage: the approved record reads it
+    if (typeof paintApproved === 'function') paintApproved();
     renderJobItems();
     renderExpenses();
   }
@@ -12633,9 +12635,14 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     paintPaperNote();
     var R = approvedRefs; if (!R) return;
     var pick = pickedOption;
+    // the record of a job sold earlier is the job's own sale: its option,
+    // the items it brought and its total (an install sold on the sale job)
+    var sj = typeof JOBS !== 'undefined' ? JOBS[jobIdx] : null;
+    var sold = sj && state.est === 'approved' && sj.sold && OPTION_TOTALS[sj.sold.option] === undefined ? sj.sold : null;
+    if (sold) pick = sold.option;
     R.name.textContent = pick;
 
-    var items = OPTION_ITEMS[pick] || [];
+    var items = sold ? (sj.items || []).filter(function (it) { return it.from === 'estimate'; }) : OPTION_ITEMS[pick] || [];
     R.items.innerHTML = '';
     items.forEach(function (it) {
       // the row is a quantity in a span and the name as the row's own text
@@ -12649,16 +12656,16 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       else row.appendChild(document.createTextNode(' ' + it.name));
       R.items.appendChild(row);
     });
-    R.total.textContent = fmt(OPTION_TOTALS[pick] || 0);
+    R.total.textContent = fmt(sold ? sold.total : OPTION_TOTALS[pick] || 0);
     // Marek, Oct 21: the discount is on the record the customer signed
-    var off = optionDiscount(pick), dl = R.total.parentElement && $('[data-disc]', R.total.parentElement.parentElement);
+    var off = sold ? sold.discount || 0 : optionDiscount(pick), dl = R.total.parentElement && $('[data-disc]', R.total.parentElement.parentElement);
     if (off && !dl && R.total.parentElement) {
       dl = document.createElement('div');
       dl.dataset.disc = '1';
       dl.setAttribute('style', 'font:500 12.5px/1.35 Geist;color:#16A34A;margin-top:6px');
       R.total.parentElement.insertAdjacentElement('afterend', dl);
     }
-    if (dl) { dl.hidden = !off; dl.textContent = off ? 'List ' + fmt(optionList(pick)) + ' · Discount −' + fmt(off) : ''; }
+    if (dl) { dl.hidden = !off; dl.textContent = off ? 'List ' + fmt(sold ? sold.list || sold.total + off : optionList(pick)) + ' · Discount −' + fmt(off) : ''; }
 
     var when = estSignedAt || stamp();
     R.stamp.textContent = when;
@@ -12835,11 +12842,20 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     });
     if (!optCard || !optList || !optFooters.length) { MISS.push('est-draft :: options'); return; }
     ['est-ready', 'est-draft', 'est-review'].forEach(seedOptionItems);
+    $$(':scope > div', optList).forEach(function (c) {
+      var n = optionName(c); if (!n) return;
+      (SEED_OPTS = SEED_OPTS || []).push({ name: n, card: c.cloneNode(true), total: OPTION_TOTALS[n], items: (OPTION_ITEMS[n] || []).slice() });
+    });
     // an estimate built from empty has no demo options under it
-    if (recall('seedCleared', false)) clearSeedOptions();
+    estSeedCleared = recall('seedCleared', false); estSeedDeleted = recall('seedDeleted', []);
+    if (estSeedCleared) clearSeedOptions();
+    else estSeedDeleted.forEach(function (n) {
+      $$(':scope > div', optList).forEach(function (c) { if (optionName(c) === n) { c.remove(); optCount--; delete OPTION_TOTALS[n]; delete OPTION_ITEMS[n]; } });
+    });
     // rebuild the options the tech added before the reload
     addedOptions.slice().forEach(function (o) { addOption(o.total, o.items, true, o.name); });
     paintOptions();
+    syncEstOwner();
 
     // the empty state quotes the limit too
     var empty = sel(byId('est-empty'), 'Start by adding a new option. You can create up to 6 options for this job.')[0];
@@ -12968,6 +12984,82 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     editOption(n);
   }, true);
 
+  /* M6 (13.11): every job has its own estimate. What the draft list shows
+     is rebuilt from the job's own record when another job is opened: the
+     demo's A/B/C unless they were cleared or deleted on it, then the
+     options built on it. */
+  var SEED_OPTS = SEED_OPTS || [];
+  var estSeedCleared = recall('seedCleared', false);
+  var estSeedDeleted = recall('seedDeleted', []);
+  function rebuildOptions() {
+    if (!optList) return;
+    $$(':scope > div', optList).forEach(function (c) { if (optionName(c)) c.remove(); });
+    Object.keys(OPTION_TOTALS).forEach(function (k) { delete OPTION_TOTALS[k]; });
+    Object.keys(OPTION_ITEMS).forEach(function (k) { delete OPTION_ITEMS[k]; });
+    optCount = 0;
+    var anchor = optAddBtn && optAddBtn.parentElement === optList ? optAddBtn : null;
+    if (!estSeedCleared) SEED_OPTS.forEach(function (o) {
+      if (estSeedDeleted.indexOf(o.name) >= 0) return;
+      optList.insertBefore(o.card.cloneNode(true), anchor);
+      if (o.total !== undefined) OPTION_TOTALS[o.name] = o.total;
+      OPTION_ITEMS[o.name] = o.items.slice();
+      optCount++;
+    });
+    addedOptions.slice().forEach(function (o) { addOption(o.total, o.items, true, o.name); });
+    paintOptions();
+    $$(':scope > div', optList).forEach(function (c) { if (optionName(c) && typeof paintCardExtras === 'function') paintCardExtras(c); });
+  }
+  var estByJob = recall('estByJob', {});
+  var estOwner = recall('estOwner', null);
+  function estSnap() {
+    return { addedOptions: addedOptions, seedCleared: estSeedCleared, seedDeleted: estSeedDeleted, optionPlans: optionPlans,
+      optionWarranties: optionWarranties, optionNotes: optionNotes, pickedOption: pickedOption, estSigned: estSigned,
+      estSignedAt: estSignedAt, specialNote: specialNote, depositPct: depositPct, deposit: deposit, optionItems: optionItems,
+      mediaBlk: mediaBlk, mineBlk: mineBlk, photoCount: photoCount, photoTypeCount: photoTypeCount };
+  }
+  function estRestore(o, j) {
+    var fresh = !o;
+    o = o || {};
+    // a job seen for the first time: an empty estimate (the demo A/B/C only
+    // on Randy, the board's own job) and the photos the job came with
+    addedOptions = o.addedOptions || [];
+    estSeedCleared = fresh ? !!(j && j.cust !== '10512') : !!o.seedCleared;
+    estSeedDeleted = o.seedDeleted || [];
+    optionPlans = o.optionPlans || {};
+    optionWarranties = o.optionWarranties || {};
+    optionNotes = o.optionNotes || (fresh && j && j.cust === '10512' ? { 'Option B': 'Includes the duct work the attic needs before the new unit goes in.' } : {});
+    pickedOption = o.pickedOption || 'Option A';
+    estSigned = !!o.estSigned; estSignedAt = o.estSignedAt || '';
+    specialNote = o.specialNote || '';
+    depositPct = typeof o.depositPct === 'number' ? o.depositPct : 10;
+    deposit = o.deposit || 0;
+    optionItems = o.optionItems || [];
+    var empty = j && (j.newCust || !(j.items || []).length && j.cust !== '10512' && j.cust !== '10458');
+    mediaBlk = o.mediaBlk || (fresh && j && j.newCust ? { Before: 0, After: 0, Other: 0 } : { Before: 1, After: 1, Other: 0 });
+    mineBlk = o.mineBlk || { Before: 0, After: 0, Other: 0 };
+    photoTypeCount = o.photoTypeCount || (fresh && j && j.newCust ? { Before: 0, After: 0 } : { Before: 4, After: 20 });
+    photoCount = typeof o.photoCount === 'number' ? o.photoCount : (fresh && j && j.newCust ? 0 : 24); remember('photoCount', photoCount);
+    ['addedOptions', 'optionPlans', 'optionWarranties', 'depositPct', 'optionItems', 'mediaBlk', 'mineBlk', 'photoTypeCount'].forEach(function (k) {
+      remember(k, { addedOptions: addedOptions, optionPlans: optionPlans, optionWarranties: optionWarranties, depositPct: depositPct,
+        optionItems: optionItems, mediaBlk: mediaBlk, mineBlk: mineBlk, photoTypeCount: photoTypeCount }[k]);
+    });
+    remember('seedCleared', estSeedCleared); remember('seedDeleted', estSeedDeleted);
+    rebuildOptions();
+    if (typeof paintMediaBlocks === 'function') paintMediaBlocks();
+    if (typeof paintTypeCounts === 'function') paintTypeCounts();
+    if (typeof resetCustomerSignature === 'function' && !estSigned) resetCustomerSignature();
+  }
+  function syncEstOwner() {
+    if (typeof JOBS === 'undefined' || !JOBS[jobIdx] || !optList) return;
+    if (estOwner === undefined) estOwner = recall('estOwner', null);
+    if (estByJob === undefined) estByJob = recall('estByJob', {});
+    var k = String(jobIdx);
+    if (estOwner == null) { estOwner = k; remember('estOwner', k); return; }
+    if (estOwner === k) return;
+    estByJob[estOwner] = estSnap();
+    estRestore(estByJob[k], JOBS[jobIdx]);
+    estOwner = k; remember('estOwner', k); remember('estByJob', estByJob);
+  }
   function clearSeedOptions() {
     if (!optList) return;
     $$(':scope > div', optList).forEach(function (c) {
@@ -13249,6 +13341,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     card.remove();
     delete OPTION_TOTALS[n];
     delete OPTION_ITEMS[n];
+    if (!addedOptions.some(function (o) { return o.name === n; }) && estSeedDeleted.indexOf(n) < 0) { estSeedDeleted.push(n); remember('seedDeleted', estSeedDeleted); }
     addedOptions = addedOptions.filter(function (o) { return o.name !== n; });
     remember('addedOptions', addedOptions);
     optCount = Math.max(0, optCount - 1);
@@ -15815,7 +15908,10 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
      building one first. Gone once a real option was saved; Reset demo data
      brings it back. */
   ACT.demoEstimate = function () {
-    if (recall('seedCleared', false)) { toast('The demo options are gone — Reset demo data brings them back', 'info'); return; }
+    if (estSeedCleared || state.est !== 'none') {
+      if (state.est !== 'none') { toast('This job already has an estimate', 'info'); return; }
+      estSeedCleared = false; remember('seedCleared', false); addedOptions = []; remember('addedOptions', []); estSeedDeleted = []; rebuildOptions();
+    }
     var j = JOBS[jobIdx];
     if (j && !j.estType) { j.estType = 'Repair'; }
     if (j && !j.estNo) { j.estNo = nextDocNo(j, 'E'); }
