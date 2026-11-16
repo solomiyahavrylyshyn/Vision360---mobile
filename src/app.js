@@ -129,7 +129,8 @@
   var invOwner = recall('invOwner', null);
   function invSnap() {
     return { invNum: invNum, invTemp: invTemp, invPaidSoFar: invPaidSoFar, invCreatedAt: invCreatedAt, invSentAt: invSentAt,
-      invPaidAt: invPaidAt, invFrozen: invFrozen, invFinancing: invFinancing, payMethod: payMethod };
+      invPaidAt: invPaidAt, invFrozen: invFrozen, invFinancing: invFinancing, payMethod: payMethod,
+      receipt: receipt, cardSig: cardSig };
   }
   function invRestore(o) {
     o = o || {};
@@ -139,6 +140,10 @@
     remember('invNum', invNum); remember('invTemp', invTemp); remember('invPaidSoFar', invPaidSoFar);
     remember('invCreatedAt', invCreatedAt); remember('invSentAt', invSentAt); remember('invPaidAt', invPaidAt);
     remember('invFrozen', invFrozen); remember('invFinancing', invFinancing);
+    // the payment card and the customer's signature on it are this job's too
+    receipt = o.receipt || null; cardSig = o.cardSig || '';
+    remember('receipt', receipt); remember('cardSig', cardSig);
+    setTimeout(function () { paintReceipt(); paintCardSig(); paintFinChip(); }, 0);
   }
   function syncInvOwner() {
     if (typeof JOBS === 'undefined' || !JOBS[jobIdx]) return;
@@ -413,7 +418,8 @@
     if (pid === 'home' && typeof paintUpcoming === 'function') paintUpcoming();
     if (pid === 'est-customer' && typeof paintCustomerEstNo === 'function') paintCustomerEstNo();
     if (pid === 'est-customer' && typeof paintBillTo === 'function') paintBillTo();
-    if (pid === 'history' && typeof paintHistTags === 'function') paintHistTags();
+    if (pid === 'cust-jobs' && typeof paintCustHead === 'function' && typeof JOBS !== 'undefined') paintCustHead(JOBS[jobIdx]);
+    if (pid === 'history') { paintHistory(); if (typeof paintHistTags === 'function') paintHistTags(); }
     // while a job is In Progress, Home shows it, whichever job was opened from the list
     if ((pid === 'home' || pid === 'home-active') && state.onsite && typeof runIdx !== 'undefined' && runIdx > -1 && jobIdx !== runIdx) {
       jobIdx = runIdx; loadJob(); paintJob(); paintEnroute(); paintStartButtons();
@@ -846,7 +852,13 @@
   }
 
   // the job goes live: on the tech's own Start, or when the office starts it
+  /* QA 16.11 (R-003.3): "Yes, start" on a second job paused the first before
+     the address check, and when the check refused the second, nothing ran.
+     The first job is paused only once the second one really starts. */
+  var switchTo = -1;
   function beginJob() {
+    if (switchTo === jobIdx && runIdx > -1 && runIdx !== jobIdx) pauseRunning();
+    switchTo = -1;
     var bj = JOBS[jobIdx];
     if (bj) { bj.reopened = false; bj.paused = false; bj.startReq = null; }
     setRun(jobIdx);
@@ -1357,7 +1369,10 @@
       }
       var who = el.dataset.job || histJob;
       var at = -1;
-      for (var i = 0; i < JOBS.length; i++) if (JOBS[i].name === who) at = i;
+      var di = el.dataset.doneidx !== undefined ? el.dataset.doneidx : (el.dataset.job ? '' : histDoneIdx);
+      if (di !== '' && JOBS[+di]) at = +di;
+      else for (var i = 0; i < JOBS.length; i++) if (JOBS[i].name === who) at = i;
+      histDoneIdx = di; histWhen = el.dataset.when || histWhen;
       closeOverlays(true);
       if (at < 0) { toast(who + ' is not on this device', 'info'); return; }
       histJob = who;
@@ -1386,6 +1401,7 @@
     },
     histMenu: function (el) {
       histJob = el.dataset.job || '';
+      histDoneIdx = el.dataset.doneidx || ''; histWhen = el.dataset.when || '';
       var nm = byId('histJobName');
       if (nm) nm.textContent = histJob;
       go('ov-histjob', 'overlay');
@@ -2839,7 +2855,13 @@
       receipt = r;
       remember('receipt', receipt);
     }
-    var R = receiptRefs(); if (!R || !receipt) return;
+    var R = receiptRefs(); if (!R) return;
+    if (!receipt) {
+      if (R.icon) R.icon.textContent = 'payments';
+      R.title.textContent = payMethod || 'Payment';
+      if (R.sub) R.sub.textContent = '';
+      return;
+    }
     if (R.icon) R.icon.textContent = receipt.icon;
     R.title.textContent = receipt.title;
     if (R.sub) R.sub.textContent = receipt.sub;
@@ -4050,11 +4072,13 @@
     var so0 = viewPast && !viewPast.visit && (JOBS[jobIdx] || {}).signoff;
     var back = $('[data-act="reopenRequest"]', viewBar);
     // asked once is asked: no second request while one waits (M8-7); none on Awaiting sign-off (M8-4)
-    if (back) toggleDisplay(back, !!viewPast && !viewPast.visit && !(JOBS[jobIdx] || {}).reopenReq && !(so0 && so0.state === 'awaiting'));
-    var label = viewBar.children[1];
-    var so = viewPast && !viewPast.visit && (JOBS[jobIdx] || {}).signoff;
-    // M4-16 (#56): his own completed job says when — "Completed Oct 29, 2026, 4:32 PM · read-only"
+    var pastVisit = !!(viewPast && !viewPast.visit && JOBS[jobIdx] && !JOBS[jobIdx].done);
     var cj = JOBS[jobIdx] || {};
+    if (pastVisit) cj = { reopenReq: histReqs[histReqKey()] || null, completedAt: '' };
+    if (back) toggleDisplay(back, !!viewPast && !viewPast.visit && !cj.reopenReq && !(so0 && so0.state === 'awaiting' && !pastVisit));
+    var label = viewBar.children[1];
+    var so = viewPast && !viewPast.visit && !pastVisit && (JOBS[jobIdx] || {}).signoff;
+    // M4-16 (#56): his own completed job says when — "Completed Oct 29, 2026, 4:32 PM · read-only"
     if (label) label.textContent = viewPast && viewPast.visit ? 'Past visit · read only'
       : cj.reopenReq ? 'Reopen requested · ' + cj.reopenReq.at + ' · waiting'
       : so && so.state === 'signed' ? 'Completed · signed off on the device'
@@ -4095,7 +4119,7 @@
       var t = $$('span', re).filter(function (e) { return /Set back to active/.test(e.textContent); })[0];
       if (t) {
         [].slice.call(t.childNodes).forEach(function (n) { if (n.nodeType === 3) n.nodeValue = 'Ask manager to reopen'; });
-        var sub2 = $('span', t); if (sub2) sub2.textContent = 'Only a manager or team leader can put a completed job back to in progress';
+        var sub2 = $('span', t); if (sub2) sub2.textContent = 'Only a manager, team leader or admin can put a completed job back to in progress';
       }
     }
   })();
@@ -4105,19 +4129,22 @@
     // M8-7 (#55): the manager is told why first
     reasonSheet(who0, function (why) { ACT.reopenRequestSend(who0, why); });
   };
+  function histReqKey() { return histJob + '|' + histWhen; }
   ACT.reopenRequestSend = function (who, why) {
-    var rj = null; for (var i = 0; i < JOBS.length; i++) if (JOBS[i].name === who) rj = JOBS[i];
+    var rj = null;
+    if (histDoneIdx !== '' && JOBS[+histDoneIdx] && JOBS[+histDoneIdx].done) rj = JOBS[+histDoneIdx];
+    else if (viewPast && !viewPast.visit && JOBS[jobIdx] && JOBS[jobIdx].done) rj = JOBS[jobIdx];
     if (rj) { rj.reopenReq = { at: stamp(), why: why }; saveJobs(); }
+    else { histReqs[histReqKey()] = { at: stamp(), why: why }; remember('histReqs', histReqs); }
     paintView();
     queued('Reopen request');
     toast(net.online ? 'Reopen request for ' + who + ' sent to your manager' : 'Reopen request will go to your manager with signal', 'outgoing_mail');
     if (!net.online) return;
     /* The demo plays the manager: the job comes back to Home as
        "Reopened · Start", In Progress with no clock running (M3-1, M8-8). */
+    if (!rj) return;                     // a past visit: the office answers on the board
     setTimeout(function () {
-      var at = -1;
-      for (var i = 0; i < JOBS.length; i++) if (JOBS[i].name === who) at = i;
-      var j = JOBS[at];
+      var j = rj;
       if (!j || !j.done) return;
       j.done = false; j.reopened = true; j.reopenReq = null;
       saveJobs();
@@ -4932,10 +4959,15 @@
      still needs — the customer who catches you at the fence.
      ========================================================= */
   var HIST_DAYS = { Today: 0, Week: 7, Month: 31, Quarter: 92, Year: 366, 'All time': 36500 };
-  var HIST_AGO = [0, 4, 20];                    // today, this week, this month
+  /* QA 16.11: Randy's past visit was dated today, so History said "Completed
+     today" over the job still open on Home. The past visits are earlier days;
+     what he completes today is added on top from his own jobs (below). */
+  var HIST_AGO = [1, 4, 20];                    // yesterday, this week, this month
   var histPeriod = recall('histPeriod', 'Today');     // M4-15 (#64): Today, as the design and the story
   var paintHistory = function () { };
   var histJob = '';
+  var histDoneIdx = '', histWhen = '';          // which card the sheet / details were opened from
+  var histReqs = recall('histReqs', {});         // reopen requests on past visits, by customer + date
 
   (function () {
     var root = byId('history'); if (!root) return;
@@ -5013,8 +5045,48 @@
       kebab.textContent = 'more_vert';
       head.appendChild(kebab);
 
+      kebab.dataset.when = dayLabel(HIST_AGO[i]);
       rows.push({ el: card, ago: HIST_AGO[i], name: who });
     });
+
+    /* QA 16.11 (W-19): a job completed on this phone never reached History,
+       so it could not be opened or asked to be reopened. Each completed job
+       gets its own card, today, on top. */
+    var proto = cards[0];
+    var PROTO_ADDR = proto ? norm((byIcon(proto, 'place')[0] || {}).nextElementSibling ? byIcon(proto, 'place')[0].nextElementSibling.textContent : '') : '';
+    var PROTO_TEL = proto ? norm((byIcon(proto, 'call')[0] || {}).nextElementSibling ? byIcon(proto, 'call')[0].nextElementSibling.textContent : '') : '';
+    function doneCards() {
+      rows = rows.filter(function (r) { if (r.dyn) r.el.remove(); return !r.dyn; });
+      if (!proto || typeof JOBS === 'undefined') return;
+      var at = list.firstChild;
+      JOBS.forEach(function (j, idx) {
+        if (!j.done) return;
+        var c = proto.cloneNode(true);
+        c.hidden = false;
+        $$('[data-awaittag]', c).forEach(function (t) { t.remove(); });
+        var head = c.children[0], typeRow = c.children[1];
+        head.children[0].textContent = j.name;
+        var when = String(j.completedAt || dayLabel(0)).replace(/, \d{1,2}:\d{2}.*$/, '');
+        head.children[1].textContent = when;
+        if (typeRow.children[0]) typeRow.children[0].textContent = j.brief || '';
+        var badge = typeRow.children[1];
+        badge.textContent = j.type || 'Demand Service';
+        badge.style.background = TYPE_FILL[j.type] || '#546478';
+        $$('span,div', c).forEach(function (e) {
+          if (e.children.length) return;
+          var t = norm(e.textContent);
+          if (PROTO_ADDR && t === PROTO_ADDR) e.textContent = j.addr || '';
+          else if (PROTO_TEL && t === PROTO_TEL) e.textContent = j.phone || '';
+        });
+        var m = $('[data-money]', c); if (m) { m.textContent = fmt(jobAmount(j)); m.previousElementSibling.textContent = 'Amount: '; }
+        $$('[data-act="histDetails"],[data-act="histMenu"]', c).forEach(function (l) {
+          l.dataset.job = j.name; l.dataset.doneidx = String(idx); l.dataset.when = when;
+          l.dataset.brief = j.brief || ''; l.dataset.type = j.type || '';
+        });
+        list.insertBefore(c, at);
+        rows.push({ el: c, ago: 0, name: j.name, dyn: true });
+      });
+    }
 
     /* The period was a segmented control over a list it could not change.
        Pills, the way the board draws them, and they pick what is shown. */
@@ -5046,6 +5118,7 @@
         if (on) named = true;
         p.setAttribute('style', on ? PILL_ON : PILL_OFF);
       });
+      doneCards();
       var cut = HIST_DAYS[histPeriod];
       if (cut === undefined) cut = 31;
       var shown = 0;
@@ -9574,6 +9647,9 @@
   document.addEventListener('click', function (ev) {
     var el = ev.target.closest && ev.target.closest('[data-go="est-option"]');
     if (!el) return;
+    // QA 16.11 (R-007.3): the ⋮ sits inside the card's header — it opens the menu, not Edit
+    var kb = ev.target.closest('[data-go="ov-option-menu"]');
+    if (kb && el.contains(kb)) return;
     var n = '';
     if (el.closest('#ov-option-menu')) n = menuName();
     else if (optList && optList.contains(el)) {
@@ -9773,7 +9849,7 @@
      ========================================================= */
   var menuCard = null;
   var optionNotes = { 'Option B': 'Includes the duct work the attic needs before the new unit goes in.' };
-  var showDesc = {};
+  var showDesc = showDesc || {};          // read by option cards painted before this line runs
   var showNote = {};
 
   function cardItems(card) {
@@ -9794,7 +9870,7 @@
     var box = cardItemsBox(card); if (!box) return;
 
     $$('[data-optdesc]', box).forEach(function (e) { e.remove(); });
-    if (showDesc[n]) {
+    if ((showDesc || {})[n]) {
       $$(':scope > div', box).forEach(function (line) {
         if (line.dataset.optdesc) return;
         var nm = norm(line.textContent).replace(/^[0-9]+[ ]*/, '');
@@ -11979,7 +12055,7 @@
       '<div style="display:flex;justify-content:space-between;font:500 12.5px/1 Geist;color:#8A97A8;margin-top:7px"><span data-whyhint>Tell the manager why</span><span data-whycount>0 / 500</span></div>' +
       '<div data-tap="1" data-send style="height:52px;display:flex;align-items:center;justify-content:center;margin-top:12px;border-radius:11px;background:#4A6FA5;color:#fff;font:600 16px/1 Geist">Send</div>' +
       '<div data-back data-tap="1" style="height:44px;display:flex;align-items:center;justify-content:center;font:500 14.5px/1 Geist;color:#546478;margin-top:4px">Cancel</div>';
-    b.children[2].textContent = 'Only a manager or team leader puts ' + who + '’s job back to In Progress.';
+    b.children[2].textContent = 'Only a manager, team leader or admin puts ' + who + '’s job back to In Progress.';
     var ta = $('[data-why]', b), sendBtn = $('[data-send]', b), hint = $('[data-whyhint]', b), cnt = $('[data-whycount]', b);
     function paint() {
       var n = ta.value.length, empty = !norm(ta.value), long = n > 500;
@@ -12922,10 +12998,10 @@
       refs.contact.appendChild(tel);
       // M4-13 (#58): the row names whose history it opens
       var hrow = $$('[data-go="cust-jobs"]', root).filter(function (e) { return byIcon(e, 'history').length; })[0], hsub = hrow && $('span span', hrow);
-      if (hsub) hsub.textContent = j.newCust ? 'New customer · no jobs here before' : '12 jobs for ' + j.name;
+      if (hsub) hsub.textContent = j.newCust ? 'New customer · no jobs here before' : custHist(j).length + ' earlier jobs for ' + j.name;
       if (hrow) { if (j.newCust) { hrow.removeAttribute('data-go'); hrow.dataset.toast = 'No earlier jobs for ' + j.name + ' — this is the first one'; } else { hrow.dataset.go = 'cust-jobs'; delete hrow.dataset.toast; } }
       var jchip = $$('span,div', root).filter(function (e) { return !e.children.length && /^\d+ Jobs?$/.test(norm(e.textContent)); })[0];
-      if (jchip) jchip.textContent = j.newCust ? '1 Job' : '12 Jobs';
+      if (jchip) { var nj = custJobCount(j); jchip.textContent = nj + (nj === 1 ? ' Job' : ' Jobs'); }
       paintCustHead(j);
       // More → Current job names the job in hand by its number
       var cur = byId('moreCurJob'), live = viewPast ? JOBS[viewPast.idx] : j;
@@ -12972,16 +13048,18 @@
     });
     var noFix = j.gps === 'nofix' && !arrived, noMap = j.gps === 'nomap';
     setTimeout(function () {
-      if (token !== locToken) return;
+      if (token !== locToken) { switchTo = -1; return; }
+      var keeps = switchTo === jobIdx && runIdx > -1 && runIdx !== jobIdx ? ' ' + (JOBS[runIdx] || {}).name + '’s job keeps running.' : '';
+      if (!(arrived && !noMap && !noFix)) switchTo = -1;
       if (noMap) {
         confirmSheet({ title: 'This address has no map location',
-          text: 'Start checks where you are against the service address, and this one has no point on the map. Call your manager — they start the job on the board.',
+          text: 'Start checks where you are against the service address, and this one has no point on the map. Call your manager — they start the job on the board.' + keeps,
           ok: 'Call your manager', alt: null, onOk: callManagerToStart });
         return;
       }
       if (noFix) {
         confirmSheet({ title: 'No GPS fix',
-          text: 'The phone could not tell closely enough where you are. Call your manager — they start the job on the board.',
+          text: 'The phone could not tell closely enough where you are. Call your manager — they start the job on the board.' + keeps,
           ok: 'Call your manager', alt: null, onOk: callManagerToStart });
         return;
       }
@@ -12989,7 +13067,7 @@
       var miles = jobAwayMiles();
       var far = miles < 0.2 ? Math.round(miles * 5280) + ' ft' : (Math.round(miles * 10) / 10) + ' miles';
       confirmSheet({ title: 'You’re ' + far + ' from the address. Start works within ' + START_RADIUS_FT + ' ft.',
-        text: (j.addr || '') + '.', ok: 'Open in Maps', alt: null,
+        text: (j.addr || '') + '.' + keeps, ok: 'Open in Maps', alt: null,
         onOk: function () { openMaps(j.addr); } });
     }, noFix ? 30000 : 1400);
   }
@@ -13554,6 +13632,7 @@
      ========================================================= */
   function pausePrompt(kind) {
     if (!(state.enroute || state.onsite) || runIdx < 0 || runIdx === jobIdx) return false;
+    if (kind === 'start' && switchTo === jobIdx) return false;   // already answered: the check decides
     var r = JOBS[runIdx] || {}, c = JOBS[jobIdx] || {};
     /* A34 (default): en route on one job and going on to another, the
        first one's drive closes and it goes back to Dispatched — no pause,
@@ -13571,7 +13650,10 @@
       title: jobNo(r) + ' · ' + r.name + ' will be paused. ' + (kind === 'start' ? 'Start ' : 'Go en route to ') + jobNo(c) + '?',
       text: 'Its clock stops now, and it waits on your Home as Paused.',
       ok: kind === 'start' ? 'Yes, start' : 'Yes, go en route', alt: null,
-      onOk: function () { pauseRunning(); ACT[kind](); }
+      onOk: function () {
+        if (kind === 'start') { switchTo = jobIdx; ACT.start(); return; }
+        pauseRunning(); ACT[kind]();
+      }
     });
     return true;
   }
@@ -13603,6 +13685,9 @@
     chip.setAttribute('style', 'display:inline-block;margin-left:8px;font:600 11.5px/1.25 Geist;border-radius:5px;padding:4px 7px;vertical-align:middle;max-width:100%');
     function paintHomeState() {
       var j = JOBS[jobIdx];
+      // QA 16.11 (R-004): the card's job count is this customer's, not "12 Jobs" on everyone
+      var jc = j && $$('span,div', jobCard).filter(function (e) { return !e.children.length && /^\d+ Jobs?$/.test(norm(e.textContent)); })[0];
+      if (jc) { var nj = custJobCount(j); jc.textContent = nj + (nj === 1 ? ' Job' : ' Jobs'); }
       // the job's state, next to its time
       var whenEl = j && $$('span,div', jobCard).filter(function (e) { return !e.children.length && norm(e.textContent) === j.when; })[0];
       var txt = '', tone = '';
@@ -13794,10 +13879,70 @@
       else { $('[data-cjq]', bar).value = ''; pick = 'All'; paintChips(); filter(); }
     }, true);
   })();
+  /* QA 16.11 (R-004): every customer showed Randy's four visits under
+     "12 visits · 3 technicians · Total spent $8,420" — a new customer too —
+     and the head did not add up to its own list. Each customer has his own
+     earlier jobs; the head is counted from them. An undecided estimate is
+     listed but spends nothing. [no, date, attachments, title, type, technician, amount] */
+  /* The visits Marek made himself are the same ones his History shows,
+     on the same days (HIST_AGO); a number is days ago, a string a date. */
+  function custHistData() { return {
+    '10512': [[12, 1, 2, 'AC not cooling', 'Estimate', 'Marek Stroz', '$79.00 \u2013 $3,509.00'],
+              [11, 'Jun 18, 2026', 3, 'Seasonal tune-up', 'Maintenance', 'Marek Stroz', 0],
+              [10, 'Mar 4, 2026', 1, 'Thermostat replacement', 'Demand Service', 'Peter Jones', 189.99],
+              [9, 'Dec 2, 2025', 7, 'System replacement', 'Install', 'Dale Ortiz', 8230.01]],
+    '10377': [[6, 4, 2, 'AC not cooling', 'Maintenance', 'Marek Stroz', '$929.00 \u2013 $1,109.00'],
+              [7, 'Oct 30, 2026', 6, 'AC install \u00b7 sold', 'Install', 'James Reynolds', 5665]],
+    '10458': [[2, 20, 3, 'AC not cooling', 'Demand Service', 'Marek Stroz', '$428.00 \u2013 $18,525.00'],
+              [1, 'Jan 15, 2026', 1, 'Thermostat replacement', 'Demand Service', 'Peter Jones', 220]],
+    '10233': [[20, 'Aug 14, 2026', 2, 'Maintenance plan \u00b7 visit 2 of 10', 'Maintenance', 'Marek Stroz', 0],
+              [19, 'Feb 11, 2026', 2, 'Maintenance plan \u00b7 visit 1 of 10', 'Maintenance', 'Peter Jones', 0]],
+    '10624': [[3, 'Sep 22, 2026', 1, 'Furnace tune-up', 'Maintenance', 'Peter Jones', 149]]
+  }; }
+  function histDateOf(v) {
+    if (typeof v !== 'number') return v;
+    var d = new Date(); d.setDate(d.getDate() - v);
+    return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+  }
+  function custHist(j) {
+    var h = ((j && !j.newCust && custHistData()[j.cust]) || []).map(function (r) { r = r.slice(); r[1] = histDateOf(r[1]); return r; });
+    return h.sort(function (x, y) { return new Date(y[1]) - new Date(x[1]); });   // newest first
+  }   // a function: read before this line runs
+  function custJobCount(j) { return custHist(j).length + 1; }       // the earlier ones and this one
+  var custRowTpl = null;
   function paintCustHead(j) {
     if (!custHead || !j) return;
     custHead.title.textContent = 'Jobs \u2013 ' + j.name;
-    custHead.sub.textContent = '12 visits \u00b7 3 technicians \u00b7 last on Dec 13, 2026 \u00b7 Total spent: $8,420.00';
+    var h = custHist(j), techs = {}, spent = 0;
+    h.forEach(function (r) { techs[r[5]] = 1; if (typeof r[6] === 'number') spent += r[6]; });
+    var nt = Object.keys(techs).length;
+    custHead.sub.textContent = h.length
+      ? h.length + (h.length === 1 ? ' visit' : ' visits') + ' \u00b7 ' + nt + (nt === 1 ? ' technician' : ' technicians') +
+        ' \u00b7 last on ' + h[0][1] + ' \u00b7 Total spent: ' + fmt(spent)
+      : 'No earlier jobs \u2014 this is the first one';
+    var list = $('#cust-jobs .sc'); if (!list) return;
+    var rows = $$(':scope > div', list).filter(function (r) { return !r.dataset.cjempty; });
+    if (!custRowTpl && rows[0]) custRowTpl = rows[0].cloneNode(true);
+    if (!custRowTpl) return;
+    rows.forEach(function (r) { r.remove(); });
+    var none = $('[data-cjempty]', list);
+    if (!none) { none = document.createElement('div'); none.dataset.cjempty = '1'; none.setAttribute('style', 'padding:28px 10px;text-align:center;font:400 14px/1.5 Geist;color:#8A97A8'); list.appendChild(none); }
+    none.textContent = h.length ? 'No jobs of this customer match' : 'No earlier jobs for ' + j.name + ' — today’s visit is the first one';
+    h.forEach(function (r) {
+      var row = custRowTpl.cloneNode(true);
+      row.hidden = false; row.style.opacity = '';
+      var top = row.children[0], line = row.children[1], foot = row.children[3];
+      var left = top.children[0];
+      left.children[0].textContent = j.cust + '-J' + String(r[0]).padStart(2, '0');
+      left.children[1].textContent = r[1];
+      var att = top.children[1]; if (att && att.lastElementChild) { att.lastElementChild.textContent = r[2]; att.title = r[2] + ' photos and files on this job'; }
+      line.children[0].textContent = r[3];
+      line.children[1].textContent = r[4];
+      row.children[2].textContent = r[5];
+      foot.lastElementChild.textContent = typeof r[6] === 'number' ? fmt(r[6]) : r[6];
+      list.insertBefore(row, none || null);
+    });
+    if (none) none.hidden = h.length > 0;
   }
 
 
