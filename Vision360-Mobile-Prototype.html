@@ -1213,6 +1213,18 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
           </div>
         </div>
 
+        <!-- ============ INSTALL TEMPLATE (M5-13) ============ -->
+        <!-- The seller's form on the job where the install was sold: amount, financing,
+             seller, days, scope, site conditions, parts and photos for the crew. -->
+        <div class="screen" id="job-install" data-tabs="on">
+          <div class="hdr"><span class="back mi" data-back style="font-size:22px">arrow_back</span><span class="ttl" id="itTitle">AC install</span><span id="itChip" style="margin-left:auto;font:600 11.5px/1 Geist;border-radius:5px;padding:5px 8px"></span></div>
+          <div class="sc" id="itBody" style="flex:1;overflow-y:auto;padding:14px 16px 20px"></div>
+          <div id="itFoot" style="display:flex;gap:9px;padding:12px 16px;background:#fff;border-top:1px solid #DDE3EE;flex:none">
+            <div data-tap data-act="itSave" style="flex:1;height:52px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid #C8D5E8;color:#4A6FA5;border-radius:11px;font:600 15px/1 Geist">Save</div>
+            <div data-tap data-act="itSubmit" id="itSubmitBtn" style="flex:1.5;height:52px;display:flex;align-items:center;justify-content:center;gap:7px;background:#4A6FA5;color:#fff;border-radius:11px;font:600 15.5px/1 Geist"><span class="mi" style="font-size:19px">send</span>Submit</div>
+          </div>
+        </div>
+
         <!-- ============ GALLERY PICKER ============ -->
         <!-- One photo at a time meant a technician stood in a plant room
              repeating the same four taps. The gallery hands over as many as
@@ -3818,7 +3830,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       remember('jobIdx', viewPast ? viewPast.idx : jobIdx);   // a job being looked at is not the job
       remember('jobs', JOBS.map(function (j) {
         return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, estDeclined: j.estDeclined || null, invNeeded: typeof j.invNeeded === 'boolean' ? j.invNeeded : null, paperApproved: j.paperApproved || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', pauseReason: j.pauseReason || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '', invList: j.invList || null, estSig: j.estSig || '', estBelow: j.estBelow || null, estMismatch: j.estMismatch || null };
+          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, estDeclined: j.estDeclined || null, invNeeded: typeof j.invNeeded === 'boolean' ? j.invNeeded : null, paperApproved: j.paperApproved || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', pauseReason: j.pauseReason || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '', invList: j.invList || null, estSig: j.estSig || '', estBelow: j.estBelow || null, estMismatch: j.estMismatch || null, installTpls: j.installTpls || null };
       }));
     }
     paintDash();
@@ -4899,7 +4911,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         else if (!invNeeded(hj) && hj.type !== 'Install' && invoiceTotal() > 0) hints.push(['Items for ' + fmt(invoiceTotal()) + ' are not invoiced', function () { go(finScreen(), 'push'); }]);
       }
       if (!hj.rcFilled) hints.push(['AC Report Card not filled in', function () { formsList(false); go('rc-overview', 'push'); }]);
-      if (installMissing().length) hints.push(['Install template not filled in', function () { go('closeout', 'push'); }]);
+      if (itNeedsHint(hj)) hints.push(['Sold install — the install template is not submitted', function () { itOpen(itOffered(hj)[0]); }]);
       function completeNow() {
         var no = jobNo(hj);
         /* 05.11: the completion sign-off goes only by the emailed link
@@ -4926,8 +4938,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       if (upPending > 0) lines.push(upPending + ' ' + plural(upPending) + ' still uploading — Completed sends after them.');
       /* OD-17 / R-009.6: the install template is the seller's, and Core. An
          empty one is said here, once — it does not stop the job closing. */
-      var gaps = installMissing();
-      if (gaps.length) lines.push('Install template not filled in — ' + gaps.join(', ') + ' missing. You can still complete; the office sees it.');
+      if (itNeedsHint(JOBS[jobIdx])) lines.push('Sold install — the install template is not submitted. You can still complete; the office sees it.');
       var jt = $('[data-jobtime]');
       lines.push('Photos this visit: ' + photosThisVisit + '. Time on site: ' + (jt ? norm(jt.textContent) : '0:00') + '.');
       confirmSheet({
@@ -9057,6 +9068,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   }
 
   function installMissing() {
+    return [];   // 16.11: the old close-out fields no longer count — the install template is the seller's (itNeedsHint)
     if (!installSold(JOBS[jobIdx])) return [];
     var gaps = [];
     [['coScope', 'the scope'], ['coSite', 'site conditions'], ['coParts', 'the parts list']]
@@ -9553,6 +9565,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   var lastSyncAt = recall('lastSyncAt', '9:42 AM');
   function markSynced() {
     if (typeof clearNotesWaiting === 'function') clearNotesWaiting();
+    if (typeof itFlushWaiting === 'function') itFlushWaiting();
     if (typeof finalizeNumbers === 'function') finalizeNumbers();
     lastSyncAt = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
     remember('lastSyncAt', lastSyncAt);
@@ -10815,7 +10828,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   function saveJobs() {
     remember('jobs', JOBS.map(function (j) {
       return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, estDeclined: j.estDeclined || null, invNeeded: typeof j.invNeeded === 'boolean' ? j.invNeeded : null, paperApproved: j.paperApproved || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', pauseReason: j.pauseReason || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '', invList: j.invList || null, estSig: j.estSig || '', estBelow: j.estBelow || null, estMismatch: j.estMismatch || null };
+        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, estDeclined: j.estDeclined || null, invNeeded: typeof j.invNeeded === 'boolean' ? j.invNeeded : null, paperApproved: j.paperApproved || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', pauseReason: j.pauseReason || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '', invList: j.invList || null, estSig: j.estSig || '', estBelow: j.estBelow || null, estMismatch: j.estMismatch || null, installTpls: j.installTpls || null };
     }));
   }
 
@@ -11879,6 +11892,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     if (s.estSig) JOBS[i].estSig = s.estSig;
     if (s.estBelow) JOBS[i].estBelow = s.estBelow;
     if (s.estMismatch) JOBS[i].estMismatch = s.estMismatch;
+    if (s.installTpls) JOBS[i].installTpls = s.installTpls;
   });
   /* A day is empty when there are no jobs left in it — nothing else.
      Before the queue could be browsed, progress was a cursor and
@@ -15436,9 +15450,341 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       if (r.dataset.form === 'rc') formsList(false);
       else if (r.dataset.form === 'plumbing' || r.dataset.form === 'electrical')
         toast('Shown for the industries — only the AC Report Card is built in this demo', 'info');
-      else go('closeout', 'push');
+      else if (r.dataset.form === 'linked') itOpenLinked();
+      else if (r.dataset.form === 'itadd') itAddSheet();
+      else if (/^it:/.test(r.dataset.form)) itOpen(r.dataset.form.slice(3));
     }, true);
   })();
+
+  /* =========================================================
+     M5-13 / M5-13b / M5-14 (16.11): the install template is the seller's.
+     It opens from the Forms tab of the job where the install estimate was
+     approved — "Sold install — fill the install template" — with Amount,
+     Financing and the seller taken from the signed option; the crew's scope,
+     site conditions, parts (no prices) and photo slots; Submit tells the
+     office. The install job reads it from the sale, read-only. It replaces
+     the old 12-field close-out, and it never blocks Completed.
+     ========================================================= */
+  var IT_TEMPLATES = ['AC install', 'AC duct install', 'Plumbing install', 'Electrical install'];
+  var IT_OFFER = { 'AC install': ['Installation', 'Replacement'] };   // seeded by Reenbit per estimate type
+  var IT_USERS = ['Marek Stroz', 'James Reynolds', 'Peter Johnson', 'Luis Ortega'];
+  var IT_SITE = ['Attic access', 'Crawl space', 'Roof work', 'Panel upgrade needed', 'Permit required', 'Old unit to haul away', 'Pets on site'];
+  var IT_SLOTS = ['Outdoor unit location', 'Indoor unit / air handler', 'Electrical panel', 'Thermostat'];
+  var IT_ME = 'Marek Stroz';
+  var IT_LINKED = {
+    from: '10377-J07', name: 'AC install', status: 'submitted', submittedAt: 'Nov 6, 2026, 4:12 PM', amount: 5665, financing: true,
+    seller: 'James Reynolds', days: '2', prefilled: true,
+    scope: 'Replace the 3-ton condensing unit and the air handler in the hall closet. New line set through the existing chase; keep the old pad. The customer works from home — call 30 minutes before you arrive.',
+    site: ['Attic access', 'Permit required', 'Old unit to haul away'], siteText: 'Gate code 4412. The dog stays inside.',
+    parts: [{ name: 'Condensing unit, 3-ton 16 SEER', qty: 1 }, { name: 'Air handler, variable speed', qty: 1 }, { name: 'Line set, 3/8" × 25 ft', qty: 1 },
+      { name: 'Refrigerant R-410A, 8 lb', qty: 1 }, { name: 'Disconnect box 60A', qty: 1 }],
+    photos: { 'Outdoor unit location': 1, 'Indoor unit / air handler': 1, 'Electrical panel': 1 }, history: []
+  };
+  var itCur = null, itLinkedOpen = false;
+  function itEsc(t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function itEst(j) { return j === JOBS[jobIdx] ? state.est : j.est; }
+  function itSale(j) { return j && j.type !== 'Install' && itEst(j) === 'approved' && j.sold ? j.sold : null; }
+  function itOffered(j) {
+    var sold = itSale(j); if (!sold) return [];
+    return IT_TEMPLATES.filter(function (n) { return (IT_OFFER[n] || []).indexOf(j.estType || '') >= 0; });
+  }
+  function itFin(sold) { return planIdxOf(sold.option) > 0; }
+  function itList(j) {
+    var have = Object.keys((j && j.installTpls) || {});
+    itOffered(j).forEach(function (n) { if (have.indexOf(n) < 0) have.unshift(n); });
+    return have;
+  }
+  function itSubmitted(t) { return t && (t.status === 'submitted' || t.status === 'waiting'); }
+  function itNeedsHint(j) {
+    if (!j || !itOffered(j).length) return false;
+    var all = (j.installTpls) || {};
+    return !Object.keys(all).some(function (k) { return itSubmitted(all[k]); });
+  }
+  function itGet(j, name, make) {
+    j.installTpls = j.installTpls || {};
+    var t = j.installTpls[name];
+    if (!t && make) {
+      var sold = itSale(j);
+      t = j.installTpls[name] = {
+        name: name, status: 'new', amount: sold ? sold.total : null, amountTyped: '', financing: sold ? itFin(sold) : null,
+        seller: sold ? IT_ME : '', days: '', scope: '', site: [], siteText: '', parts: [], photos: {}, history: [],
+        prefilled: !!sold, prefillOf: sold ? { option: sold.option, total: sold.total, fin: itFin(sold) } : null
+      };
+    }
+    return t;
+  }
+  function itSubLine(t, offered) {
+    if (!t || t.status === 'new') return offered ? 'Sold install — fill the install template' : 'Not started';
+    if (t.status === 'waiting') return 'Submitted · waiting to send';
+    if (t.status === 'submitted') return 'Submitted ' + t.submittedAt + (t.savedAfter ? ' · changed since' : '');
+    return 'In progress · saved ' + (t.savedAt || '');
+  }
+  function itReadOnly(j) { return itLinkedOpen || !!viewPast || !!(j && j.done); }
+  // M5-13b: the template follows the option the customer last signed
+  function itFollow(j, t) {
+    if (!t || !t.prefilled || itLinkedOpen) return '';
+    if (itEst(j) === 'changes') return 'The sold estimate is being changed — Amount and Financing update when the customer signs again';
+    var sold = itSale(j); if (!sold || !t.prefillOf) return '';
+    var fin = itFin(sold);
+    if (t.prefillOf.option === sold.option && Math.abs(t.prefillOf.total - sold.total) < 0.005 && t.prefillOf.fin === fin) return '';
+    if (itSubmitted(t)) return 'changed';
+    t.history.unshift({ at: stamp(), by: 'Server', what: 'Updated from ' + (j.estNo || 'the estimate') + ' (re-approved): Amount ' + fmt(t.amount) + ' → ' + fmt(sold.total) + ', Financing ' + (t.financing ? 'Yes' : 'No') + ' → ' + (fin ? 'Yes' : 'No') });
+    t.amount = sold.total; t.financing = fin; t.prefillOf = { option: sold.option, total: sold.total, fin: fin };
+    saveJobs();
+    return '';
+  }
+  function itDaysOk(v) {
+    if (v === '' || v == null) return true;
+    if (!/^\d+(\.\d+)?$/.test(String(v))) return false;
+    var n = parseFloat(v); return n >= 0.5 && n <= 30 && Math.abs(n * 2 - Math.round(n * 2)) < 1e-9;
+  }
+  function itQtyOk(q) { return /^\d+$/.test(String(q)) && +q >= 1 && +q <= 999; }
+  var IT_SEC = 'font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:18px 0 9px';
+  var IT_CARD = 'background:#fff;border:1px solid #DDE3EE;border-radius:12px;padding:13px 14px';
+  var IT_IN = 'width:100%;height:46px;padding:0 13px;background:#fff;border:1px solid #DDE3EE;border-radius:10px;font:400 15px/1 Geist';
+  var IT_ERR = 'font:500 12.5px/1.3 Geist;color:#DC2626;margin-top:6px';
+  function itCurT() {
+    if (itLinkedOpen) return IT_LINKED;
+    var j = JOBS[jobIdx]; return j && itCur ? itGet(j, itCur, true) : null;
+  }
+  function paintInstall() {
+    var body = byId('itBody'); if (!body) return;
+    var j = JOBS[jobIdx] || {}, t = itCurT(); if (!t) return;
+    var ro = itReadOnly(j), dis = ro ? ' disabled' : '';
+    byId('itTitle').textContent = itLinkedOpen ? t.name + ' · from ' + t.from : t.name;
+    var chip = byId('itChip');
+    var st = itLinkedOpen ? 'READ-ONLY' : t.status === 'submitted' ? 'SUBMITTED' : t.status === 'waiting' ? 'WAITING TO SEND' : t.status === 'progress' ? 'IN PROGRESS' : 'NEW';
+    chip.textContent = st;
+    chip.style.color = st === 'SUBMITTED' ? '#15803D' : st === 'WAITING TO SEND' ? '#8A6114' : '#546478';
+    chip.style.background = st === 'SUBMITTED' ? '#E7F6EC' : st === 'WAITING TO SEND' ? '#FEF3E2' : '#EDF0F5';
+    toggleDisplay(byId('itFoot'), !ro);
+    var sb = byId('itSubmitBtn');
+    if (sb) sb.innerHTML = '<span class="mi" style="font-size:19px">send</span>' + (itSubmitted(t) ? 'Save changes' : 'Submit');
+    var follow = itFollow(j, t), h = '';
+    if (itLinkedOpen) h += '<div style="' + IT_CARD + ';background:#F3F6FA;font:400 13px/1.45 Geist;color:#546478">From the sale job ' + t.from + ' · submitted ' + t.submittedAt + ' by ' + t.seller + '. Read-only on the install job.</div>';
+    else if (ro) h += '<div style="' + IT_CARD + ';background:#F3F6FA;font:400 13px/1.45 Geist;color:#546478">The job is completed — the template is read-only until a reopen.</div>';
+    if (follow === 'changed') h += '<div style="' + IT_CARD + ';background:#FEF8EC;border-color:#F3D9A4;font:500 13.5px/1.4 Geist;color:#8A6114">The approved estimate changed' + (j.sold ? ' — ' + j.sold.option + ' · ' + fmt(j.sold.total) : '') +
+      (ro ? '' : '<div data-tap="1" data-act="itFromEst" style="height:40px;display:flex;align-items:center;justify-content:center;margin-top:10px;background:#fff;border:1px solid #E8C77E;border-radius:9px;color:#8A6114;font:600 14px/1 Geist">Update from the estimate</div>') + '</div>';
+    else if (follow) h += '<div style="' + IT_CARD + ';background:#FEF8EC;border-color:#F3D9A4;font:500 13.5px/1.4 Geist;color:#8A6114">' + follow + '</div>';
+
+    // job basics
+    h += '<div style="' + IT_SEC + '">Job basics</div><div style="' + IT_CARD + '">';
+    h += '<div style="font:500 12.5px/1 Geist;color:#546478;margin-bottom:6px">Amount</div>';
+    if (t.prefilled) h += '<div style="font:700 20px/1.1 Geist">' + fmt(t.amount) + '</div><div style="font:400 12px/1.4 Geist;color:#8A97A8;margin-top:4px">From the approved ' + (t.prefillOf ? t.prefillOf.option : j.sold ? j.sold.option : 'option') + (j.estNo && !itLinkedOpen ? ' of ' + j.estNo : '') + ' — after the discount, with tax</div>';
+    else h += '<input data-itf="amountTyped" class="inp" inputmode="decimal" placeholder="0.00" value="' + itEsc(t.amountTyped) + '" style="' + IT_IN + '"' + dis + '>';
+    h += '<div style="font:500 12.5px/1 Geist;color:#546478;margin:16px 0 7px">Financing</div><div style="display:flex;gap:8px">' +
+      [['Yes', true], ['No', false]].map(function (o) {
+        var on = t.financing === o[1];
+        return '<div data-tap="1" data-itfin="' + o[0] + '" style="flex:1;height:42px;display:flex;align-items:center;justify-content:center;border-radius:9px;font:600 14px/1 Geist;' +
+          (on ? 'background:#4A6FA5;color:#fff' : 'background:#fff;border:1px solid #DDE3EE;color:#546478') + '">' + o[0] + '</div>';
+      }).join('') + '</div>';
+    if (t.prefilled && t.prefillOf) h += '<div style="font:400 12px/1.4 Geist;color:#8A97A8;margin-top:5px">' + (t.prefillOf.fin ? 'The signed option has a payment plan' : 'The signed option is the full amount') + ' · can be changed</div>';
+    h += '<div style="font:500 12.5px/1 Geist;color:#546478;margin:16px 0 7px">Sales technician (for the install team)</div>' +
+      '<div data-tap="1" data-itseller="1" style="display:flex;align-items:center;justify-content:space-between;height:46px;padding:0 13px;border:1px solid #DDE3EE;border-radius:10px;font:400 15px/1 Geist;color:' + (t.seller ? '#1A2332' : '#A9B4C2') + '">' +
+      itEsc(t.seller || 'Pick a user') + '<span class="mi" style="font-size:20px;color:#8A97A8">expand_more</span></div>';
+    if (t.prefilled) h += '<div style="font:400 12px/1.4 Geist;color:#8A97A8;margin-top:5px">The estimate’s author · information for the crew; commission follows the estimate</div>';
+    h += '<div style="font:500 12.5px/1 Geist;color:#546478;margin:16px 0 7px">Days of work</div>' +
+      '<input data-itf="days" class="inp" inputmode="decimal" placeholder="e.g. 1.5" value="' + itEsc(t.days) + '" style="' + IT_IN + '"' + dis + '>' +
+      '<div data-iterr="days" style="' + IT_ERR + ';display:' + (itDaysOk(t.days) ? 'none' : 'block') + '">From 0.5 to 30, in steps of 0.5</div>';
+    h += '</div>';
+
+    // scope
+    h += '<div style="' + IT_SEC + '">Scope for the crew</div><div style="' + IT_CARD + '">' +
+      '<div style="display:flex;align-items:center;gap:6px;font:500 12px/1 Geist;color:#8A6114;margin-bottom:8px"><span class="mi" style="font-size:16px">visibility_off</span>Not shown to the customer</div>' +
+      '<textarea data-itf="scope" maxlength="4000" rows="5" placeholder="What the crew installs, where, and what to watch for" style="width:100%;resize:none;padding:11px 12px;border:1px solid #DDE3EE;border-radius:10px;font:400 14.5px/1.5 Geist"' + dis + '>' + itEsc(t.scope) + '</textarea>' +
+      '<div data-itcount style="text-align:right;font:400 12px/1 Geist;color:#8A97A8;margin-top:5px">' + (t.scope || '').length.toLocaleString('en-US') + ' / 4,000</div></div>';
+
+    // site conditions
+    h += '<div style="' + IT_SEC + '">Site conditions</div><div style="' + IT_CARD + '">' +
+      IT_SITE.map(function (c) {
+        var on = (t.site || []).indexOf(c) >= 0;
+        return '<div data-tap="1" data-itsite="' + itEsc(c) + '" style="display:flex;align-items:center;gap:10px;padding:9px 0;font:400 14.5px/1.3 Geist">' +
+          '<span class="' + (on ? 'mif' : 'mi') + '" style="font-size:22px;color:' + (on ? '#4A6FA5' : '#A9B4C2') + '">' + (on ? 'check_box' : 'check_box_outline_blank') + '</span>' + itEsc(c) + '</div>';
+      }).join('') +
+      '<input data-itf="siteText" class="inp" placeholder="Anything else — gate code, parking, pets" value="' + itEsc(t.siteText) + '" style="' + IT_IN + ';margin-top:6px"' + dis + '></div>';
+
+    // parts
+    h += '<div style="' + IT_SEC + '">Parts for the crew</div><div style="' + IT_CARD + '">' +
+      '<div style="font:400 12px/1.4 Geist;color:#8A97A8;margin-bottom:6px">The crew’s pick list — no prices. What was actually used goes on the install job.</div>' +
+      (t.parts.length ? t.parts.map(function (pt, i) {
+        return '<div style="display:flex;align-items:flex-start;gap:8px;padding:9px 0;border-top:1px solid #EDF0F5">' +
+          (pt.free ? '<input data-itpartname="' + i + '" class="inp" placeholder="Part name" value="' + itEsc(pt.name) + '" style="' + IT_IN + ';flex:1;height:42px"' + dis + '>'
+            : '<span style="flex:1;font:500 14.5px/1.35 Geist;padding-top:11px">' + itEsc(pt.name) + '</span>') +
+          '<div style="width:74px"><input data-itqty="' + i + '" class="inp" inputmode="numeric" value="' + itEsc(pt.qty) + '" style="' + IT_IN + ';height:42px;text-align:center"' + dis + '>' +
+          '<div data-itqerr="' + i + '" style="' + IT_ERR + ';font-size:11px;display:' + (itQtyOk(pt.qty) ? 'none' : 'block') + '">From 1 to 999</div></div>' +
+          (ro ? '' : '<span data-tap="1" data-itdrop="' + i + '" class="mi" style="font-size:21px;color:#A9B4C2;padding:10px 0 0 2px">delete_outline</span>') + '</div>';
+      }).join('') : '<div style="font:400 13.5px/1.4 Geist;color:#8A97A8;padding:6px 0">No parts yet</div>') +
+      (ro ? '' : '<div style="display:flex;gap:8px;margin-top:10px">' +
+        '<div data-tap="1" data-act="itAddPart" style="flex:1;height:42px;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid #C8D5E8;border-radius:9px;color:#4A6FA5;font:600 13.5px/1 Geist"><span class="mi" style="font-size:18px">menu_book</span>From the price book</div>' +
+        '<div data-tap="1" data-act="itAddFree" style="flex:1;height:42px;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid #C8D5E8;border-radius:9px;color:#4A6FA5;font:600 13.5px/1 Geist"><span class="mi" style="font-size:18px">edit</span>Free text</div></div>') +
+      '</div>';
+
+    // photos
+    h += '<div style="' + IT_SEC + '">Photos</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">' +
+      IT_SLOTS.map(function (sl) {
+        var n = (t.photos || {})[sl] || 0;
+        return '<div data-tap="1" data-itphoto="' + itEsc(sl) + '" style="' + IT_CARD + ';padding:12px;display:flex;flex-direction:column;gap:8px;min-height:92px">' +
+          '<span class="' + (n ? 'mif' : 'mi') + '" style="font-size:22px;color:' + (n ? '#16A34A' : '#4A6FA5') + '">' + (n ? 'check_circle' : 'photo_camera') + '</span>' +
+          '<span style="font:500 13px/1.3 Geist">' + itEsc(sl) + '</span><span style="font:400 12px/1 Geist;color:#8A97A8">' + (n ? n + (n === 1 ? ' photo' : ' photos') : 'No photo') + '</span></div>';
+      }).join('') + '</div>';
+
+    // history (M5-5)
+    var hist = t.history || [];
+    h += '<div style="' + IT_SEC + '">History</div><div style="' + IT_CARD + ';font:400 13px/1.45 Geist;color:#546478">' +
+      (hist.length ? hist.slice(0, 6).map(function (x, i) { return '<div style="padding:6px 0' + (i ? ';border-top:1px solid #EDF0F5' : '') + '"><b style="font-weight:600;color:#1A2332">' + itEsc(x.what) + '</b><br>' + itEsc(x.by) + ' · ' + itEsc(x.at) + '</div>'; }).join('')
+        : (itLinkedOpen ? 'Submitted by ' + t.seller + ' · ' + t.submittedAt : 'Nothing saved yet')) + '</div>';
+    body.innerHTML = h;
+  }
+  function itOpen(name) {
+    var j = JOBS[jobIdx]; if (!j) return;
+    itLinkedOpen = false; itCur = name;
+    var t = itGet(j, name, true);
+    if (!(j.installTpls && j.installTpls[name])) saveJobs();
+    paintInstall();
+    go('job-install', 'push');
+    if (t.status === 'new' && !t.prefilled) toast('No approved estimate on this job — type the amount, pick financing and the seller', 'info');
+  }
+  function itOpenLinked() { itLinkedOpen = true; itCur = null; paintInstall(); go('job-install', 'push'); }
+  function itAddSheet() {
+    var j = JOBS[jobIdx]; if (!j) return;
+    var el = sheetEl('ov-itadd'), b = $('[data-sheetbody]', el);
+    b.innerHTML = '<div style="display:flex;justify-content:center;padding:0 0 10px"><div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div></div>' +
+      '<div style="font:600 18px/1.25 Geist;margin-bottom:8px">Add an install template</div>' +
+      IT_TEMPLATES.map(function (n) {
+        var t = j.installTpls && j.installTpls[n];
+        return '<div data-tap="1" data-itpick="' + n + '" style="display:flex;align-items:center;gap:10px;padding:13px 0;border-top:1px solid #EDF0F5;font:500 15px/1.3 Geist"><span class="mi" style="font-size:21px;color:#4A6FA5">handyman</span><span style="flex:1">' + n + '</span>' +
+          (t ? '<span style="font:400 12.5px/1 Geist;color:#8A97A8">On this job · opens it</span>' : '') + '</div>';
+      }).join('') +
+      '<div data-back data-tap="1" style="height:44px;display:flex;align-items:center;justify-content:center;font:500 14.5px/1 Geist;color:#546478;margin-top:4px">Cancel</div>';
+    b.onclick = function (ev) { var r = ev.target.closest('[data-itpick]'); if (!r) return; closeOverlays(true); itOpen(r.dataset.itpick); };
+    go('ov-itadd', 'overlay');
+  }
+  function itPick(title, list, cb) {
+    var el = sheetEl('ov-itpick'), b = $('[data-sheetbody]', el);
+    b.innerHTML = '<div style="display:flex;justify-content:center;padding:0 0 10px"><div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div></div>' +
+      '<div style="font:600 18px/1.25 Geist;margin-bottom:8px">' + title + '</div>' +
+      (list.length > 6 ? '<input data-itsearch class="inp" placeholder="Search by name" style="' + IT_IN + ';margin-bottom:6px">' : '') +
+      '<div data-itrows style="max-height:46vh;overflow:auto">' + list.map(function (n) {
+        return '<div data-tap="1" data-itopt="' + itEsc(n) + '" style="padding:13px 2px;border-top:1px solid #EDF0F5;font:400 15px/1.3 Geist">' + itEsc(n) + '</div>';
+      }).join('') + '</div>' +
+      '<div data-back data-tap="1" style="height:44px;display:flex;align-items:center;justify-content:center;font:500 14.5px/1 Geist;color:#546478;margin-top:4px">Cancel</div>';
+    var sr = $('[data-itsearch]', b);
+    if (sr) sr.addEventListener('input', function () {
+      var q = sr.value.trim().toLowerCase();
+      $$('[data-itopt]', b).forEach(function (r) { r.style.display = !q || r.dataset.itopt.toLowerCase().indexOf(q) >= 0 ? '' : 'none'; });
+    });
+    b.onclick = function (ev) { var r = ev.target.closest('[data-itopt]'); if (!r) return; closeOverlays(true); cb(r.dataset.itopt); };
+    go('ov-itpick', 'overlay');
+  }
+  function itPriceBookNames() {
+    var seen = {}, out = [];
+    CATALOG_ROWS.forEach(function (r) { if (r[2] > 0 && !seen[r[0]]) { seen[r[0]] = 1; out.push(r[0]); } });
+    Object.keys(ITEMS).forEach(function (k) { var it = ITEMS[k]; if (it.price > 0 && !seen[it.name]) { seen[it.name] = 1; out.push(it.name); } });
+    return out.sort();
+  }
+  (function () {
+    var body = byId('itBody'); if (!body) return;
+    body.addEventListener('input', function (ev) {
+      var t = itCurT(); if (!t || itReadOnly(JOBS[jobIdx])) return;
+      var e = ev.target;
+      if (e.dataset.itf) {
+        if (e.dataset.itf === 'scope' && e.value.length > 4000) e.value = e.value.slice(0, 4000);
+        t[e.dataset.itf] = e.value;
+        if (e.dataset.itf === 'scope') { var c = $('[data-itcount]', body); if (c) c.textContent = e.value.length.toLocaleString('en-US') + ' / 4,000'; }
+        if (e.dataset.itf === 'days') { var de = $('[data-iterr="days"]', body); if (de) de.style.display = itDaysOk(e.value.trim()) ? 'none' : 'block'; }
+      }
+      if (e.dataset.itqty !== undefined) {
+        var i = +e.dataset.itqty; t.parts[i].qty = e.value.trim();
+        var qe = $('[data-itqerr="' + i + '"]', body); if (qe) qe.style.display = itQtyOk(t.parts[i].qty) ? 'none' : 'block';
+      }
+      if (e.dataset.itpartname !== undefined) t.parts[+e.dataset.itpartname].name = e.value;
+      t.dirty = true;
+    });
+    body.addEventListener('click', function (ev) {
+      var t = itCurT(); if (!t) return;
+      var ro = itReadOnly(JOBS[jobIdx]);
+      var x = ev.target.closest('[data-itfin],[data-itseller],[data-itsite],[data-itdrop],[data-itphoto]'); if (!x) return;
+      ev.stopPropagation();
+      if (ro) { if (!x.dataset.itphoto) toast(itLinkedOpen ? 'Read-only on the install job — the seller fills it on the sale' : 'Read-only — the job is completed', 'lock'); else toast('Photo · ' + x.dataset.itphoto, 'image'); return; }
+      if (x.dataset.itfin) { t.financing = x.dataset.itfin === 'Yes'; t.dirty = true; paintInstall(); return; }
+      if (x.dataset.itseller) { itPick('Sales technician', IT_USERS, function (n) { t.seller = n; t.dirty = true; paintInstall(); }); return; }
+      if (x.dataset.itsite) {
+        var c = x.dataset.itsite, k = t.site.indexOf(c);
+        if (k >= 0) t.site.splice(k, 1); else t.site.push(c);
+        t.dirty = true; paintInstall(); return;
+      }
+      if (x.dataset.itdrop) { t.parts.splice(+x.dataset.itdrop, 1); t.dirty = true; paintInstall(); return; }
+      if (x.dataset.itphoto) {
+        var sl = x.dataset.itphoto; t.photos[sl] = (t.photos[sl] || 0) + 1; t.dirty = true; paintInstall();
+        toast('Photo added · labelled "' + sl + '"', 'photo_camera');
+      }
+    }, true);
+  })();
+  function itCheck(t) {
+    if (!itDaysOk(String(t.days).trim())) { toast('Days of work: from 0.5 to 30, in steps of 0.5', 'edit'); return false; }
+    var bad = t.parts.filter(function (pt) { return !itQtyOk(pt.qty); })[0];
+    if (bad) { toast((bad.name || 'A part') + ': quantity from 1 to 999', 'edit'); return false; }
+    if (!t.prefilled && t.amountTyped && !/^\d+(\.\d{1,2})?$/.test(String(t.amountTyped).trim())) { toast('Enter the amount in dollars and cents, for example 12600.00', 'edit'); return false; }
+    return true;
+  }
+  ACT.itSave = function () {
+    var j = JOBS[jobIdx], t = itCurT(); if (!j || !t || itLinkedOpen) return;
+    if (!itCheck(t)) return;
+    t.parts = t.parts.filter(function (pt) { return String(pt.name).trim(); });
+    if (t.status === 'new') t.status = 'progress';
+    t.savedAt = stamp();
+    t.history.unshift({ at: t.savedAt, by: IT_ME, what: itSubmitted(t) ? 'Changed after submit' : 'Saved' });
+    if (itSubmitted(t)) t.savedAfter = true;
+    t.dirty = false; saveJobs(); queued('Form', t.name + ' saved');
+    paintInstall();
+    toast(itSubmitted(t) ? t.name + ' saved · logged, the office is not emailed again' : t.name + ' saved', 'check_circle');
+  };
+  function itTellOffice(j, t) {
+    var all = j.installTpls || {}, names = Object.keys(all).filter(function (k) { return all[k].status === 'submitted'; });
+    toast('Office told: ' + (t.seller || IT_ME) + ' sold an install on ' + jobNo(j) + ' (' + j.name + '): ' + (names.length > 1 ? 'now ' : '') + names.length + (names.length === 1 ? ' template — ' : ' templates — ') + names.join(', ') + '.', 'mark_email_read');
+  }
+  ACT.itSubmit = function () {
+    var j = JOBS[jobIdx], t = itCurT(); if (!j || !t || itLinkedOpen) return;
+    if (itSubmitted(t)) { ACT.itSave(); return; }
+    if (!itCheck(t)) return;
+    t.parts = t.parts.filter(function (pt) { return String(pt.name).trim(); });
+    var at = stamp();
+    t.history.unshift({ at: at, by: IT_ME, what: 'Submitted' });
+    queued('Form', t.name + ' submitted');
+    if (net.online) { t.status = 'submitted'; t.submittedAt = at; saveJobs(); paintInstall(); itTellOffice(j, t); }
+    else { t.status = 'waiting'; saveJobs(); paintInstall(); toast(t.name + ' · Submitted · waiting to send — the office is told when it reaches the server', 'cloud_off'); }
+  };
+  // offline submits become Submitted when they reach the server (M5-13)
+  function itFlushWaiting() {
+    if (typeof JOBS === 'undefined') return;
+    JOBS.forEach(function (j) {
+      var all = j.installTpls || {};
+      Object.keys(all).forEach(function (k) {
+        var t = all[k]; if (t.status !== 'waiting') return;
+        t.status = 'submitted'; t.submittedAt = stamp(); itTellOffice(j, t);
+      });
+    });
+    saveJobs();
+    if (curPage() === 'job-install') paintInstall();
+  }
+  ACT.itAddPart = function () {
+    var t = itCurT(); if (!t) return;
+    itPick('Add a part from the price book', itPriceBookNames(), function (n) {
+      var seen = t.parts.filter(function (pt) { return !pt.free && pt.name === n; })[0];
+      if (seen && itQtyOk(+seen.qty + 1)) seen.qty = +seen.qty + 1; else if (!seen) t.parts.push({ name: n, qty: 1 });
+      t.dirty = true; paintInstall();
+    });
+  };
+  ACT.itAddFree = function () { var t = itCurT(); if (!t) return; t.parts.push({ name: '', qty: 1, free: true }); paintInstall(); var ins = $$('[data-itpartname]', byId('itBody')); if (ins.length) ins[ins.length - 1].focus(); };
+  ACT.itFromEst = function () {
+    var j = JOBS[jobIdx], t = itCurT(), sold = itSale(j); if (!t || !sold) return;
+    var fin = itFin(sold);
+    t.history.unshift({ at: stamp(), by: IT_ME, what: 'Updated from the estimate: Amount ' + fmt(t.amount) + ' → ' + fmt(sold.total) + ', Financing ' + (t.financing ? 'Yes' : 'No') + ' → ' + (fin ? 'Yes' : 'No') });
+    t.amount = sold.total; t.financing = fin; t.prefillOf = { option: sold.option, total: sold.total, fin: fin }; t.savedAfter = true;
+    saveJobs(); queued('Form', t.name + ' updated from the estimate'); paintInstall();
+    toast(t.name + ' updated from the estimate · the office is told', 'mark_email_read');
+  };
+
   function formsList(on) {
     if (!formsBox) return;
     var j = JOBS[jobIdx] || {};
@@ -15447,12 +15793,14 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         '<span class="mi" style="font-size:22px;color:#4A6FA5">' + icon + '</span><div style="flex:1;min-width:0"><div style="font:600 15.5px/1.25 Geist">' + name + '</div>' +
         '<div style="font:400 12.5px/1.35 Geist;color:#8A97A8;margin-top:3px">' + sub + '</div></div><span class="mi" style="font-size:20px;color:#A9B4C2">chevron_right</span></div>';
     };
-    var gaps = typeof installMissing === 'function' ? installMissing() : [];
+    var offered = itOffered(j), its = itList(j);
     formsBox.innerHTML = row('rc', 'AC Report Card', j.rcFilled ? 'Latest change: today (Marek Stroz)' : 'Not started', 'assignment') +
-      (j.type === 'Install' ? row('install', 'AC install template', gaps.length ? 'Not filled in' : 'Filled in', 'handyman') : '') +
+      (j.type === 'Install' && j.sold ? row('linked', IT_LINKED.name + ' · from ' + IT_LINKED.from, 'Read-only · submitted ' + IT_LINKED.submittedAt.split(',').slice(0, 2).join(',') + ' by ' + IT_LINKED.seller, 'handyman') : '') +
+      its.map(function (n) { return row('it:' + n, n, itSubLine(j.installTpls && j.installTpls[n], offered.indexOf(n) >= 0), 'handyman'); }).join('') +
       // Nov 5: AC, plumbing and electrical — the other two are placeholders in this demo
       row('plumbing', 'Plumbing Report Card', 'Not started', 'plumbing') +
-      row('electrical', 'Electrical Report Card', 'Not started', 'electrical_services');
+      row('electrical', 'Electrical Report Card', 'Not started', 'electrical_services') +
+      (viewPast || j.done || j.type === 'Install' ? '' : '<div data-tap="1" data-form="itadd" style="display:flex;align-items:center;justify-content:center;gap:7px;height:48px;border:1px dashed #C8D5E8;border-radius:12px;color:#4A6FA5;font:600 14.5px/1 Geist"><span class="mi" style="font-size:19px">add</span>Add an install template</div>');
     var ws = $('[data-wsigner]'); if (ws) ws.value = j.name || '';   // the waiver's signer is this job's customer
     formsBox.style.display = on ? '' : 'none';
     rcParts.forEach(function (e) { e.style.display = on ? 'none' : ''; });
