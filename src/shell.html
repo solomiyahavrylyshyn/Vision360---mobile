@@ -45,7 +45,7 @@
             <div style="padding:34px 24px 0">
               <div style="width:52px;height:52px;border-radius:14px;background:#1C2B3A;display:flex;align-items:center;justify-content:center;font:700 21px/1 Geist;color:#fff">V3</div>
               <div class="h1" style="margin:22px 0 8px">Sign in</div>
-              <div class="sub" style="margin-bottom:26px">Use the credentials issued by your dispatcher.</div>
+              <div class="sub" style="margin-bottom:26px">Sign in with your Vision360 account — the one your office invited you with.</div>
 
               <label class="fld">
                 <span class="lb">Email</span>
@@ -376,7 +376,6 @@
             <div class="rowi" data-act="demoAdjust" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">sell</span><span id="adjustNote">Demo: technician without Adjust price</span></div>
             <div class="rowi" data-act="demoKpiOff" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">insights</span><span id="kpiOffLbl">Demo: role without KPIs</span></div>
             <!-- demo only: shows Home as a salaried technician sees it (OD-16) -->
-            <div class="rowi" data-act="toggleSalaried" style="display:none;justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">badge</span><span id="salariedNote">Demo: show as a salaried technician</span></div>
           </div>
         </div>
 
@@ -389,6 +388,8 @@
             <div class="card" style="overflow:hidden;margin-bottom:14px">
               <div class="rowi" data-act="photoSize"><span class="mi">photo_size_select_large</span><span class="t">Photo upload<small id="photoNote">Balanced &middot; set by your company</small></span><span class="mi" style="font-size:18px;color:#A9B4C2">lock</span></div>
               <div class="rowi" data-act="langLocked"><span class="mi">language</span><span class="t">Language<small id="langNote">English &middot; set by your company</small></span><span class="mi" style="font-size:18px;color:#A9B4C2">lock</span></div>
+              <div class="rowi" data-act="wifiLocked"><span class="mi">wifi</span><span class="t">Wi-Fi only for large downloads<small id="wifiNote">Off &middot; set by your company</small></span><span class="mi" style="font-size:18px;color:#A9B4C2">lock</span></div>
+              <div class="rowi" data-act="locLocked"><span class="mi">my_location</span><span class="t">Location required to start a job<small id="locNote">On &middot; set by your company</small></span><span class="mi" style="font-size:18px;color:#A9B4C2">lock</span></div>
             </div>
             <div style="font:400 12px/1.45 Geist;color:#8A97A8;margin:-6px 2px 18px">Your office changes these in the web app.</div>
             <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:0 2px 9px">Yours</div>
@@ -396,8 +397,6 @@
               <div class="rowi" data-go="more-appearance" data-mode="push"><span class="mi">dark_mode</span><span class="t">Appearance<small id="themeNote">Light</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-go="more-notifications" data-mode="push"><span class="mi">notifications_none</span><span class="t">Notifications</span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-go="more-storage" data-mode="push"><span class="mi">sd_storage</span><span class="t">Storage<small id="storageNote">248 MB used</small></span><span class="mi ch">chevron_right</span></div>
-              <div class="rowi" data-act="toggleWifiOnly"><span class="mi">wifi</span><span class="t">Wi-Fi only for large downloads<small id="wifiNote">Off &middot; downloads use any connection</small></span><span data-sw id="wifiSw" style="width:52px;height:31px;border-radius:16px;background:#DDE3EE;position:relative;flex:none"><span style="position:absolute;top:3px;left:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span></span></div>
-              <div class="rowi" data-act="toggleLocation"><span class="mi">my_location</span><span class="t">Location services<small id="locNote">On &middot; needed to start a job</small></span><span id="locSw" style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none"><span style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span></span></div>
               <div class="rowi" data-go="more-devices" data-mode="push"><span class="mi">devices</span><span class="t">My devices<small>This phone &middot; signed in for 30 days</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-go="more-security" data-mode="push"><span class="mi">lock</span><span class="t">Security<small>Change password</small></span><span class="mi ch">chevron_right</span></div>
               <div class="rowi" data-go="more-permissions" data-mode="push"><span class="mi">verified_user</span><span class="t">Permissions<small>Location, camera</small></span><span class="mi ch">chevron_right</span></div>
@@ -575,10 +574,10 @@
             <div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:4px 0 9px">What the app collects</div>
             <div class="card" style="overflow:hidden">
               <div class="rowi"><span class="mi">person</span><span class="t">Your account<small>Name, email, role and company</small></span></div>
-              <div class="rowi"><span class="mi">my_location</span><span class="t">Location while the app is in use<small>Only at Start and on customer signatures; seen by the office only</small></span></div>
+              <div class="rowi"><span class="mi">my_location</span><span class="t">Location while the app is in use<small>Only while the app is open — the distance to the job and the check at Start; seen by the office only</small></span></div>
               <div class="rowi"><span class="mi">photo_camera</span><span class="t">Photos and videos of the property<small>Taken on jobs; no location on photos</small></span></div>
               <div class="rowi"><span class="mi">draw</span><span class="t">Customer signatures</span></div>
-              <div class="rowi"><span class="mi">badge</span><span class="t">Driver&rsquo;s licence photos<small>Seen by payment roles only; not kept on the phone after upload</small></span></div>
+              <div class="rowi"><span class="mi">badge</span><span class="t">Driver&rsquo;s license photos<small>Seen by payment roles only; not kept on the phone after upload</small></span></div>
               <div class="rowi"><span class="mi">credit_card</span><span class="t">Payment data<small>Card brand and last 4 digits only</small></span></div>
               <div class="rowi"><span class="mi">smartphone</span><span class="t">Device identifiers and push tokens</span></div>
               <div class="rowi"><span class="mi">bug_report</span><span class="t">Crash and diagnostic data<small>Without customer data</small></span></div>
@@ -690,7 +689,7 @@
             <div class="card" style="overflow:hidden;margin-bottom:16px">
               <div data-notif="jobDispatchedToMe" data-tap style="display:flex;align-items:center;gap:12px;padding:15px"><span style="flex:1;font:500 14.5px/1.35 Geist">Job dispatched to you</span><div data-notifsw style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none"><div style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div></div></div>
               <div data-notif="jobReopenedForMe" data-tap style="display:flex;align-items:center;gap:12px;padding:15px;border-top:1px solid #EDF0F5"><span style="flex:1;font:500 14.5px/1.35 Geist">Job reopened<small style="display:block;font:400 12px/1.4 Geist;color:#8A97A8;margin-top:3px">The office put a completed job back on your day</small></span><div data-notifsw style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none"><div style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div></div></div>
-              <div data-notif="noEnRouteReminder" data-tap style="display:flex;align-items:center;gap:12px;padding:15px;border-top:1px solid #EDF0F5"><span style="flex:1;font:500 14.5px/1.35 Geist">Reminder: no En route<small style="display:block;font:400 12px/1.4 Geist;color:#8A97A8;margin-top:3px">When a job is about to start and you have not set off</small></span><div data-notifsw style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none"><div style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div></div></div>
+              <div data-tap data-act="remLocked" style="display:flex;align-items:center;gap:12px;padding:15px;border-top:1px solid #EDF0F5"><span style="flex:1;font:500 14.5px/1.35 Geist">Reminder: no En route<small style="display:block;font:400 12px/1.4 Geist;color:#8A97A8;margin-top:3px">30 min after the start time with no En route · set by your company (not confirmed yet)</small></span><span class="mi" style="font-size:18px;color:#A9B4C2">lock</span></div>
               <div data-notif="estimateApprovedByCustomer" data-tap style="display:flex;align-items:center;gap:12px;padding:15px;border-top:1px solid #EDF0F5"><span style="flex:1;font:500 14.5px/1.35 Geist">Estimate approved by the customer</span><div data-notifsw style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none"><div style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div></div></div>
               <div data-notif="reopenRequestAnswered" data-tap style="display:flex;align-items:center;gap:12px;padding:15px;border-top:1px solid #EDF0F5"><span style="flex:1;font:500 14.5px/1.35 Geist">Reopen request answered</span><div data-notifsw style="width:52px;height:31px;border-radius:16px;background:#4A6FA5;position:relative;flex:none"><div style="position:absolute;top:3px;right:3px;width:25px;height:25px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div></div></div>
             </div>

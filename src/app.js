@@ -191,7 +191,7 @@
       var knob = sw.firstElementChild;
       if (knob) { knob.style.right = locationOn ? '3px' : ''; knob.style.left = locationOn ? '' : '3px'; }
     }
-    if (note) note.textContent = locationOn ? 'On · needed to start a job' : 'Off · jobs can’t be started';
+    if (note) note.textContent = 'On · set by your company';    // the company's rule; the phone's own location is in Permissions
   }
   var changesPrevTotal = null;                    // what the estimate was worth before changes were requested
 
@@ -416,13 +416,16 @@
     var pid = curPage(); if (!pid) return;
     if (pid === 'est-draft' && typeof paintDraftAction === 'function') paintDraftAction();
     if (pid === 'est-draft' && typeof orderOptionsByPrice === 'function') orderOptionsByPrice('est-draft');
-    if (pid === 'est-draft' && typeof paintAllCards === 'function') paintAllCards();   // notes and warranties after a reload too
+    if (pid === 'est-draft' && typeof paintAllCards === 'function') paintAllCards();
+    if (pid === 'est-draft' && typeof tidyEstFooter === 'function') tidyEstFooter();   // notes and warranties after a reload too
     if (pid === 'est-customer' && typeof paintCustomerOptions === 'function') paintCustomerOptions();
     if (pid === 'est-customer' && typeof paintSigWhen === 'function') paintSigWhen();
     if (pid === 'home' && typeof paintUpcoming === 'function') paintUpcoming();
     if (pid === 'est-customer' && typeof paintCustomerEstNo === 'function') paintCustomerEstNo();
     if (pid === 'est-customer' && typeof paintBillTo === 'function') paintBillTo();
     if (pid === 'photos' && typeof rebuildPhotoGrid === 'function') rebuildPhotoGrid();
+    // QA 16.11 (W-16): back from a template, the Forms list says what it is now
+    if (pid === 'rc-overview' && typeof formsBox !== 'undefined' && formsBox && formsBox.style.display !== 'none') formsList(true);
     if (pid === 'est-catalog' && typeof paintCatalogAdded === 'function') setTimeout(paintCatalogAdded, 0);
     if ((pid === 'home' || pid === 'home-active' || pid === 'job-general') && typeof syncPhotoCounts === 'function' && typeof mediaBlk !== 'undefined' && mediaBlk) syncPhotoCounts();
     if (pid === 'cust-jobs' && typeof paintCustHead === 'function' && typeof JOBS !== 'undefined') paintCustHead(JOBS[jobIdx]);
@@ -867,6 +870,7 @@
     if (switchTo === jobIdx && runIdx > -1 && runIdx !== jobIdx) pauseRunning();
     switchTo = -1;
     var bj = JOBS[jobIdx];
+    var resumed = !!(bj && bj.paused);
     if (bj) { bj.reopened = false; bj.paused = false; bj.startReq = null; }
     setRun(jobIdx);
     state.onsite = true;
@@ -877,7 +881,7 @@
     setClock('work');
     go('home-active', 'root');
     queued('Job status');
-    toast('Job started · timer running', 'play_circle');
+    toast(resumed ? 'Resumed · the clock goes on' : 'Job started · timer running', 'play_circle');
   }
 
   /* --- named actions --- */
@@ -1682,7 +1686,8 @@
     logout: function () {
       state = { onsite: false, enroute: false, est: 'none', inv: 'none', extra: false };
       remember('signedIn', false);
-      go('login', 'root'); toast('Signed out', 'logout');
+      var lp = $('#login input[type="password"]'); if (lp) { lp.value = ''; lp.placeholder = 'Password (demo: vision360)'; }
+      go('login', 'root'); toast('Logged out', 'logout');
     }
   };
 
@@ -2200,11 +2205,14 @@
     box.hidden = true;
     box.setAttribute('style', 'margin-top:11px;padding-top:11px;border-top:1px solid #EDF0F5;' +
       'display:flex;flex-direction:column;gap:12px');
+    /* QA 16.11 (R-009.1, p.903): the design's Move In Date and House Age, and
+       each customer's own — it read Randy's email and gate on every job */
     [
-      ['Email', 'randy.johnson@gmail.com'],
-      ['Access notes', 'Gate code 4417 · dog in the back yard']
+      ['Move In Date', '', 'movein'], ['House Age', '', 'houseage'],
+      ['Email', '', 'email'], ['Access notes', '', 'access']
     ].forEach(function (r) {
       var row = document.createElement('div');
+      row.dataset.addinfo = r[2];
       row.innerHTML = '<div style="font:400 12px/1 Geist;color:#8A97A8"></div>' +
         '<div style="font:500 14px/1.4 Geist;margin-top:5px;text-wrap:pretty"></div>';
       row.children[0].textContent = r[0];
@@ -3310,7 +3318,7 @@
     return '<div style="flex:1;min-width:0;position:relative">' +
       (fd.k === 'amount' ? '<span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font:500 15px/1 Geist;color:#8A97A8">$</span>' : '') +
       '<input data-pkey="' + key + '" class="inp" inputmode="' + mode + '" placeholder="' + fd.l + (fd.req ? ' (required)' : '') + '" value="' + v.replace(/"/g, '&quot;') + '" ' +
-      'style="' + FBOX + 'width:100%;min-width:0;outline:none;' + FVAL + (fd.k === 'amount' ? 'padding-left:28px' : '') + '"></div>';
+      'style="' + FBOX + 'width:100%;min-width:0;outline:none;' + FVAL + (fd.k === 'amount' ? ';padding-left:28px' : '') + '"></div>';   // QA 16.11: the missing ';' put the $ over the hint
   }
 
   /* The invoice flow walks like the estimate's: one screen per state, one
@@ -3509,7 +3517,7 @@
     return '<div data-act="dlPhoto" data-tap="1" style="display:flex;align-items:center;gap:12px;margin-top:12px;padding:12px 13px;' +
       'background:' + (got ? '#F0FAF3' : '#fff') + ';border:1.5px ' + (got ? 'solid #16A34A' : 'dashed #C8D5E8') + ';border-radius:10px">' +
       '<span class="mi" style="font-size:24px;color:' + (got ? '#16A34A' : '#4A6FA5') + '">' + (got ? 'badge' : 'add_a_photo') + '</span>' +
-      '<div style="flex:1;min-width:0"><div style="font:600 14px/1.25 Geist">' + (got ? 'Driver’s licence photo added' : 'Photo of the driver’s licence') + '</div>' +
+      '<div style="flex:1;min-width:0"><div style="font:600 14px/1.25 Geist">' + (got ? 'Driver’s license photo added' : 'Photo of the driver’s license') + '</div>' +
       '<div style="font:400 12px/1.4 Geist;color:#8A97A8;margin-top:3px">' + (got ? 'Attached to this payment · tap to retake'
         : 'Required by your company for ' + m.name.toLowerCase() + ' payments') + '</div></div>' +
       (got ? '<span class="mif" style="font-size:20px;color:#16A34A">check_circle</span>' : '<span style="font:600 11px/1 Geist;color:#DC2626">REQUIRED</span>') +
@@ -3521,7 +3529,7 @@
     pay.dl[m.id] = true; savePay();
     payPanels.forEach(function (P) { P.rendered = ''; });
     paintPayPanels();
-    toast('Driver’s licence photo attached to the payment', 'badge');
+    toast('Driver’s license photo attached to the payment', 'badge');
   };
 
   /* =========================================================
@@ -3600,7 +3608,7 @@
     m.fields.forEach(function (row) { row.forEach(function (fd) { if (fd.req && !norm(pay.values[m.id + '|' + fd.l] || '')) miss.push(fd.l); }); });
     if (miss.length) { toast('Enter the ' + miss[0].toLowerCase() + ' first', 'edit'); return; }
     if (dlRequired(m) && !(pay.dl && pay.dl[m.id])) {
-      toast('Take a photo of the customer’s driver’s licence first', 'badge');
+      toast('Take a photo of the customer’s driver’s license first', 'badge');
       return;
     }
     if (m.id === 'card' && !net.online) {
@@ -3699,7 +3707,7 @@
       '<div data-finhelp style="font:400 15px/1.55 Geist;color:#546478;text-wrap:pretty">Create the invoice for this job. Items, the approved estimate and payment are added to it.</div>' +
       // M7-1 / M7-1b / M7-4 (#87): not every job is invoiced
       '<div data-invneed data-tap="1" style="display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;box-sizing:border-box;margin-top:22px;padding:13px 14px;background:#fff;border:1px solid #DDE3EE;border-radius:11px;text-align:left">' +
-      '<div><div data-invneedt style="font:600 14.5px/1.25 Geist">Invoice needed</div><div data-invneeds style="font:400 12.5px/1.35 Geist;color:#8A97A8;margin-top:3px"></div></div><span data-invneedsw style="flex:none"></span></div>';
+      '<div style="flex:1;min-width:0"><div data-invneedt style="font:600 14.5px/1.25 Geist">Invoice needed</div><div data-invneeds style="font:400 12.5px/1.35 Geist;color:#8A97A8;margin-top:3px"></div></div><span data-invneedsw style="flex:none"></span></div>';
     var foot = document.createElement('div');
     foot.setAttribute('style', 'padding:14px 16px 16px;background:#fff;border-top:1px solid #DDE3EE;flex:none');
     foot.dataset.finfoot = '1';
@@ -3729,7 +3737,7 @@
   var invAttachEst = recall('invAttachEst', true);
   var attachRows = [];
   function switchHtml(on) {
-    return '<span data-swtrack style="width:46px;height:28px;border-radius:14px;position:relative;flex:none;transition:background .15s;background:' +
+    return '<span data-swtrack style="display:block;width:46px;height:28px;border-radius:14px;position:relative;flex:none;transition:background .15s;background:' +
       (on ? '#4A6FA5' : '#DDE3EE') + '"><span data-swknob style="position:absolute;top:3px;width:22px;height:22px;border-radius:11px;background:#fff;' +
       'box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left .15s;left:' + (on ? '21px' : '3px') + '"></span></span>';
   }
@@ -4491,6 +4499,17 @@
   /* M6-16 (#81): a customer who signed the paper copy — shown once the
      estimate was sent or presented */
   var paperBtn = null;
+  /* QA 16.11 (R-007.1): the draft footer had two "Add option" buttons, and once
+     Sent "Present to customer" ran off the button — one Add option, one line each */
+  function tidyEstFooter() {
+    if (!optSendBtn) return;
+    var frow = optSendBtn.parentElement; if (!frow) return;
+    var adds = $$('[data-act="newOption"]', frow.parentElement).filter(function (e) { return !e.closest('.sc'); });
+    adds.slice(1).forEach(function (e) { e.remove(); });
+    optSendBtn.style.whiteSpace = 'nowrap'; optSendBtn.style.fontSize = '15px'; optSendBtn.style.minWidth = '0';
+    if (adds[0]) { adds[0].style.whiteSpace = 'nowrap'; adds[0].style.minWidth = '0'; adds[0].style.flex = '1'; }
+    optSendBtn.style.flex = '1.6';
+  }
   function paintPaperBtn() {
     var root = byId('est-draft'); if (!root || !optSendBtn) return;
     if (!paperBtn) {
@@ -4498,8 +4517,11 @@
       paperBtn.dataset.act = 'estPaper'; paperBtn.dataset.tap = '1';
       paperBtn.setAttribute('style', 'height:44px;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:6px;font:600 14px/1 Geist;color:#4A6FA5');
       paperBtn.innerHTML = '<span class="mi" style="font-size:18px">history_edu</span>Mark approved — signed on paper';
-      optSendBtn.parentElement.insertBefore(paperBtn, optSendBtn.nextSibling);
+      // QA 16.11: a line of its own under the buttons, not a fourth squeezed into the row
+      var frow = optSendBtn.parentElement;
+      frow.parentElement.insertBefore(paperBtn, frow.nextSibling);
     }
+    tidyEstFooter();
     var j = JOBS[jobIdx] || {};
     toggleDisplay(paperBtn, !!j.sentAt && state.est !== 'declined' && state.est !== 'approved');
   }
@@ -6301,7 +6323,7 @@
       else {
         var v = parseFloat(raw);
         if (v <= 0) adjMsg = ['The new price must be above $0.00', RED];
-        else if (v > base + 0.005) adjMsg = ['New price must be lower than the list price; to charge more, add an item or change a line price', RED];
+        else if (v > base + 0.005) adjMsg = ['New price must be lower than the list price; to charge more, add an item to the option', RED];
         else if (Math.abs(v - base) < 0.005) { optRevised = null; optDisc = 0; adjMsg = ['Back to list price', '#8A97A8']; }
         else { optRevised = v; optDisc = Math.round((base - v) * 100) / 100; }
       }
@@ -8897,7 +8919,9 @@
       refs.type.textContent = j.type;
       setPhone(refs.phone, j.phone);
       addr.childNodes[0].nodeValue = j.addr;
-      awaySpan.textContent = j.gps === 'nomap' ? '' : awayText(j.away);
+      // QA 16.11: on site the distance has nothing left to say
+      var here = state.onsite && typeof runIdx !== 'undefined' && runIdx === jobIdx;
+      awaySpan.textContent = j.gps === 'nomap' || here ? '' : awayText(j.away);
     };
   }
 
@@ -9181,9 +9205,11 @@
         enroute.innerHTML = '<span style="display:flex;align-items:center;gap:5px"><span class="mif" style="font-size:17px">pause</span>Pause</span>' +
           '<span data-jobtime style="font:500 11.5px/1 Geist;opacity:.85;font-variant-numeric:tabular-nums">0:00</span>';
       } else if (heldHere) {
-        enroute.dataset.act = 'enroute';
-        enroute.setAttribute('style', PRIMARY);
-        enroute.innerHTML = '<span class="mif" style="font-size:18px">navigation</span>En route';
+        // QA 16.11 (R-003.3, p.447): the paused job's button says Paused, and one tap resumes
+        enroute.dataset.act = 'start';
+        enroute.setAttribute('style', PAUSED + ';min-width:0;white-space:nowrap;flex-direction:column;gap:3px');
+        enroute.innerHTML = '<span style="display:flex;align-items:center;gap:5px"><span class="mif" style="font-size:17px">pause_circle</span>Paused</span>' +
+          '<span style="font:500 11.5px/1 Geist;opacity:.85">Tap to resume</span>';
       } else if (state.enroute && mine) {
         enroute.dataset.act = 'enroute';
         enroute.setAttribute('style', DRIVING);
@@ -9197,8 +9223,14 @@
 
       start.dataset.cardbtn = '1';
       var done = state.onsite && mine;   // M3-1: Paused offers En route and Start, not Complete
-      start.dataset.act = done ? 'complete' : 'start';
+      start.dataset.act = done ? 'complete' : heldHere ? 'enroute' : 'start';
       start.setAttribute('style', OUTLINE);
+      if (heldHere) {                    // resuming is the first button; leaving for parts is this one
+        start.innerHTML = '<span class="mi" style="font-size:18px">navigation</span>En route';
+        toggleDisplay(start, true);
+        paintDriveTime(); paintClock();
+        return;
+      }
       // 'Complete' plus an icon is the widest this row ever gets: at 375px
       // the three buttons are 96px each, so the glyph gives back the slack
       start.innerHTML = '<span class="mi" style="font-size:18px">' +
@@ -9779,7 +9811,7 @@
     if (off && !dl && R.total.parentElement) {
       dl = document.createElement('div');
       dl.dataset.disc = '1';
-      dl.setAttribute('style', 'font:500 12.5px/1.35 Geist;color:#16A34A;margin-top:6px');
+      dl.setAttribute('style', 'font:500 12.5px/1.35 Geist;color:#16A34A;margin-top:6px;padding:0 14px 10px');   // QA 16.11: off the card's border
       R.total.parentElement.insertAdjacentElement('afterend', dl);
     }
     if (dl) { dl.hidden = !off; dl.textContent = off ? 'List ' + fmt(sold ? sold.list || sold.total + off : optionList(pick)) + ' · Discount −' + fmt(off) : ''; }
@@ -10034,13 +10066,14 @@
       .slice(0, optCount)
       .map(function (k) { return OPTION_TOTALS[k]; })
       .filter(function (v) { return v > 0; });
-    if (!live.length) return;
-    var lo = Math.min.apply(null, live), hi = Math.max.apply(null, live);
+    // QA 16.11: with no option the footer kept another job's range — it says there is none
+    var txt = live.length ? fmt(Math.min.apply(null, live)) + ' – ' + fmt(Math.max.apply(null, live)) : 'No options yet';
     ['est-draft', 'est-review', 'est-ready'].forEach(function (id) {
       var root = byId(id); if (!root) return;
       $$('span', root).forEach(function (e) {
-        if (/^\$[\d,]+\.\d\d\s*–\s*\$[\d,]+\.\d\d$/.test(norm(e.textContent))) {
-          e.textContent = fmt(lo) + ' – ' + fmt(hi);
+        if (e.dataset.range || /^\$[\d,]+\.\d\d\s*–\s*\$[\d,]+\.\d\d$/.test(norm(e.textContent))) {
+          e.dataset.range = '1';
+          e.textContent = txt;
         }
       });
     });
@@ -11263,7 +11296,7 @@
     b.disabled = true; b.innerHTML = '<span class="mi" style="font-size:19px">sync</span>Signing in…';
     setTimeout(function () {
       b.disabled = false; b.innerHTML = '<span class="mif" style="font-size:19px">login</span>Sign in';
-      if (/^office/i.test(em.value.trim())) {
+      if (/^office/i.test(em.value.trim()) && pw.value === 'vision360') {   // QA 16.11: a wrong password never learns the role
         liMsg('Your role doesn&rsquo;t use the technician app. Use the Vision360 web app, or ask your admin to turn the app on for your role.<div data-tap="1" id="li-other" style="font:600 13px/1 Geist;color:#4A6FA5;margin-top:9px">Use another account</div>', 'block');
         var o = byId('li-other'); if (o) o.onclick = function () { em.value = ''; pw.value = ''; liMsg(''); em.focus(); };
         return;
@@ -11551,8 +11584,18 @@
       // a customer whose job is still open today is not also done today
       var openNow = diff === 0 && out.some(function (o) { return o.kind === 'open' && o.name === l.dataset.job; });
       var hj = JOBS.filter(function (x) { return x.name === l.dataset.job; })[0];
-      if (!isNaN(w) && sameDay(w, d) && !openNow) out.push({ kind: 'done', el: l, name: l.dataset.job, time: 'Completed', type: l.dataset.type, brief: l.dataset.brief,
-        addr: hj ? hj.addr : '', no: '', status: 'Completed' });
+      /* QA 16.11 (R-003.4): a done visit had no job number and "Completed"
+         where the time goes — both come from the visit itself */
+      var no = '', tm = '';
+      if (l.dataset.doneidx !== undefined && JOBS[+l.dataset.doneidx]) {
+        var dj = JOBS[+l.dataset.doneidx]; no = jobNo(dj); tm = String(dj.when || '').replace(/^Today, /, '');
+      } else if (hj) {
+        var hr = custHist(hj).filter(function (r) { return r[1] === l.dataset.when; })[0];
+        if (hr) no = hj.cust + '-J' + String(hr[0]).padStart(2, '0');
+        tm = ({ 'Randy Johnson': '9:00 AM', 'Brent Kenzie': '1:30 PM', 'Joseph Lane': '10:00 AM' })[l.dataset.job] || '';
+      }
+      if (!isNaN(w) && sameDay(w, d) && !openNow) out.push({ kind: 'done', el: l, name: l.dataset.job, time: tm || 'Completed', type: l.dataset.type, brief: l.dataset.brief,
+        addr: hj ? hj.addr : '', no: no, status: 'Completed' });
     });
     SCHED_PAST.forEach(function (a) {
       if (a[0] === diff) out.push({ kind: 'past', name: a[1], time: a[2], end: a[7], type: a[3], no: a[4], brief: a[5], addr: a[6], status: 'Completed' });
@@ -11701,6 +11744,9 @@
     paintSettingsNotes();
     toast(wifiOnly ? 'Large downloads wait for Wi-Fi — photos to the office still go on any connection' : 'Downloads use any connection', 'wifi');
   };
+  ACT.remLocked = function () { toast('The company decides this reminder in the web app — not confirmed yet (W-02)', 'lock'); };
+  ACT.wifiLocked = function () { toast('Set by your company in the web app · large downloads use any connection', 'lock'); };
+  ACT.locLocked = function () { toast('Set by your company in the web app · Start checks you are at the address', 'lock'); };
   ACT.langLocked = function () {
     toast('Set by your company in the web app \u00b7 English', 'lock');
   };
@@ -11718,7 +11764,7 @@
   function paintSettingsNotes() {
     var pn = byId('photoNote'); if (pn) pn.textContent = 'Balanced \u00b7 set by your company';
     var wn = byId('wifiNote'), ws = byId('wifiSw');
-    if (wn) wn.textContent = wifiOnly ? 'On · photos still go on any connection' : 'Off · downloads use any connection';
+    if (wn) wn.textContent = (wifiOnly ? 'On' : 'Off') + ' · set by your company';
     if (ws) { ws.style.background = wifiOnly ? '#4A6FA5' : '#DDE3EE'; ws.firstElementChild.style.left = wifiOnly ? '24px' : '3px'; }
     var used = storageCleared ? '17 MB' : '248 MB';
     var waiting = typeof waitingTotal === 'function' ? waitingTotal() : 0;
@@ -11789,8 +11835,8 @@
   byId('logout').addEventListener('click', function () {
     var n = typeof waitingTotal === 'function' ? waitingTotal() : 0;
     if (!n) {
-      confirmSheet({ title: 'Sign out?', text: 'Everything is sent. Signing out removes the jobs and photos kept on this phone; they stay in Vision360.',
-        ok: 'Sign out', danger: true, onOk: function () { ACT.logout(); } });
+      confirmSheet({ title: 'Log out?', text: 'Everything is sent. Logging out removes the jobs and photos kept on this phone; they stay in Vision360.',
+        ok: 'Log out', danger: true, onOk: function () { ACT.logout(); } });
       return;
     }
     var c = soCounts();
@@ -12717,7 +12763,7 @@
     h += '<div style="font:500 12.5px/1 Geist;color:#546478;margin:16px 0 7px">Sales technician (for the install team)</div>' +
       '<div data-tap="1" data-itseller="1" style="display:flex;align-items:center;justify-content:space-between;height:46px;padding:0 13px;border:1px solid #DDE3EE;border-radius:10px;font:400 15px/1 Geist;color:' + (t.seller ? '#1A2332' : '#A9B4C2') + '">' +
       itEsc(t.seller || 'Pick a user') + '<span class="mi" style="font-size:20px;color:#8A97A8">expand_more</span></div>';
-    if (t.prefilled) h += '<div style="font:400 12px/1.4 Geist;color:#8A97A8;margin-top:5px">The estimate’s author · information for the crew; commission follows the estimate</div>';
+    if (t.prefilled) h += '<div style="font:400 12px/1.4 Geist;color:#8A97A8;margin-top:5px">The estimate’s author · information for the crew</div>';
     h += '<div style="font:500 12.5px/1 Geist;color:#546478;margin:16px 0 7px">Days of work</div>' +
       '<input data-itf="days" class="inp" inputmode="decimal" placeholder="e.g. 1.5" value="' + itEsc(t.days) + '" style="' + IT_IN + '"' + dis + '>' +
       '<div data-iterr="days" style="' + IT_ERR + ';display:' + (itDaysOk(t.days) ? 'none' : 'block') + '">From 0.5 to 30, in steps of 0.5</div>';
@@ -12876,17 +12922,26 @@
   };
   function itTellOffice(j, t) {
     var all = j.installTpls || {}, names = Object.keys(all).filter(function (k) { return all[k].status === 'submitted'; });
-    toast('Office told: ' + (t.seller || IT_ME) + ' sold an install on ' + jobNo(j) + ' (' + j.name + '): ' + (names.length > 1 ? 'now ' : '') + names.length + (names.length === 1 ? ' template — ' : ' templates — ') + names.join(', ') + '.', 'mark_email_read');
+    toast('Office told: ' + t.seller + ' sold an install on ' + jobNo(j) + ' (' + j.name + '): ' + (names.length > 1 ? 'now ' : '') + names.length + (names.length === 1 ? ' template — ' : ' templates — ') + names.join(', ') + '.', 'mark_email_read');
   }
   ACT.itSubmit = function () {
     var j = JOBS[jobIdx], t = itCurT(); if (!j || !t || itLinkedOpen) return;
     if (itSubmitted(t)) { ACT.itSave(); return; }
     if (!itCheck(t)) return;
+    /* QA 16.11 (W-16): Submit went through with no financing and no seller,
+       and the office was told "Marek Stroz sold" — Submit needs them */
+    var miss = [];
+    if (!t.prefilled && !String(t.amountTyped || '').trim() && t.amount == null) miss.push('the amount');
+    if (t.financing === null || t.financing === undefined || t.financing === '') miss.push('Financing yes or no');
+    if (!t.seller) miss.push('the sales technician');
+    if (!String(t.days).trim()) miss.push('days of work');
+    if (miss.length) { toast('Before Submit: ' + miss.join(', '), 'edit'); return; }
     t.parts = t.parts.filter(function (pt) { return String(pt.name).trim(); });
     var at = stamp();
     t.history.unshift({ at: at, by: IT_ME, what: 'Submitted' });
     queued('Form', t.name + ' submitted');
     if (net.online) { t.status = 'submitted'; t.submittedAt = at; saveJobs(); paintInstall(); itTellOffice(j, t); }
+    if (typeof formsList === 'function' && formsBox) formsList(formsBox.style.display !== 'none');
     else { t.status = 'waiting'; saveJobs(); paintInstall(); toast(t.name + ' · Submitted · waiting to send — the office is told when it reaches the server', 'cloud_off'); }
   };
   // offline submits become Submitted when they reach the server (M5-13)
@@ -14063,11 +14118,14 @@
       row = base.cloneNode(true);
       row.dataset.estnorow = '1';
       row.children[0].textContent = 'Estimate';
+      // QA 16.11: the clone read "Estimate10512-E03" — the number sits on the right like the others
+      row.style.display = 'flex'; row.style.gap = '12px';
+      row.children[1].style.marginLeft = 'auto'; row.children[1].style.textAlign = 'right';
       base.parentElement.insertBefore(row, base);
     }
     var j = JOBS[jobIdx] || {}, no = estNoOf(j);
     row.children[1].textContent = no;
-    row.style.display = no && !j.estTmp ? '' : 'none';
+    row.style.display = no && !j.estTmp ? 'flex' : 'none';
   }
 
   /* "2 waiting" on the job's card, and a line in its details */
@@ -14211,7 +14269,7 @@
       var pn = $('[data-pausednote]', jobCard);
       if (!pn && chip.parentNode) {
         pn = document.createElement('div'); pn.dataset.pausednote = '1'; pn.dataset.tap = '1';
-        pn.setAttribute('style', 'display:inline-flex;align-items:center;gap:5px;margin:8px 0 0;font:600 13px/1 Geist;color:#4A6FA5;cursor:pointer');
+        pn.setAttribute('style', 'display:inline-flex;align-items:center;gap:5px;margin:8px 0 0 14px;font:600 13px/1 Geist;color:#4A6FA5;cursor:pointer');   // QA 16.11: in line with the card's text
         pn.innerHTML = '<span class="mi" style="font-size:17px">edit_note</span>Add field note';
         pn.addEventListener('click', function (ev) {
           ev.stopPropagation();
@@ -14385,7 +14443,46 @@
   }   // a function: read before this line runs
   function custJobCount(j) { return custHist(j).length + 1; }       // the earlier ones and this one
   var custRowTpl = null;
+  function addInfoData() { return {
+    '10512': ['Mar 2014', '24 years', 'Gate code 4417 · dog in the back yard'],
+    '10377': ['Jun 2019', '8 years', 'Side gate, unit behind the garage'],
+    '10458': ['Aug 2008', '31 years', '—'],
+    '10233': ['Jan 2021', '5 years', 'Call on arrival · condo, unit 4B'],
+    '10655': ['Sep 2026', '19 years', '—'],
+    '10624': ['Oct 2016', '12 years', '—']
+  }; }                                   // a function: read before this line runs
+  // the job's start and when it is planned to end (R-009.1, p.899)
+  function jobEndText(j) {
+    var m = /(\d{1,2}):(\d{2}) ([AP]M)/.exec(j && j.when || ''); if (!m) return '';
+    var mins = (+m[1] % 12 + (m[3] === 'PM' ? 12 : 0)) * 60 + +m[2] + (j.type === 'Install' ? 240 : 90);
+    var hh = Math.floor(mins / 60) % 24, mm = mins % 60;
+    return String(j.when).replace(/\d{1,2}:\d{2} [AP]M/, ((hh % 12) || 12) + ':' + String(mm).padStart(2, '0') + ' ' + (hh >= 12 ? 'PM' : 'AM'));
+  }
+  function paintJobInfo(j) {
+    var a = addInfoData()[j.cust] || ['—', '—', '—'];
+    var v = { movein: a[0], houseage: a[1], email: custEmail(j), access: a[2] };
+    $$('#job-general [data-addinfo]').forEach(function (r) { r.children[1].textContent = v[r.dataset.addinfo] || '—'; });
+    var root = byId('job-general'); if (!root) return;
+    var al = sel(root, 'Additional information')[0], ab = al && al.nextElementSibling;
+    var abt = ab && [].filter.call(ab.childNodes, function (n) { return n.nodeType === 3 && /\d/.test(n.nodeValue); })[0];
+    if (abt) abt.nodeValue = '4';
+    var st = sel(root, 'Start date & time')[0], srow = st && st.parentElement;
+    if (srow) {
+      var er = $('[data-endrow]', root);
+      if (!er) { er = srow.cloneNode(true); er.dataset.endrow = '1'; er.children[0].textContent = 'End date & time'; srow.parentElement.insertBefore(er, srow.nextSibling); }
+      if (er.children[1]) er.children[1].textContent = jobEndText(j) || '—';
+    }
+    // the office's files are on the Files screen; the card says how many and opens it
+    var fu = sel(root, 'Choose file to upload')[0], fcard = fu && fu.closest('div[style*="border-radius"]');
+    if (fcard && !$('[data-filesrow]', fcard)) {
+      var fr = document.createElement('div'); fr.dataset.filesrow = '1'; fr.dataset.tap = '1'; fr.dataset.go = 'files'; fr.dataset.mode = 'push';
+      fr.setAttribute('style', 'display:flex;align-items:center;gap:9px;padding:10px 0 2px;font:500 14px/1.3 Geist;color:#4A6FA5');
+      fr.innerHTML = '<span class="mi" style="font-size:19px">folder_open</span><span style="flex:1">2 files from the office</span><span class="mi" style="font-size:19px;color:#A9B4C2">chevron_right</span>';
+      fcard.appendChild(fr);
+    }
+  }
   function paintCustHead(j) {
+    if (j && typeof paintJobInfo === 'function') paintJobInfo(j);
     if (!custHead || !j) return;
     custHead.title.textContent = 'Jobs \u2013 ' + j.name;
     var h = custHist(j), techs = {}, spent = 0;
