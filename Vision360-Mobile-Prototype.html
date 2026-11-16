@@ -638,6 +638,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
             <div class="rowi" data-act="demoTz" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">schedule</span>Demo: time zone case &middot; 9:00 AM everywhere (M2-11)</div>
             <div class="rowi" data-act="demoEstimate" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">request_quote</span>Demo: draft estimate with 3 options (M6-3)</div>
             <div class="rowi" data-act="demoWarranty" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">verified_user</span><span id="warrantyNote">Demo: show as a warranty technician (M3-12)</span></div>
+            <div class="rowi" data-act="demoAdjust" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">sell</span><span id="adjustNote">Demo: technician without Adjust price</span></div>
+            <div class="rowi" data-act="demoKpiOff" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">insights</span><span id="kpiOffLbl">Demo: role without KPIs</span></div>
             <!-- demo only: shows Home as a salaried technician sees it (OD-16) -->
             <div class="rowi" data-act="toggleSalaried" style="display:none;justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">badge</span><span id="salariedNote">Demo: show as a salaried technician</span></div>
           </div>
@@ -1232,7 +1234,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         <div class="screen" id="gallery" data-tabs="off" style="background:#fff">
           <div class="hdr" style="padding:11px 16px">
             <span class="back mi" data-back style="font-size:23px">close</span>
-            <span class="ttl" style="flex:1">Choose photos</span>
+            <span class="ttl" style="flex:1">Choose photos and videos</span>
             <span id="galAll" data-tap style="font:600 14px/1 Geist;color:#4A6FA5">Select all</span>
           </div>
           <div class="sc" style="flex:1;overflow-y:auto;padding:12px">
@@ -3527,11 +3529,12 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   /* M7-6: every job has its own invoice — number, lines, payments, dates.
      The fields below hold the open job's; another job's wait in invByJob. */
   var invByJob = recall('invByJob', {});
+  var invMailQ = recall('invMailQ', false);       // QA 16.11 (R-011): emailed offline — goes after sync
   var invOwner = recall('invOwner', null);
   function invSnap() {
     return { invNum: invNum, invTemp: invTemp, invPaidSoFar: invPaidSoFar, invCreatedAt: invCreatedAt, invSentAt: invSentAt,
       invPaidAt: invPaidAt, invFrozen: invFrozen, invFinancing: invFinancing, payMethod: payMethod,
-      receipt: receipt, cardSig: cardSig };
+      receipt: receipt, cardSig: cardSig, invMailQ: invMailQ };
   }
   function invRestore(o) {
     o = o || {};
@@ -3542,7 +3545,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     remember('invCreatedAt', invCreatedAt); remember('invSentAt', invSentAt); remember('invPaidAt', invPaidAt);
     remember('invFrozen', invFrozen); remember('invFinancing', invFinancing);
     // the payment card and the customer's signature on it are this job's too
-    receipt = o.receipt || null; cardSig = o.cardSig || '';
+    receipt = o.receipt || null; cardSig = o.cardSig || ''; invMailQ = !!o.invMailQ; remember('invMailQ', invMailQ);
     remember('receipt', receipt); remember('cardSig', cardSig);
     setTimeout(function () { paintReceipt(); paintCardSig(); paintFinChip(); }, 0);
   }
@@ -3559,7 +3562,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
      lines are marked with the invoice's number, and a line marked so is
      locked (M7-3). */
   function freezeInvoice(j, no) {
-    var rows = invoiceRows(j).map(function (r) { return { name: r.name, price: r.price, disc: !!r.disc, est: !!r.est }; });
+    var rows = invoiceRows(j).map(function (r) { return { name: r.name, price: r.price, disc: !!r.disc, est: !!r.est, tax: r.tax || 0 }; });
     var total = Math.round(rows.reduce(function (a, r) { return a + r.price; }, 0) * 100) / 100;
     if (j) {
       if (j.sold && !j.sold.invoiced) {
@@ -3765,7 +3768,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     }
     else if (mode === 'modal') { stack.push({ id: id, mode: 'modal' }); animate(fromEl, el, 'up'); }
     else { stack.push({ id: id, mode: 'push' }); animate(fromEl, el, 'push'); }
-    if (id === 'image-desc') { paintSlotBanner(); paintMediaForm(); }
+    if (id === 'image-desc') { paintSlotBanner(); paintMediaForm(); var dvx = $('#image-desc [data-descval]'); if (dvx && !mediaEditing) { dvx.textContent = ''; dvx.dispatchEvent(new Event('input')); } }
     if (id === 'closeout') paintCloseout();
     // the invoice screens are painted from the same sum as the payment ones
     if (PAY_SCREENS.indexOf(id) > -1 ||
@@ -3815,10 +3818,16 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   function chrome() {
     var pid = curPage(); if (!pid) return;
     if (pid === 'est-draft' && typeof paintDraftAction === 'function') paintDraftAction();
+    if (pid === 'est-draft' && typeof orderOptionsByPrice === 'function') orderOptionsByPrice('est-draft');
+    if (pid === 'est-draft' && typeof paintAllCards === 'function') paintAllCards();   // notes and warranties after a reload too
     if (pid === 'est-customer' && typeof paintCustomerOptions === 'function') paintCustomerOptions();
+    if (pid === 'est-customer' && typeof paintSigWhen === 'function') paintSigWhen();
     if (pid === 'home' && typeof paintUpcoming === 'function') paintUpcoming();
     if (pid === 'est-customer' && typeof paintCustomerEstNo === 'function') paintCustomerEstNo();
     if (pid === 'est-customer' && typeof paintBillTo === 'function') paintBillTo();
+    if (pid === 'photos' && typeof rebuildPhotoGrid === 'function') rebuildPhotoGrid();
+    if (pid === 'est-catalog' && typeof paintCatalogAdded === 'function') setTimeout(paintCatalogAdded, 0);
+    if ((pid === 'home' || pid === 'home-active' || pid === 'job-general') && typeof syncPhotoCounts === 'function' && typeof mediaBlk !== 'undefined' && mediaBlk) syncPhotoCounts();
     if (pid === 'cust-jobs' && typeof paintCustHead === 'function' && typeof JOBS !== 'undefined') paintCustHead(JOBS[jobIdx]);
     if (pid === 'history') { paintHistory(); if (typeof paintHistTags === 'function') paintHistTags(); }
     // while a job is In Progress, Home shows it, whichever job was opened from the list
@@ -4425,6 +4434,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         editingOption = null;
         addOption(optionAdjusted(), optionItems, false, en);
         keepOptionExtras(en, typedWarranty());
+        markEstUpdated();
         optionItems = []; optAdjust = 0; optRevised = null; optDisc = 0; optDiscKept = false; adjMsg = null;
         renderOptionItems();
         paintFormTitle();
@@ -4434,7 +4444,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         return;
       }
       var first = state.est === 'none';
-      state.est = 'draft';
+      var wasChanges = state.est === 'changes';
+      state.est = wasChanges ? 'changes' : 'draft';
       var total = optionAdjusted();
       var wanted = typedOptionName();
       /* The first option on an empty estimate used to take over the demo's
@@ -4452,10 +4463,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       if (added) {
         var wname = (Object.keys(OPTION_TOTALS).filter(function (k) { return OPTION_TOTALS[k] === total; }).slice(-1)[0] || wanted);
         keepOptionExtras(wname, warranty);
-      }
-      if (optionNoteText) {
-        optionNotes['Option ' + String.fromCharCode(65 + Math.max(0, optCount - 1))] = optionNoteText;
-        optionNoteText = '';
+        markEstUpdated();
       }
       optionItems = [];
       optAdjust = 0;
@@ -4487,6 +4495,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       changesPrevTotal = j.sold ? j.sold.total : null;
       state.est = 'changes';
       j.sentAt = '';                 // Changes requested, until it is resent
+      delete estUpdated[String(jobIdx)]; remember('estUpdated', estUpdated);
       estPresented = false;
       resetCustomerSignature();
       closeOverlays(true);
@@ -4516,6 +4525,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       toast('Changes requested — revise the options and resend for approval', 'edit_note');
     },
     estOrder: function () {
+      if (!custPicked && !((JOBS[jobIdx] || {}).paperApproved)) { toast('The customer picks an option first', 'touch_app'); return; }
       if (!estSigned) {
         // the button already says this; the toast says why
 
@@ -4608,7 +4618,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         if (ev.target.closest('[data-pphoto]')) { photo = !photo; draw(); return; }
         if (!ev.target.closest('[data-pgo]')) return;
         j.paperApproved = { at: stamp(), photo: photo, by: 'Marek Stroz' }; saveJobs();
-        pickedOption = pick; estSigned = true;
+        pickedOption = pick; estSigned = true; custPicked = true;
         ACT.estOrder();
         paintPaperNote();
         toast('Approved by hand — ' + pick + (photo ? ', paper copy attached' : ''), 'history_edu');
@@ -4641,6 +4651,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       state.inv = 'none';                  // a second invoice on the same job
       invCreatedAt = invSentAt = invPaidAt = '';
       remember('invCreatedAt', ''); remember('invSentAt', ''); remember('invPaidAt', '');
+      // the new invoice has no payment of its own yet
+      receipt = null; cardSig = ''; remember('receipt', null); remember('cardSig', '');
       renderJobItems();
       paintPayScreens();
       go('fin-empty', 'root');
@@ -4658,6 +4670,10 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     estCatalogDone: function () {
       var picked = estCatalog ? estCatalog.selection() : [];
       if (estCatalog) estCatalog.clear();
+      if (!canAdjust && picked.some(function (it) { return it.price < 0; })) {
+        picked = picked.filter(function (it) { return it.price >= 0; });
+        setTimeout(function () { toast('Discounts and coupons need Adjust price — left off', 'block'); }, 1200);
+      }
       if (catalogTarget === 'job') { jobAddPicked(picked); return; }
       picked.forEach(function (it) {
         var n = it.qty || 1;
@@ -4697,6 +4713,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
          the real one at sync. */
       var cj = JOBS[jobIdx] || {};
       invTemp = !net.online;
+      if (invTemp) setTimeout(function () { queued('Invoice', 'Invoice created · ' + invNo()); }, 0);
       invNum = invTemp ? nextTempNo(cj, 'I') : nextDocNo(cj, 'I');
       remember('invNum', invNum); remember('invTemp', invTemp);
       freezeInvoice(cj, invNum);
@@ -4708,7 +4725,6 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     },
     payDone: function () {
       invPaidAt = stamp(); remember('invPaidAt', invPaidAt);
-      if (!invSentAt) { invSentAt = invPaidAt; remember('invSentAt', invSentAt); }
       if (curPage() === 'pay-card' && !net.online) {
         toast('No signal — the card can’t be charged yet', 'cloud_off');
         return;
@@ -4758,7 +4774,13 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       if (!scr || scr.id !== 'rc-overview') back();
       toast(net.online ? 'Report Card saved' : 'Report Card saved locally — will sync');
     },
-    present: function () { markPresented(); go('est-customer', 'modal'); },
+    present: function () {
+      custPicked = false;
+      // QA 16.11 (R-007.5, p.748): several options open in landscape, one option in portrait
+      var cnt = optList ? $$(':scope > div', optList).map(optionName).filter(Boolean).length : Object.keys(OPTION_TOTALS).length;
+      customerLandscape = cnt > 1;
+      markPresented(); go('est-customer', 'modal');
+    },
     /* A finished job opens to be read, not changed: Set back to active is
        the one way to change it, and it says so at the top. */
     histDetails: function (el) {
@@ -5668,7 +5690,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       return e;
     }
     bar.appendChild(tool('chat', 'mediaDescribe'));
-    bar.appendChild(tool('gesture', 'mediaMarkup'));
+    bar.appendChild(tool('edit', 'mediaMarkup'));          // Jean: a pencil, not a squiggle
     bar.appendChild(tool('download', 'mediaDownload'));
     if (del) {
       del.setAttribute('style', 'font-size:23px;color:#1A2332');
@@ -5718,6 +5740,44 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       'font-variant-numeric:tabular-nums"></span>';
     pager.remove();
     v.appendChild(pill);
+    /* QA 16.11 (R-003.5, p.505): "1/24" never moved and there was no way to
+       the next photo — arrows beside the counter, and a swipe on the photo */
+    var pg = $('[data-mediapage]', pill);
+    ['chevron_left', 'chevron_right'].forEach(function (ic, k) {
+      var a = document.createElement('span');
+      a.className = 'mi'; a.dataset.tap = '1'; a.dataset.mediastep = k ? '1' : '-1';
+      a.setAttribute('style', 'font-size:26px;color:#4A6FA5;padding:2px 14px;align-self:center');
+      a.textContent = ic;
+      if (k) pill.appendChild(a); else pill.insertBefore(a, pill.firstChild);
+    });
+    desc.textContent = ''; desc.hidden = true;     // no caption until one is written
+    function viewList(tile) {
+      if (!tile || !tile.parentElement) return [];
+      return $$(':scope > div', tile.parentElement).filter(function (t) {
+        // the list sits under the viewer, so it is hidden: a tile counts unless the filter hid it
+        return t.style.display !== 'none' && !t.hidden && norm(t.textContent).toLowerCase() !== 'add add';
+      });
+    }
+    function photoFromTile(tile) {
+      if (tile.dataset.ptype) return { tile: tile, type: tile.dataset.ptype, mine: tile.dataset.photomine === '1' };
+      var b = $$('span,div', tile).filter(function (e) { return !e.children.length && /^(BEFORE|AFTER|OTHER|B|A|O)$/.test(norm(e.textContent)); })[0];
+      var key = b ? norm(b.textContent).charAt(0) : 'O';
+      return { tile: tile, type: b ? ({ B: 'Before', A: 'After', O: 'Other' }[key] || 'Other') : 'Other', mine: tile.dataset.photomine === '1' };
+    }
+    function step(d) {
+      if (!viewedPhoto || !viewedPhoto.tile) return;
+      var L = viewList(viewedPhoto.tile), i = L.indexOf(viewedPhoto.tile) + d;
+      if (i < 0 || i >= L.length) { toast(d > 0 ? 'That was the last photo' : 'This is the first photo', 'photo_library'); return; }
+      viewedPhoto = photoFromTile(L[i]);
+      paintViewed(viewedPhoto);
+    }
+    pill.addEventListener('click', function (ev) { var a = ev.target.closest('[data-mediastep]'); if (a) step(+a.dataset.mediastep); });
+    var sx = null;
+    img.addEventListener('touchstart', function (ev) { sx = ev.touches[0].clientX; }, { passive: true });
+    img.addEventListener('touchend', function (ev) {
+      if (sx === null) return; var dx = ev.changedTouches[0].clientX - sx; sx = null;
+      if (Math.abs(dx) > 40) step(dx < 0 ? 1 : -1);
+    });
     // photoCount is declared further down the file; var hoists the name
     // and not the value, so read the store rather than the variable
     $('[data-mediapage]', pill).textContent = '1/' + recall('photoCount', 24);
@@ -5733,6 +5793,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       photoType = p.type;
       paintPhotoType();
       meta.textContent = p.mine ? 'Today · Marek Stroz' : 'Nov 12, 2026 · Peter Johnson';
+      var L = viewList(p.tile), at = L.indexOf(p.tile);
+      if (pg) pg.textContent = (at > -1 ? at + 1 : 1) + '/' + (L.length || 1);
       var mayEdit = p.mine && !viewPast;
       tools.forEach(function (t) {
         // M4-14: another technician's past visit is viewed only — no download either
@@ -6510,7 +6572,17 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     toast(net.online ? what + ' ' + verb : what + ' will be ' + how + ' when there is signal', icon);
   }
   ACT.invMail = function () {
-    if (!net.online) { closeOverlays(true); toast('Send by email needs a connection', 'cloud_off'); return; }
+    /* QA 16.11 (R-011, p.1122, 1146–1150): offline the email waits — after
+       sync the server gives the number and emails the PDF with it */
+    if (!net.online) {
+      closeOverlays(true);
+      if (invMailQ) { toast('Already waiting — it is emailed after sync', 'schedule_send'); return; }
+      invMailQ = true; remember('invMailQ', true);
+      queued('Invoice', 'Email invoice ' + invNo() + ' to the customer');
+      paintPayScreens();
+      toast('Invoice ' + invNo() + ' is emailed after sync, with its final number', 'schedule_send');
+      return;
+    }
     sendReceipt('emailed', 'mail', 'emailed to the customer');
   };
   ACT.invSms = function () { sendReceipt('sent by SMS', 'sms', 'sent by SMS'); };
@@ -6953,7 +7025,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     var overpaid = taking > payAmount + 0.005 ? taking - payAmount : 0;
     if (taking < payAmount - 0.005) {
       invPaidSoFar += taking; remember('invPaidSoFar', invPaidSoFar);
-      if (!invSentAt) { invSentAt = stamp(); remember('invSentAt', invSentAt); if (state.inv === 'created') state.inv = 'sent'; }
+      // QA 16.11 (R-008.1): a payment is not a send — the invoice says Sent only once it was
       if (m.id !== 'financing') kpiPaid(taking);
       pay.values = {}; pay.dates = {}; pay.dl = {}; savePay();
       payPanels.forEach(function (P) { P.rendered = ''; });
@@ -6965,7 +7037,6 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       return;
     }
     invPaidAt = stamp(); remember('invPaidAt', invPaidAt);
-    if (!invSentAt) { invSentAt = invPaidAt; remember('invSentAt', invSentAt); }
     state.inv = 'paid';
     payMethod = m.name;
     paintReceipt('inline');
@@ -7085,8 +7156,11 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   })();
   function paintAttach() {
     var j = (typeof JOBS !== 'undefined' && JOBS[jobIdx]) || {};
-    var has = state.est === 'approved' && j.sold;
+    // QA 16.11: the option billed on an earlier invoice is not offered again on the next one
+    var elsewhere = !!(j.sold && j.sold.invoiced && !(invFrozen && invFrozen.no === j.sold.invoiced));
+    var has = state.est === 'approved' && j.sold && !elsewhere;
     attachRows.forEach(function (A) {
+      toggleDisplay(A.row, !elsewhere);
       var track = $('[data-swtrack]', A.row), knob = $('[data-swknob]', A.row);
       var on = has && invAttachEst;
       A.row.style.opacity = (has && state.inv !== 'sent') ? '' : '.55';
@@ -7216,7 +7290,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       var root = byId(id); if (!root) return;
       var el = $('[data-earlier]', root);
       if (!el) {
-        var head = $$('span', root).filter(function (e) { return !e.children.length && /^\d{4,6}-I(\d{2}|XX)/.test(norm(e.textContent)); })[0];
+        // the number is a div on the invoice card (QA 16.11: the span-only lookup never found it)
+        var head = $$('span,div', root).filter(function (e) { return !e.children.length && /^\d{4,6}-I(\d{2}|XX)/.test(norm(e.textContent)); })[0];
         var card = head; while (card && !/border-radius:12px/.test(card.getAttribute('style') || '')) card = card.parentElement;
         if (!card || !card.parentElement) return;
         el = document.createElement('div'); el.dataset.earlier = '1';
@@ -7232,7 +7307,56 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   }
   function frozenOption() {
     var r = invFrozen && state.inv !== 'none' ? invFrozen.rows.filter(function (x) { return x.est && !x.disc; })[0] : null;
-    return r ? r.name.split(' — ')[0] : null;
+    if (!r) return null;
+    var m = r.name.match(/\((Option [^)]+)\)/);       // a line of the option: "AC Tune-Up (Option A)"
+    return m ? m[1] : r.name.split(' — ')[0];
+  }
+  /* QA 16.11 (R-008.1): the totals the customer is billed — Subtotal before
+     tax, the discount, the tax, the total — not a tax hidden in a line */
+  function invSummary(box, rows) {
+    var sub = 0, disc = 0, tax = 0;
+    rows.forEach(function (r) { if (r.disc) disc += r.price; else { sub += r.price - (r.tax || 0); tax += r.tax || 0; } });
+    var d = document.createElement('div');
+    d.dataset.invsum = '1';
+    d.setAttribute('style', 'margin-top:4px;padding-top:8px;border-top:1px solid #DDE3EE;font:400 13px/1.35 Geist;color:#546478');
+    [['Subtotal', sub], disc ? ['Discount', disc] : null, ['Tax', tax]].filter(Boolean).forEach(function (x) {
+      var r = document.createElement('div');
+      r.setAttribute('style', 'display:flex;justify-content:space-between;padding:3px 0');
+      r.innerHTML = '<span></span><span style="white-space:nowrap"></span>';
+      r.children[0].textContent = x[0];
+      r.children[1].textContent = x[1] < 0 ? '−' + fmt(-x[1]) : fmt(x[1]);
+      if (x[1] < 0) r.children[1].style.color = '#16A34A';
+      d.appendChild(r);
+    });
+    box.appendChild(d);
+  }
+  // a paid invoice still shows what it billed
+  function paintPaidLines(rows) {
+    var root = byId('inv-paid'); if (!root) return;
+    var sc = $$('.sc', root).filter(function (e) { return /overflow-y/.test(e.getAttribute('style') || ''); })[0]; if (!sc) return;
+    var box = $('[data-paidlines]', sc);
+    if (!box) {
+      box = document.createElement('div'); box.dataset.paidlines = '1';
+      box.setAttribute('style', 'background:#fff;border:1px solid #DDE3EE;border-radius:12px;padding:12px 14px');
+      sc.insertBefore(box, sc.children[1] || null);
+    }
+    box.innerHTML = '<div style="font:600 15px/1.2 Geist;margin-bottom:4px">Items</div>';
+    rows.forEach(function (r, i) {
+      var d = document.createElement('div');
+      d.setAttribute('style', 'display:flex;justify-content:space-between;gap:14px;padding:7px 0;font:400 13px/1.35 Geist;color:#546478' + (i ? ';border-top:1px solid #EDF0F5' : ''));
+      d.innerHTML = '<span></span><span style="font-weight:600;color:#1A2332;white-space:nowrap"></span>';
+      d.children[0].textContent = r.name;
+      d.children[1].textContent = r.price < 0 ? '−' + fmt(-r.price) : fmt(r.price);
+      if (r.disc) d.children[1].style.color = '#16A34A';
+      box.appendChild(d);
+    });
+    invSummary(box, rows);
+    var t = document.createElement('div');
+    t.setAttribute('style', 'display:flex;justify-content:space-between;padding:6px 0 0;font:600 14.5px/1.3 Geist');
+    t.innerHTML = '<span>Total</span><span></span>';
+    t.children[1].textContent = fmt(rows.reduce(function (a, r) { return a + r.price; }, 0));
+    box.appendChild(t);
+    toggleDisplay(box, rows.length > 0);
   }
   function paintInvLines() {
     if (!invLines) return;
@@ -7260,6 +7384,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       invLines.lines.appendChild(d);
     });
     invLines.total.textContent = fmt(invoiceTotal());
+    invSummary(invLines.lines, rows);
+    paintPaidLines(rows);
     paintNotInvoiced();
 
     // created: send first, payment offered; sent: payment is the step —
@@ -7655,6 +7781,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   var customerLandscape = true;
   function paintCustomerRotation() {
     var root = byId('est-customer'); if (!root) return;
+    joinCustomerLinks();
     var vw = viewport.clientWidth, vh = viewport.clientHeight;
     var on = customerLandscape && curPage() === 'est-customer' && vh > vw;
     if (on) {
@@ -7666,6 +7793,19 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     }
     var ic = $('[data-act="rotateCustomer"]', root);
     if (ic) ic.textContent = on ? 'stay_current_portrait' : 'screen_rotation';
+  }
+  /* QA 16.11: turned sideways the phone is 390px tall, and three footer rows
+     left the options almost no room — the two text links share one row */
+  function joinCustomerLinks() {
+    var root = byId('est-customer'); if (!root || $('[data-custlinks]', root)) return;
+    var rq = sel(root, 'Request changes')[0], dc = sel(root, 'Decline all options')[0];
+    rq = rq && rq.closest('#est-customer > div'); dc = dc && dc.closest('#est-customer > div');
+    if (!rq || !dc || rq === dc) return;
+    var row = document.createElement('div');
+    row.dataset.custlinks = '1';
+    row.setAttribute('style', 'display:flex;justify-content:center;gap:26px;padding:10px 16px 0;background:#fff;flex:none');
+    rq.parentElement.insertBefore(row, rq);
+    [rq, dc].forEach(function (e) { e.style.padding = '0'; e.style.background = 'none'; row.appendChild(e); });
   }
   (function () {
     var root = byId('est-customer'); if (!root) return;
@@ -7689,6 +7829,12 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     paintEstStatus();
   }
   var estBadge = null, estBadgeLine = null, estBadgeStyle = '';
+  var estUpdated = recall('estUpdated', {});      // QA 16.11 (R-007.4): by job, edited after Changes requested
+  function markEstUpdated() {
+    if (state.est !== 'changes') return;
+    estUpdated[String(jobIdx)] = stamp(); remember('estUpdated', estUpdated);
+    paintEstStatus();
+  }
   function paintEstStatus() {
     var root = byId('est-draft'); if (!root) return;
     if (!estBadge) {
@@ -7701,8 +7847,9 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     // a resend after changes is a send of its own, so Sent wins
     var sent = !!j.sentAt;
     var changes = !sent && state.est === 'changes';
+    var updated = changes && !!estUpdated[String(jobIdx)];
     var declined = state.est === 'declined';
-    estBadge.textContent = declined ? 'DECLINED' : changes ? 'CHANGES REQUESTED' : sent ? 'SENT' : 'DRAFT';
+    estBadge.textContent = declined ? 'DECLINED' : updated ? 'UPDATED' : changes ? 'CHANGES REQUESTED' : sent ? 'SENT' : 'DRAFT';
     estBadge.setAttribute('style', estBadgeStyle + (declined ? ';color:#DC2626;background:#FDECEC;border-color:#F5C2C2' : changes ? ';color:#8A6114;background:#FEF3E2;border-color:#F5D7A8'
       : sent ? ';color:#4A6FA5;background:#EBF0F8;border-color:#C8D5E8' : ''));
     var no = estNoOf(j);
@@ -7962,6 +8109,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   setTimeout(tidyOverviewRow, 0);
   function paintPeriod() {
     if (periodRefs && periodRefs.qualifier) periodRefs.qualifier.textContent = '(' + period + ')';
+    if (typeof paintKPI === 'function') paintKPI();
     tidyOverviewRow();
     // the segment only speaks in four words; a custom range is none of them
     var m = /^This (week|month|quarter|year)$/.exec(period);
@@ -8179,6 +8327,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   })();
 
   var catalogFilter = function () { };
+  var catalogAddRow = function () { };
+  var paintCatalogAdded = function () { };
   (function () {
     var root = byId('est-catalog'); if (!root) return;
     var sc = $$('.sc', root).pop();
@@ -8213,6 +8363,34 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       row.dataset.cat = spec[3];
       row.dataset.name = spec[0];
     });
+    // QA 16.11 (R-006.2, p.607): a saved custom item is on the shelf at once, and search finds it
+    catalogAddRow = function (spec) {
+      var row = tpl.cloneNode(true);
+      row.setAttribute('style', 'background:#fff;border:1px solid #DDE3EE;border-radius:12px;padding:13px 14px');
+      var p1 = parts(row);
+      p1.name.textContent = spec[0]; p1.desc.textContent = spec[1] || 'Custom item'; p1.price.textContent = fmt(spec[2]);
+      row.dataset.cat = spec[3]; row.dataset.name = spec[0];
+      sc.insertBefore(row, empty);
+      catalogFilter();
+    };
+    /* QA 16.11 (R-006.1, p.579): what is already on the job — or on the option
+       being built — reads "Added" */
+    paintCatalogAdded = function () {
+      var have = {};
+      var src = catalogTarget === 'job' ? ((JOBS[jobIdx] || {}).items || []).filter(function (it) { return !it.inv; }) : optionItems;
+      (src || []).forEach(function (it) { have[it.name] = (have[it.name] || 0) + (it.qty || 1); });
+      $$(':scope > div[data-cat]', sc).forEach(function (r) {
+        var m = $('[data-addedmark]', r);
+        var n = have[r.dataset.name];
+        if (!n) { if (m) m.remove(); return; }
+        if (!m) {
+          m = document.createElement('div'); m.dataset.addedmark = '1';
+          m.setAttribute('style', 'display:flex;align-items:center;gap:4px;margin-top:6px;font:600 12px/1 Geist;color:#16A34A');
+          r.appendChild(m);
+        }
+        m.innerHTML = '<span class="mif" style="font-size:15px">check_circle</span>Added' + (n > 1 ? ' · ' + n : '');
+      });
+    };
     // the board's rows that are not in the list leave, or they show on every tab
     var keep = {}; CATALOG_ROWS.forEach(function (spec) { keep[spec[0]] = 1; });
     rows.slice(1).forEach(function (r) { if (!keep[norm(parts(r).name.textContent)]) r.remove(); });
@@ -8244,7 +8422,9 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       var shown = 0;
       $$(':scope > div[data-cat]', sc).forEach(function (r) {
         // a search looks through the whole catalog, not just the open tab
-        var on = q ? r.dataset.name.toLowerCase().indexOf(q) > -1 : (cat === 'All items' || r.dataset.cat === cat);
+        // QA 16.11 (R-006.1, p.589): by name or by price — "350" finds the $350.00 items
+        var pr = norm(parts(r).price.textContent).replace(/[$,−-]/g, '');
+        var on = q ? (r.dataset.name.toLowerCase().indexOf(q) > -1 || (/^[\d.]+$/.test(q) && pr.indexOf(q) === 0)) : (cat === 'All items' || r.dataset.cat === cat);
         r.hidden = !on;
         if (on) shown++;
       });
@@ -8296,9 +8476,11 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     names = names.filter(function (n, i) { return names.indexOf(n) === i && OPTION_TOTALS[n] !== undefined; });
     if (!names.length) return;
     if (names.indexOf(pickedOption) < 0) pickedOption = names[0];
+    // QA 16.11 (R-007.5, p.719): the customer picks — nothing is chosen for him, unless there is one option
+    if (names.length === 1) custPicked = true;
     box.innerHTML = '';
     names.forEach(function (n) {
-      var on = n === pickedOption;
+      var on = custPicked && n === pickedOption;
       var card = document.createElement('div');
       card.dataset.custopt = n;
       card.setAttribute('style', on
@@ -8314,7 +8496,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         body = '<div data-items style="padding:10px 14px;display:flex;flex-direction:column;gap:7px"></div>' +
           '<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 14px;background:#EBF0F8;border-top:1px solid #C8D5E8">' +
           '<span style="font:700 20px/1 Geist">' + fmt(OPTION_TOTALS[n]) + '</span>' +
-          '<span style="font:500 12.5px/1 Geist;color:#4A6FA5">Tap for total</span></div>';
+          '<span style="font:500 12.5px/1 Geist;color:#4A6FA5">Tap for total</span></div>' +
+          (optTaxOf(n) ? '<div data-custtax style="padding:0 14px 10px;background:#EBF0F8;font:500 12px/1.3 Geist;color:#546478">The price includes ' + fmt(optTaxOf(n)) + ' sales tax</div>' : '');
       }
       card.innerHTML = top + body;
       $('[data-optitle]', card).textContent = n;
@@ -8328,8 +8511,16 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         r.appendChild(document.createTextNode(it.name));
         list.appendChild(r);
       });
+      var wl = list && warrantyEl(n); if (wl) list.appendChild(wl);
+      if (list && optionNotes[n] && showNote[n] !== false) {
+        var nl = document.createElement('div');
+        nl.setAttribute('style', 'margin-top:6px;font:400 13px/1.45 Geist;color:#546478;font-style:italic');
+        nl.textContent = optionNotes[n];
+        list.appendChild(nl);
+      }
       card.firstElementChild.addEventListener('click', function () {
-        if (pickedOption === n) return;
+        if (custPicked && pickedOption === n) return;
+        custPicked = true;
         pickedOption = n;
         if (estSigned) resetCustomerSignature();   // M6-11: the signature was for the other option
         paintCustomerOptions();
@@ -8368,6 +8559,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   var paintHistory = function () { };
   var histJob = '';
   var histDoneIdx = '', histWhen = '';          // which card the sheet / details were opened from
+  var histName = '';                             // QA 16.11 (R-005): History narrowed to one customer from search
   var histReqs = recall('histReqs', {});         // reopen requests on past visits, by customer + date
 
   (function () {
@@ -8419,6 +8611,9 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       link.dataset.act = 'histDetails';
 
       var money = norm(price.textContent);
+      // QA 16.11 (R-005, p.557): only an undecided estimate shows a range; the others billed one amount
+      var DECIDED = { 'Brent Kenzie': '$1,109.00', 'Joseph Lane': '$428.00' };
+      if (t !== 'Estimate' && /\u2013|–/.test(money)) money = DECIDED[norm(name.textContent)] || money.split(/\s*[\u2013–]\s*/)[0];
       // on a narrow phone the range used to break mid-number; the label gives
       // way first and the figure stays in one piece
       foot.setAttribute('style', 'display:flex;justify-content:space-between;align-items:center;' +
@@ -8524,10 +8719,21 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       if (cut === undefined) cut = 31;
       var shown = 0;
       rows.forEach(function (c) {
-        c.el.hidden = c.ago > cut;
+        c.el.hidden = c.ago > cut || (!!histName && c.name !== histName);
         if (!c.el.hidden) shown++;
       });
       empty.hidden = shown > 0;
+      empty.textContent = histName ? 'No completed jobs for ' + histName + ' in this period' : 'No completed jobs in this period';
+      var nb = $('[data-histname]', root);
+      if (!nb) {
+        nb = document.createElement('div'); nb.dataset.histname = '1'; nb.dataset.tap = '1';
+        nb.setAttribute('style', 'display:flex;align-items:center;gap:8px;margin:0 16px 10px;padding:9px 12px;border-radius:10px;background:#EBF0F8;color:#4A6FA5;font:600 13.5px/1.2 Geist;flex:none');
+        strip.parentElement.insertBefore(nb, strip.nextSibling);
+        nb.addEventListener('click', function () { histName = ''; paintHistory(); });
+      }
+      nb.innerHTML = '<span class="mi" style="font-size:18px">person</span><span style="flex:1"></span><span class="mi" style="font-size:18px">close</span>';
+      nb.children[1].textContent = histName;
+      toggleDisplay(nb, !!histName);
       // a period the pills cannot name still has to look chosen
       more.style.background = named ? '#fff' : '#EBF0F8';
       more.style.borderColor = named ? '#DDE3EE' : '#C8D5E8';
@@ -8546,6 +8752,53 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       remember('histPeriod', histPeriod);
       paintHistory();
     }, true);
+  })();
+
+  /* QA 16.11 (R-005, p.554): the search was a picture of "Jul" — the field
+     took no typing and Julia Robinson opened Randy. It searches the
+     customers on his History by name, as he types. */
+  (function () {
+    var root = byId('hist-search'); if (!root) return;
+    var fake = $$('span', root).filter(function (e) { return !e.children.length && norm(e.textContent) === 'Jul'; })[0];
+    var box = fake && fake.parentElement; if (!box) { MISS.push('hist-search :: field'); return; }
+    $$(':scope > span', box).forEach(function (e) { if (!byIcon(box, 'search').some(function (i) { return i === e; })) e.remove(); });
+    var inp = document.createElement('input');
+    inp.className = 'inp'; inp.placeholder = 'Customer name';
+    inp.setAttribute('style', 'flex:1;border:none;background:none;outline:none;font:500 15.5px/1 Geist;padding:0;height:40px');
+    box.appendChild(inp);
+    var sc = $('.sc', root);
+    var list = sc && sc.children[1];
+    function names() {
+      var seen = {};
+      $$('#history [data-act="histDetails"]').forEach(function (l) { if (l.dataset.job) seen[l.dataset.job] = 1; });
+      return Object.keys(seen);
+    }
+    function paint() {
+      if (!list) return;
+      $$('[data-go]', sc).forEach(function (e) { e.removeAttribute('data-go'); });   // the board's links to Randy's history
+      var q = norm(inp.value).toLowerCase();
+      var hits = names().filter(function (n) { return !q || n.toLowerCase().indexOf(q) > -1; });
+      list.innerHTML = hits.length ? hits.map(function (n, i) {
+        var ini = n.split(' ').map(function (w) { return w.charAt(0); }).join('').slice(0, 2);
+        return '<div data-tap="1" data-hsname="' + n + '" style="display:flex;align-items:center;gap:12px;padding:14px' + (i < hits.length - 1 ? ';border-bottom:1px solid #EDF0F5' : '') + '">' +
+          '<span style="width:38px;height:38px;border-radius:19px;background:#EBF0F8;color:#4A6FA5;font:600 14px/38px Geist;text-align:center">' + ini + '</span>' +
+          '<div style="flex:1;font:500 15.5px/1.2 Geist">' + n + '</div><span class="mi" style="font-size:20px;color:#A9B4C2">north_west</span></div>';
+      }).join('') : '<div style="padding:16px;text-align:center;font:400 14px/1.4 Geist;color:#8A97A8">No customer on your History matches</div>';
+    }
+    inp.addEventListener('input', paint);
+    root.addEventListener('click', function (ev) {
+      var r = ev.target.closest('[data-hsname]');
+      var chip = !r && ev.target.closest('.sc span[style*="border-radius:18px"]');
+      if (chip) { ev.stopPropagation(); ev.preventDefault(); inp.value = norm(chip.textContent).replace(/^history/, ''); paint(); return; }
+      if (!r) return;
+      ev.stopPropagation(); ev.preventDefault();
+      histName = r.dataset.hsname; inp.value = '';
+      go('history', 'replace');
+      paintHistory();
+    }, true);
+    var plainGo = go;
+    paint();
+    document.addEventListener('click', function (ev) { if (ev.target.closest('#history') && byIcon(byId('history'), 'search').some(function (i) { return i.contains(ev.target); })) setTimeout(function () { paint(); inp.focus(); }, 60); }, true);
   })();
 
   /* the periods that do not fit on the strip */
@@ -8635,7 +8888,12 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   var SALE_JOB = '10301-J01';
   function invNeeded(j) {
     if (typeof j.invNeeded === 'boolean') return j.invNeeded;
+    // QA 16.11 (R-008.1, p.793): a prepaid plan visit with nothing beyond the plan gets no invoice, not even $0
+    if (planCovered(j)) return false;
     return j.type !== 'Install';
+  }
+  function planCovered(j) {
+    return !!(j && j.plan && j.plan.prepaid && j.plan.visit > 1 && j === JOBS[jobIdx] && invoiceTotal() === 0);
   }
   function paintInvNeeded(j) {
     var fin = byId('fin-empty'); if (!fin) return;
@@ -8645,7 +8903,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     $('[data-invneedt]', row).textContent = need ? 'Invoice needed' : 'No invoice needed for this job';
     $('[data-invneeds]', row).textContent = need
       ? (zero ? 'Nothing billable yet — a $0 invoice closes the call' : 'The invoice bills what is on the job')
-      : j.type === 'Install' ? 'Billed on the sale (' + SALE_JOB + ')' : 'The job closes without an invoice';
+      : j.type === 'Install' ? 'Billed on the sale (' + SALE_JOB + ')'
+      : planCovered(j) ? 'Prepaid plan visit ' + j.plan.visit + ' of ' + j.plan.of + ' — nothing beyond the plan, so no invoice' : 'The job closes without an invoice';
     var foot = $('[data-finfoot]', fin);
     if (foot) toggleDisplay(foot, need);
     var lbl = $('[data-createlbl]', fin);
@@ -8728,7 +8987,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         ic.textContent = sent ? 'check_circle' : 'radio_button_unchecked';
         ic.style.color = sent ? '#4A6FA5' : '';
       }
-      if (t) t.nodeValue = sent ? 'Sent ' + invSentAt : 'Not sent yet';
+      if (t) t.nodeValue = sent ? 'Sent ' + invSentAt : invMailQ ? 'Emailed after sync · with its final number' : 'Not sent yet';
       row.style.color = sent ? '#546478' : '#A9B4C2';
     }
     var wait = $('[data-waitrow]', root);
@@ -8774,14 +9033,21 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       /* The timeline rows are an icon and one run of text — "Created Oct 7,
          2025, 9:09 AM" is a single text node, label and date together. */
       [['Created', invCreatedAt], ['Sent', invSentAt], ['Paid', invPaidAt]].forEach(function (p) {
-        if (!p[1]) return;
+        // a paid invoice that was never sent says so, not the board's old date
+        if (!p[1] && !(p[0] === 'Sent' && id === 'inv-paid')) return;
         $$('div', root).forEach(function (row) {
           if (row.children.length !== 1) return;
           var t = [].slice.call(row.childNodes).filter(function (n) {
             return n.nodeType === 3 && norm(n.nodeValue);
           })[0];
-          if (!t || norm(t.nodeValue).indexOf(p[0] + ' ') !== 0) return;
-          t.nodeValue = p[0] + ' ' + p[1];
+          if (!t) return;
+          var v = norm(t.nodeValue);
+          var mine = v.indexOf(p[0] + ' ') === 0 || (p[0] === 'Sent' && /^Not sent/.test(v));
+          if (!mine) return;
+          t.nodeValue = p[1] ? p[0] + ' ' + p[1] : 'Not sent · paid on the spot — Email sends it';
+          row.style.color = p[1] ? '' : '#A9B4C2';
+          var ic0 = $('.mi,.mif', row);
+          if (ic0 && p[0] === 'Sent') { ic0.className = p[1] ? 'mif' : 'mi'; ic0.textContent = p[1] ? 'check_circle' : 'radio_button_unchecked'; ic0.style.color = p[1] ? '' : '#A9B4C2'; }
         });
       });
     });
@@ -8897,7 +9163,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   var resetChips = (function () {
     var root = byId('hist-filters'); if (!root) return function () { };
     var GROUPS = [
-      { labels: ['Draft', 'Sent', 'Approved', 'Declined', 'Changes requested'], on: { Sent: true, Approved: true } },
+      { labels: ['Draft', 'Sent', 'Approved', 'Declined', 'Changes requested', 'Updated'], on: { Sent: true, Approved: true } },
       { labels: ['Demand Service', 'Maintenance', 'Estimate', 'Install'], on: {} }
     ];
     var all = [];
@@ -9367,9 +9633,16 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   /* Marek, Oct 12: at the table he types the price he is giving, not a
      percentage — the app shows the list price, the revised price, and the
      saving it works out to. */
+  /* QA 16.11 (R-007.3, p.691–697): Adjust price is a permission of the role,
+     off for Employee by default; the company turned it on for Marek. Without
+     it there is no new price, and no discount or coupon line either. */
+  var canAdjust = recall('canAdjust', true);
+  var NO_ADJUST = 'Your role can’t change prices — the office turns on Adjust price in the web app';
   function paintAdjust() {
     var list = byId('adjList'), inp = byId('adjPrice'), sav = byId('adjSave');
     if (!list || !inp || !sav) return;
+    inp.disabled = !canAdjust; inp.style.opacity = canAdjust ? '' : '.5';
+    if (!canAdjust) { list.textContent = fmt(optionBase()); inp.value = ''; sav.textContent = NO_ADJUST; sav.style.color = '#8A97A8'; return; }
     var base = optionBase(), now = optionAdjusted();
     var tx = optionTax();
     list.textContent = fmt(base) + (tx ? ' · incl. ' + fmt(tx) + ' tax' : '');
@@ -9566,7 +9839,9 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     else if (up.phase === 'done') { cls = 'ok'; icon = 'cloud_done'; text = up.text; }
     // M2-8 + Jean (PRD review part 2): what the office overruled stays on the
     // same blue strip with a red "!" — not a second banner
-    else if (openIssues()) { cls = 'sync'; icon = 'cloud_done'; text = 'All sent · ' + lastSyncAt; }
+    else if (waitingTotal()) { cls = 'sync'; icon = 'cloud_upload'; text = waitingTotal() + ' waiting'; }
+    // QA 16.11: "All sent" next to "1 not sent" contradicted itself — it says when it last synced
+    else if (openIssues()) { cls = 'sync'; icon = 'cloud_done'; text = 'Last sync ' + lastSyncAt; }
     else if (net.sentFlash) { cls = 'ok'; icon = 'cloud_done'; text = 'All sent · ' + lastSyncAt; }
     else show = false;
     netbar.className = 'netbar' + (show ? ' on' : '') + (cls ? ' ' + cls : '');
@@ -9636,10 +9911,28 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   /* When the phone last synced: the offline strip and More both say it.
      It moves when a sync finishes after the phone is back online. */
   var lastSyncAt = recall('lastSyncAt', '9:42 AM');
+  function flushMailQ() {
+    var sent = [];
+    Object.keys(invByJob).forEach(function (k) {
+      var o = invByJob[k]; if (!o || !o.invMailQ) return;
+      o.invMailQ = false; o.invSentAt = stamp(); sent.push(o.invNum);
+    });
+    if (invMailQ) {
+      invMailQ = false; remember('invMailQ', false);
+      invSentAt = stamp(); remember('invSentAt', invSentAt);
+      if (state.inv === 'created') { state.inv = 'sent'; remember('state', state); }
+      sent.push(invNo());
+    }
+    if (!sent.length) return;
+    remember('invByJob', invByJob);
+    if (typeof paintPayScreens === 'function') paintPayScreens();
+    setTimeout(function () { toast('Emailed after sync: ' + sent.join(', '), 'mark_email_read'); }, 2200);
+  }
   function markSynced() {
     if (typeof clearNotesWaiting === 'function') clearNotesWaiting();
     if (typeof itFlushWaiting === 'function') itFlushWaiting();
     if (typeof finalizeNumbers === 'function') finalizeNumbers();
+    flushMailQ();
     lastSyncAt = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
     remember('lastSyncAt', lastSyncAt);
     paintLastSync();
@@ -9654,7 +9947,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     if (n) return { icon: 'cloud_upload', text: n + ' waiting', tone: 'brand' };
     if (openIssues()) {
       var ns = notSent.filter(function (x) { return !x.handled; }).length;
-      return { icon: 'error', text: 'All sent · ' + [notApplied.length ? notApplied.length + ' not applied' : '', ns ? ns + ' not sent' : ''].filter(Boolean).join(' · '), tone: 'bad' };
+      return { icon: 'error', text: [notApplied.length ? notApplied.length + ' not applied' : '', ns ? ns + ' not sent' : ''].filter(Boolean).join(' · '), tone: 'bad' };
     }
     return { icon: 'cloud_done', text: 'All sent · ' + lastSyncAt, tone: 'ok' };
   }
@@ -9679,8 +9972,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       net.queue = 0; net.syncing = false; syncQ = [];
       markSynced();
       if (syncDemo) {
-        syncDemo = false; notApplied = demoConflicts(); notSent = demoNotSent();
-        lastSyncAt = '9:42 AM'; remember('lastSyncAt', lastSyncAt);
+        syncDemo = false; notApplied = demoConflicts(); notSent = demoNotSent();   // QA 16.11: the sync just happened — its time stays
       }
       if (tmpD && tmpD.stage === 'offline') tmpSynced();
       if (openIssues() && !upPending) { paintNet(); return; }
@@ -10047,7 +10339,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
      every single one before the tech can get their next call.
      ========================================================= */
   var RC_PHOTO_SCREENS = ['rc-section', 'rc-comfort', 'rc-furnace', 'rc-condenser', 'rc-refrigerant', 'rc-tech'];
-  var TOTAL_SLOTS = 14;
+  var TOTAL_SLOTS = 17;                 // the paper checklist's 17 photos (P15–P17 included, QA 16.11)
   var filledSlots = recall('slots', {});
   var pendingSlot = null;
 
@@ -10141,8 +10433,9 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       t.style.outlineOffset = on ? '-2.5px' : '';
     });
     var n = galPicked.length;
+    var nv = galPicked.filter(function (k) { var t = $('[data-gal="' + k + '"]', grid); return t && t.dataset.galvideo; }).length, np = n - nv;
     var c = byId('galCount');
-    if (c) c.textContent = n ? n + ' ' + plural(n) + ' picked' : 'Nothing picked yet';
+    if (c) c.textContent = n ? [np ? np + (np === 1 ? ' photo' : ' photos') : '', nv ? nv + (nv === 1 ? ' video' : ' videos') : ''].filter(Boolean).join(' · ') + ' picked' : 'Nothing picked yet';
     var d = byId('galDone');
     if (d) {
       d.setAttribute('style', n ? GAL_DONE_ON : GAL_DONE_OFF);
@@ -10161,7 +10454,10 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       t.setAttribute('style', 'position:relative;aspect-ratio:1;border-radius:10px;' +
         'background:' + (i % 3 ? '#E4E9F1' : '#D8DFEA') + ';display:flex;' +
         'align-items:center;justify-content:center;overflow:hidden');
-      t.innerHTML = '<span class="mi" style="font-size:30px;color:#A9B4C2">image</span>' +
+      var vid = i % 5 === 3;
+      if (vid) t.dataset.galvideo = '1';
+      t.innerHTML = '<span class="mi" style="font-size:30px;color:#A9B4C2">' + (vid ? 'videocam' : 'image') + '</span>' +
+        (vid ? '<span style="position:absolute;left:6px;bottom:6px;font:600 11px/1 Geist;color:#fff;background:rgba(28,43,58,.78);border-radius:5px;padding:3px 6px">0:' + (18 + i) + '</span>' : '') +
         '<span data-galtick class="mi"></span>';
       grid.appendChild(t);
     }
@@ -10263,6 +10559,46 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   /* The job's media strip got the new thumbs and the gallery did not, so
      saving a photo and opening Photos showed the same twenty-four tiles the
      board drew. Newest first, wearing its type when one was chosen. */
+  /* QA 16.11 (R-009.2, R-003.5): the Photos screen was the board's picture —
+     "After 20" over two After tiles, 18 photos with no type, the same 24 on
+     every job. It is drawn from this job's media now: one tile per photo,
+     each with its type, and every count read from the same numbers. */
+  var photoTileTpl = null;
+  function mediaTotal() { return (mediaBlk.Before || 0) + (mediaBlk.After || 0) + (mediaBlk.Other || 0); }
+  function syncPhotoCounts() {
+    photoTypeCount = { Before: mediaBlk.Before || 0, After: mediaBlk.After || 0, Other: mediaBlk.Other || 0 };
+    remember('photoTypeCount', photoTypeCount);
+    paintTypeCounts();
+    photoCount = mediaTotal();
+    paintPhotoCount();
+  }
+  function rebuildPhotoGrid() {
+    var root = byId('photos'); if (!root) return;
+    var grid = $$('.sc > div', root).filter(function (e) { return /grid-template-columns/.test(e.getAttribute('style') || ''); })[0];
+    if (!grid) return;
+    var tiles = $$(':scope > div', grid);
+    var isAdd = function (t) { return norm(t.textContent).toLowerCase() === 'add add'; };
+    if (!photoTileTpl) {
+      var src = tiles.filter(function (t) { return !isAdd(t) && $$('span', t).some(function (e) { return /position:absolute/.test(e.getAttribute('style') || ''); }); })[0];
+      if (!src) return;
+      photoTileTpl = src.cloneNode(true);
+    }
+    tiles.forEach(function (t) { if (!isAdd(t)) t.remove(); });
+    var add = $$(':scope > div', grid)[0] || null;
+    ['Before', 'After', 'Other'].forEach(function (k) {
+      for (var i = 0; i < (mediaBlk[k] || 0); i++) {
+        var t = photoTileTpl.cloneNode(true);
+        $$('[data-upchip]', t).forEach(function (e) { e.remove(); });
+        var badge = $$('span', t).filter(function (e) { return /position:absolute/.test(e.getAttribute('style') || ''); })[0];
+        if (badge) badge.textContent = k.toUpperCase();
+        if (i < (mineBlk[k] || 0)) t.dataset.photomine = '1'; else delete t.dataset.photomine;
+        delete t.dataset.upstate;
+        grid.insertBefore(t, add && add.nextSibling ? null : null);
+      }
+    });
+    if (add) grid.insertBefore(add, grid.firstChild);
+    syncPhotoCounts();
+  }
   function addPhotoTiles(n, type) {
     var root = byId('photos'); if (!root) return;
     var grid = $$('.sc > div', root).filter(function (e) {
@@ -10340,7 +10676,16 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     var dv = descBox.textContent;
     descBox.innerHTML = '<div style="font:400 12px/1 Geist;color:#546478">Image description</div>' +
       '<div data-descval style="font:400 16px/1.45 Geist;color:#1A2332;margin-top:5px"></div>';
-    $('[data-descval]', descBox).textContent = norm(dv);
+    /* QA 16.11 (R-009.2, p.949): the description is optional — the field starts
+       empty with a hint, and the board's "Image description goes here" is
+       never saved as one */
+    $('[data-descval]', descBox).textContent = '';
+    $('[data-descval]', descBox).dataset.ph = 'Optional — what the photo shows';
+    if (!byId('descPhCss')) {
+      var css = document.createElement('style'); css.id = 'descPhCss';
+      css.textContent = '[data-descval]:empty::before{content:attr(data-ph);color:#A9B4C2}';
+      document.head.appendChild(css);
+    }
     /* M4-8 (#47): the description is typed here, up to 500 characters, and
        the counter under it reads what is there — "27 / 500", "500 / 500" */
     var dvEl = $('[data-descval]', descBox);
@@ -10456,6 +10801,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   }, recall('kpi', {}));
 
   function kfmt(n) {                      // M10-5b (#76): "$65.2k", a decimal point, not the board's comma
+    if (Math.abs(n) >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'M';   // a year runs into millions
     return '$' + (n / 1000).toFixed(1) + 'k';
   }
   var kpiRefs = null;
@@ -10554,13 +10900,27 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   var COMPANY_JOB_TYPES = ['Demand Service', 'Maintenance', 'Estimate', 'Install'];
   var TYPE_SHARE = { 'Demand Service': 0.34, 'Maintenance': 0.18, 'Estimate': 0.12, 'Install': 0.36 };
   var kpiType = recall('kpiType', 'All work types');
+  /* QA 16.11 (R-003.1, p.359): Week, Month, Quarter, Year and a picked date
+     only renamed the heading — the four tiles read the same for any period.
+     The demo's month is scaled to the period picked (the web's KPI APIs give
+     the real figures, W-20). */
+  function periodShare() {
+    var p = String(typeof period === 'string' ? period : 'This month');
+    if (/week/i.test(p) || /\u2013|–/.test(p)) return 0.24;
+    if (/quarter|^Q\d/i.test(p)) return 2.9;
+    if (/year/i.test(p) || /^\d{4}$/.test(p)) return 11.2;
+    return 1;
+  }
   function kpiView() {
-    var f = TYPE_SHARE[kpiType];
-    if (!f) return kpi;
+    var f = TYPE_SHARE[kpiType] || 1, ps = periodShare();
+    if (f === 1 && ps === 1) return kpi;
     var v = {}; for (var k in kpi) v[k] = kpi[k];
+    v.target = kpi.target * ps;
+    f = f * ps;
     v.revenue = kpi.revenue * f; v.target = kpi.target * f; v.estValue = kpi.estValue * f;
     v.estimates = Math.max(1, Math.round(kpi.estimates * f)); v.conv = Math.round(kpi.conv * f * 10) / 10;
     v.closed = Math.round(kpi.closed * f);
+    if (ps < 1) { v.conv = Math.max(0, Math.round(kpi.conv * f)); }
     return v;
   }
   // M10-6b (#77): every tile with a target says On track or Behind
@@ -10575,16 +10935,42 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     w.textContent = on ? 'On track' : 'Behind';
     w.style.color = on ? '#16A34A' : '#DC2626';
   }
+  var CONV_TARGET = 25;                           // the company's conversion target for the role (W-20)
+  /* QA 16.11 (R-003.1, p.373): a role with no KPIs gets no tiles, and Home says so */
+  var kpiOff = recall('kpiOff', false);
+  function paintKpiOff(r) {
+    var tile = r && r.rev && r.rev.value.closest('div[style*="border-radius"]');
+    var grid = tile && tile.parentElement; if (!grid) return;
+    toggleDisplay(grid, !kpiOff);
+    var note = byId('kpiOffNote');
+    if (!note) {
+      note = document.createElement('div'); note.id = 'kpiOffNote';
+      note.setAttribute('style', 'background:#fff;border:1px dashed #C8D5E8;border-radius:12px;padding:16px;text-align:center;font:400 13.5px/1.45 Geist;color:#546478');
+      note.textContent = 'Your role has no targets on Home — the office sets them per role in the web app.';
+      grid.parentElement.insertBefore(note, grid);
+    }
+    toggleDisplay(note, kpiOff);
+  }
+  ACT.demoKpiOff = function () {
+    kpiOff = !kpiOff; remember('kpiOff', kpiOff); paintKPI();
+    var n = byId('kpiOffLbl'); if (n) n.textContent = kpiOff ? 'Demo: role without KPIs · tap to undo' : 'Demo: role without KPIs';
+    toast(kpiOff ? 'Home shows no KPI tiles for this role' : 'KPI tiles back', 'insights');
+  };
   function paintKPI() {
     var r = kpiRefsGet(); if (!r) return;
+    paintKpiOff(r);
     var kpi = kpiView();
     var pct = function (a, b) { return Math.max(0, Math.min(100, a / b * 100)); };
     if (r.rev) { setLead(r.rev.value, kfmt(kpi.revenue)); if (r.rev.bar) r.rev.bar.style.width = pct(kpi.revenue, kpi.target) + '%'; }
     if (r.est) {
-      r.est.value.textContent = '$' + Math.round(kpi.estValue / 1000) + 'k';
+      r.est.value.textContent = kpi.estValue >= 1e6 ? kfmt(kpi.estValue) : '$' + Math.round(kpi.estValue / 1000) + 'k';
       var cp = kpi.conv / kpi.estimates * 100;
       if (r.convPct) r.convPct.textContent = cp.toFixed(1) + '%';
       if (r.est.bar) r.est.bar.style.width = pct(cp, 100) + '%';
+      // QA 16.11 (R-003.1, p.360): this tile too reads against its target
+      var estTile = r.est.value.closest('div[style*="border-radius"]');
+      trackWord(estTile, cp >= CONV_TARGET);
+      var tw = estTile && $('[data-track]', estTile); if (tw) tw.textContent += ' · target ' + CONV_TARGET + '%';
     }
     if (r.avg) {
       setLead(r.avg.value, kfmt(kpi.avgTicket));
@@ -10773,8 +11159,18 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     var rows = [];
     if (!j) return rows;
     if (j.sold && !j.sold.invoiced) {
-      rows.push({ name: j.sold.option + ' — approved estimate', price: j.sold.list || j.sold.total, est: true });
-      if (j.sold.discount) rows.push({ name: 'Discount', price: -j.sold.discount, disc: true, est: true });
+      /* QA 16.11 (R-008.1, p.809–811): the option's items are copied as lines,
+         as the job shows them; one line only if they no longer add up */
+      var opt = (j.items || []).filter(function (it) { return it.from === 'estimate' && !it.inv; });
+      var optSum = Math.round(opt.reduce(function (a, it) { return a + lineGross(it); }, 0) * 100) / 100;
+      if (opt.length && Math.abs(optSum - (j.sold.list || j.sold.total)) < 0.02) {
+        opt.forEach(function (it) {
+          var t = lineTax(it);
+          rows.push({ name: (it.qty > 1 ? it.qty + ' × ' : '') + it.name + ' (' + j.sold.option + ')' + (t ? ' · incl. ' + fmt(t) + ' tax' : ''),
+            price: lineGross(it), tax: t, est: true });
+        });
+      } else rows.push({ name: j.sold.option + ' — approved estimate', price: j.sold.list || j.sold.total, est: true });
+      if (j.sold.discount) rows.push({ name: 'Discount · ' + j.sold.option, price: -j.sold.discount, disc: true, est: true });
     }
     siteItems(j).forEach(function (it) {
       if (it.inv) return;
@@ -11020,6 +11416,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   /* Marek, Oct 12: warranty is written on the option — up to three lines,
      optional — and read on its card. */
   var optionWarranties = recall('optionWarranties', {});
+  var custPicked = false;                         // has the customer tapped an option on the customer view
   var warrantyField;          // assigned where the form is built, earlier in the file; no initialiser
   // the three fields as one line; a label with no title and no detail is no warranty
   function typedWarranty() {
@@ -11055,14 +11452,33 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   // what the option form holds besides its items: the warranty line and the plan
   function keepOptionExtras(name, warranty) {
     if (!name) return;
+    // QA 16.11 (R-007.3): the note went to "Option <last letter>", or nowhere on an edit
+    if (optionNoteText) optionNotes[name] = optionNoteText; else delete optionNotes[name];
+    remember('optionNotes', optionNotes);
+    optionNoteText = '';
     if (warranty) optionWarranties[name] = warranty; else delete optionWarranties[name];
     remember('optionWarranties', optionWarranties);
     optionPlans[name] = formPlanIdx;
     remember('optionPlans', optionPlans);
     var card = optList && $$(':scope > div', optList).filter(function (c) { return optionName(c) === name; })[0];
     paintCardWarranty(card, name);
+    if (card && typeof paintCardExtras === 'function') paintCardExtras(card);
     fillWarranty(NEW_WARRANTY);
     paintPlanEverywhere();
+  }
+  /* QA 16.11 (R-007.1, p.651–654): the warranty is printed at the foot of
+     the option wherever the customer sees it */
+  function warrantyEl(name) {
+    var text = warrantyText(optionWarranties[name]); if (!text) return null;
+    var line = document.createElement('div');
+    line.dataset.warranty = '1';
+    line.setAttribute('style', 'display:flex;gap:7px;align-items:flex-start;margin-top:8px;padding-top:8px;border-top:1px dashed #DDE3EE;font:400 12.5px/1.4 Geist;color:#546478');
+    line.innerHTML = '<span class="mi" style="font-size:16px;color:#4A6FA5;flex:none">verified_user</span><span style="white-space:pre-line"></span>';
+    line.children[1].textContent = text;
+    return line;
+  }
+  function optTaxOf(n) {
+    return Math.round((OPTION_ITEMS[n] || []).reduce(function (a, it) { return a + lineTax(it); }, 0) * 100) / 100;
   }
   function paintCardWarranty(card, name) {
     if (!card) return;
@@ -11074,10 +11490,11 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       line.dataset.warranty = '1';
       line.setAttribute('style', 'display:flex;gap:7px;align-items:flex-start;margin-top:9px;font:400 12.5px/1.4 Geist;color:#546478');
       line.innerHTML = '<span class="mi" style="font-size:16px;color:#4A6FA5;flex:none">verified_user</span><span style="white-space:pre-line"></span>';
-      var t = optionTitleEl(card);
-      var anchor = t ? t.closest('div') : null;
-      (anchor && anchor.parentElement === card ? anchor : card.firstElementChild).insertAdjacentElement('afterend', line);
     }
+    // at the foot of the option's items, as on the customer's copy
+    var ib = typeof cardItemsBox === 'function' ? cardItemsBox(card) : null;
+    if (ib) ib.appendChild(line); else card.appendChild(line);
+    line.style.paddingTop = '8px'; line.style.borderTop = '1px dashed #DDE3EE';
     line.children[1].textContent = text;
   }
   function paintOptionName() {
@@ -11559,7 +11976,11 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     cards = cards.filter(function (e) { return !cards.some(function (o) { return o !== e && o.contains(e); }); });
     if (cards.length < 2) return cards.length;
     var list = cards[0].parentElement;
-    cards.slice().sort(function (a, b) { return optionTotal(b) - optionTotal(a); })
+    // QA 16.11 (R-007.1, p.647): no forced order — the options stay in the order the technician made them
+    // the demo board drew C, A, B — highest price first; letters keep the order they were made in
+    var key = function (c, i) { var m = /^Option ([A-Z])$/.exec(optionName(c)); return m ? m[1].charCodeAt(0) : 1000 + i; };
+    var k = new Map(cards.map(function (c, i) { return [c, key(c, i)]; }));
+    cards.slice().sort(function (a, b) { return k.get(a) - k.get(b); })
       .forEach(function (c) { list.appendChild(c); });
     // anything that isn't an option card (the "add" button) goes back to the end
     $$(':scope > div', list).forEach(function (e) {
@@ -12309,17 +12730,27 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
 
   // customer signs the chosen estimate option — the Pending chip flips to signed
   var resetCustomerSignature = function () { estSigned = false; };
+  var paintSigWhen = function () { };
   (function () {
     var root = byId('est-customer'); if (!root) return;
     var pending = sel(root, 'Pending')[0];
     var when = sel(root, 'Oct 7, 2026, 9:09 AM')[0];
+    /* QA 16.11 (R-007.5): the box showed Oct 7 before anyone signed, and
+       another job's signing time after — it is this job's moment of signing */
+    paintSigWhen = function () {
+      if (!when) return;
+      var on = estSigned && estSignedAt;
+      when.textContent = on ? estSignedAt : 'Date and time are added when the customer signs';
+      when.style.color = on ? '' : '#A9B4C2';
+    };
+    paintSigWhen();
     var pendingStyle = pending && pending.getAttribute('style');
     var pad = signaturePad('est-customer', 'Sign here', function () {
       estSigned = true;
       estSignedAt = stamp();
       var sj = JOBS[jobIdx]; if (sj) sj.paperApproved = null;
       paintOrderBtn();
-      if (when) when.textContent = estSignedAt;
+      paintSigWhen();
       if (pending) {
         pending.textContent = 'Signed';
         pending.style.background = '#16A34A';
@@ -12331,6 +12762,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       estSigned = false;
       if (pad) pad.clear();
       if (pending) { pending.textContent = 'Pending'; if (pendingStyle) pending.setAttribute('style', pendingStyle); }
+      paintSigWhen();
       paintOrderBtn();
     };
   })();
@@ -12743,6 +13175,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       else row.appendChild(document.createTextNode(' ' + it.name));
       R.items.appendChild(row);
     });
+    var aw = warrantyEl(sold ? sold.option : pick); if (aw) R.items.appendChild(aw);
     R.total.textContent = fmt(sold ? sold.total : OPTION_TOTALS[pick] || 0);
     // Marek, Oct 21: the discount is on the record the customer signed
     var off = sold ? sold.discount || 0 : optionDiscount(pick), dl = R.total.parentElement && $('[data-disc]', R.total.parentElement.parentElement);
@@ -12871,7 +13304,9 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
      or the first invoice can be wrong. US-M11-5. */
   (function () {
     var root = byId('inv-paid'); if (!root) return;
-    var sc = $('.sc', root); if (!sc) { MISS.push('inv-paid :: body'); return; }
+    // QA 16.11: the first .sc here is the job's tab strip — the button belongs in the body
+    var sc = $$('.sc', root).filter(function (e) { return /overflow-y/.test(e.getAttribute('style') || ''); })[0];
+    if (!sc) { MISS.push('inv-paid :: body'); return; }
     var btn = document.createElement('div');
     btn.setAttribute('data-act', 'reinvoice');
     btn.dataset.tap = '1';
@@ -13035,6 +13470,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     optDisc = optRevised !== null ? Math.round((list - optRevised) * 100) / 100 : 0; optDiscKept = false; adjMsg = null;
     editingOption = n;
     renderOptionItems();
+    optionNoteText = optionNotes[n] || ''; paintOptionNote();
     fillWarranty(optionWarranties[n] || null);
     setFormPlan(planIdxOf(n));
     optionNameTyped = n;
@@ -13118,6 +13554,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     optionPlans = o.optionPlans || {};
     optionWarranties = o.optionWarranties || {};
     optionNotes = o.optionNotes || (fresh && j && j.cust === '10512' ? { 'Option B': 'Includes the duct work the attic needs before the new unit goes in.' } : {});
+    remember('optionNotes', optionNotes);
     pickedOption = o.pickedOption || 'Option A';
     estSigned = !!o.estSigned; estSignedAt = o.estSignedAt || '';
     specialNote = o.specialNote || '';
@@ -13249,7 +13686,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
      had tapped.
      ========================================================= */
   var menuCard = null;
-  var optionNotes = { 'Option B': 'Includes the duct work the attic needs before the new unit goes in.' };
+  var optionNotes = (typeof optionNotes === 'object' && optionNotes) || recall('optionNotes', null) ||
+    { 'Option B': 'Includes the duct work the attic needs before the new unit goes in.' };
   var showDesc = showDesc || {};          // read by option cards painted before this line runs
   var showNote = {};
 
@@ -13271,6 +13709,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     var box = cardItemsBox(card); if (!box) return;
 
     $$('[data-optdesc]', box).forEach(function (e) { e.remove(); });
+    paintCardWarranty(card, n);            // after a reload too, at the foot of the items
     if ((showDesc || {})[n]) {
       $$(':scope > div', box).forEach(function (line) {
         if (line.dataset.optdesc) return;
@@ -13398,13 +13837,16 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     paintAllCards();
     toast(showDesc[n] ? 'Item descriptions shown' : 'Item descriptions hidden', 'subject');
   };
+  /* QA 16.11 (R-007.2, p.660–664): Send and Print are the estimate's — all
+     its options in one PDF — with the address it goes to and the paper size */
+  function estLabel() { var j = JOBS[jobIdx] || {}; return 'Estimate ' + (estNoOf(j) || ''); }
   ACT.optMenuMail = function () {
-    var n = menuName();
     closeOverlays(true);
     // M6-13 (call 11.11): nothing is queued — it says it needs signal
     if (!net.online) { toast('Send by email needs a connection', 'cloud_off'); return; }
-    queued('Estimate');
-    toast(n + ' emailed to the customer', 'mail');
+    var j = JOBS[jobIdx] || {};
+    confirmSheet({ title: 'Email ' + estLabel() + '?', text: 'Every option, as one PDF, to ' + custEmail(j) + ' (' + (j.name || 'the customer') + ').',
+      ok: 'Send', alt: null, onOk: function () { queued('Estimate'); toast(estLabel() + ' emailed to ' + custEmail(j), 'mail'); } });
   };
   ACT.optMenuSms = function () {
     var n = menuName();
@@ -13417,12 +13859,24 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     go('est-preview', 'modal');
   };
   ACT.optMenuPaper = function () {
-    var n = menuName();
     closeOverlays(true);
-    if (!net.online) { toast('Printing the PDF made on this phone from the company template', 'print'); return; }
-    queued('Estimate');
-    toast(n + ' sent to the printer', 'print');
+    function print(size) {
+      if (!net.online) { toast('Printing the PDF made on this phone from the company template · ' + size, 'print'); return; }
+      toast(estLabel() + ' sent to the printer · ' + size, 'print');
+    }
+    confirmSheet({ title: 'Print ' + estLabel(), text: 'Every option, on the paper size you pick.', ok: 'Letter', alt: 'Legal', neutral: true,
+      onOk: function () { print('Letter'); }, onAlt: function () { print('Legal'); } });
   };
+  // the approved record can be sent and printed too
+  (function () {
+    var root = byId('est-approved'); if (!root) return;
+    var sc = $$('.sc', root).pop(); if (!sc) return;
+    var row = document.createElement('div');
+    row.setAttribute('style', 'display:flex;gap:10px;margin-top:12px');
+    row.innerHTML = '<div data-act="optMenuMail" data-tap="1" style="flex:1;height:46px;display:flex;align-items:center;justify-content:center;gap:7px;background:#fff;border:1px solid #C8D5E8;border-radius:10px;color:#4A6FA5;font:600 14px/1 Geist"><span class="mi" style="font-size:19px">mail</span>Email</div>' +
+      '<div data-act="optMenuPaper" data-tap="1" style="flex:1;height:46px;display:flex;align-items:center;justify-content:center;gap:7px;background:#fff;border:1px solid #C8D5E8;border-radius:10px;color:#4A6FA5;font:600 14px/1 Geist"><span class="mi" style="font-size:19px">print</span>Print</div>';
+    sc.appendChild(row);
+  })();
   ACT.optMenuDel = function () {
     var n = menuName(), card = menuCard;
     closeOverlays(true);
@@ -14934,6 +15388,14 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
           '<span style="flex:1;font:500 14.5px/1.3 Geist">' + p[1] + '</span><span class="mi" data-tap="1" data-go="ov-media-source" style="font-size:20px;color:#4A6FA5">photo_camera</span></div>';
       }).join('');
       f48.parentElement.insertBefore(blk, f48.nextSibling);
+      /* QA 16.11 (R-010.1, p.1095–1098): P15–P17 were added after the slots
+         were wired, so their photos went in unlabelled — they bind like the rest */
+      $$('[data-go="ov-media-source"]', blk).forEach(function (cam) {
+        var r = cam.parentElement, chip = r.children[0], name = r.children[1];
+        var binding = { slot: norm(chip.textContent), item: 'Photos · ' + norm(name.textContent), chip: chip, cam: cam };
+        if (filledSlots[binding.slot]) markSlotFilled(binding);
+        cam.addEventListener('click', function () { pendingSlot = binding; }, true);
+      });
     })();
     /* M5-7 (#71): the waiver names the company from its settings; the
        customer signs with "Signer name"; no "I have read and agree" box
@@ -15873,13 +16335,16 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     formsBox.innerHTML = row('rc', 'AC Report Card', j.rcFilled ? 'Latest change: today (Marek Stroz)' : 'Not started', 'assignment') +
       (j.type === 'Install' && j.sold ? row('linked', IT_LINKED.name + ' · from ' + IT_LINKED.from, 'Read-only · submitted ' + IT_LINKED.submittedAt.split(',').slice(0, 2).join(',') + ' by ' + IT_LINKED.seller, 'handyman') : '') +
       its.map(function (n) { return row('it:' + n, n, itSubLine(j.installTpls && j.installTpls[n], offered.indexOf(n) >= 0), 'handyman'); }).join('') +
-      // Nov 5: AC, plumbing and electrical — the other two are placeholders in this demo
-      row('plumbing', 'Plumbing Report Card', 'Not started', 'plumbing') +
-      row('electrical', 'Electrical Report Card', 'Not started', 'electrical_services') +
+      // QA 16.11 (R-010.1, p.1089, 1105): one industry per company in the first release —
+      // the AC job shows the AC card, not placeholders for plumbing and electrical
       (viewPast || j.done || j.type === 'Install' ? '' : '<div data-tap="1" data-form="itadd" style="display:flex;align-items:center;justify-content:center;gap:7px;height:48px;border:1px dashed #C8D5E8;border-radius:12px;color:#4A6FA5;font:600 14.5px/1 Geist"><span class="mi" style="font-size:19px">add</span>Add an install template</div>');
     var ws = $('[data-wsigner]'); if (ws) ws.value = j.name || '';   // the waiver's signer is this job's customer
     formsBox.style.display = on ? '' : 'none';
-    rcParts.forEach(function (e) { e.style.display = on ? 'none' : ''; });
+    var bars = Object.keys(saveBars).map(function (k) { return saveBars[k]; });
+    rcParts.forEach(function (e) {
+      if (bars.indexOf(e) > -1) { if (on) e.style.display = 'none'; return; }   // QA 16.11: shown only after a change
+      e.style.display = on ? 'none' : '';
+    });
   }
 
   ACT.toggleLocation = function () {
@@ -16097,6 +16562,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       var it = { sku: 'PB-' + (9000 + seq), name: name, desc: desc, price: Math.round(price * 100) / 100,
         cat: 'Custom', type: 'Service', labor: 0, qty: qty };
       CATALOG_ROWS.push([name, desc, it.price, 'Services']);
+      catalogAddRow([name, desc, it.price, 'Services']);
       var where = 'the option';
       if (catalogTarget === 'job' && JOBS[jobIdx]) {
         var c = {}; for (var k in it) c[k] = it[k];
@@ -16296,6 +16762,13 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
      that the office has not dispatched yet — listed, but not to be driven
      to or started until they are. */
   var warrantyTech = recall('warrantyTech', false);
+  ACT.demoAdjust = function () {
+    canAdjust = !canAdjust; remember('canAdjust', canAdjust);
+    paintAdjust();
+    var n = byId('adjustNote'); if (n) n.textContent = canAdjust ? 'Demo: technician without Adjust price' : 'Demo: Adjust price is off · tap to give it back';
+    toast(canAdjust ? 'Adjust price on — new price, discounts and coupons allowed' : 'Adjust price off — the price stays the list price', 'sell');
+  };
+  setTimeout(function () { var n = byId('adjustNote'); if (n && !canAdjust) n.textContent = 'Demo: Adjust price is off · tap to give it back'; }, 0);
   var upcomingBox = null;
   function paintUpcoming() {
     var root = byId('home'), sc = root && $('.sc', root); if (!sc) return;
@@ -16500,7 +16973,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       '<span class="mi" style="font-size:26px;color:' + (st.tone === 'warn' ? '#D97706' : st.tone === 'ok' ? '#16A34A' : st.tone === 'bad' ? '#DC2626' : '#4A6FA5') + '">' + st.icon + '</span>' +
       '<div style="flex:1"><div style="font:600 16px/1.3 Geist">' + (n || openIssues() || net.syncing ? esc(st.text) : 'Everything is sent') + '</div>' +
       '<div style="font:400 13px/1.4 Geist;color:#546478;margin-top:3px">Last sync Today ' + esc(lastSyncAt) + '</div></div></div>';
-    if (notApplied.length && !n) {
+    if (notApplied.length) {
       html += '<div style="display:flex;align-items:center;gap:7px;font:600 12px/1 Geist;letter-spacing:.07em;color:#DC2626;text-transform:uppercase;margin:0 0 9px">' +
         '<span style="width:17px;height:17px;border-radius:50%;background:#DC2626;color:#fff;display:inline-flex;align-items:center;justify-content:center;font:700 12px/1 Geist;letter-spacing:0">!</span>' +
         notApplied.length + ' not applied</div>' +
@@ -16517,7 +16990,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
           '</div></div>';
       });
     }
-    if (notSent.length && !n) {
+    if (notSent.length) {
       html += '<div style="font:600 12px/1 Geist;letter-spacing:.07em;color:' + (notSent.some(function (x) { return !x.handled; }) ? '#DC2626' : '#8A97A8') + ';text-transform:uppercase;margin:16px 0 9px">Not sent</div>';
       notSent.forEach(function (x, k) {
         var j = JOBS[x.job] || {};
@@ -16543,6 +17016,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       var byJob = {};
       syncQ.forEach(function (q) { (byJob[q.job] = byJob[q.job] || []).push(q.what); });
       if (upPending && upJob > -1) (byJob[upJob] = byJob[upJob] || []).push(upPending + ' ' + plural(upPending));
+      var dpw = n - syncQ.length - upPending;      // the upload demo's photos and video
+      if (dpw > 0) (byJob[jobIdx] = byJob[jobIdx] || []).push(dpw + (dpw === 1 ? ' upload' : ' uploads'));
       Object.keys(byJob).forEach(function (k) {
         var j = JOBS[+k] || {}, seen = {}, parts = [];
         byJob[k].forEach(function (w) { seen[w] = (seen[w] || 0) + 1; });
@@ -16555,7 +17030,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       var oldest = syncQ.length ? Math.max(0, Math.round((Date.now() - syncQ[0].at) / 60000)) : 0;
       html += '<div style="font:600 12px/1 Geist;letter-spacing:.07em;color:#8A97A8;text-transform:uppercase;margin:16px 0 9px">Queue health</div>' +
         '<div class="card" style="overflow:hidden">' +
-        row('Changes waiting', String(syncQ.length)) + row('Photos waiting', String(upPending)) +
+        row('Changes waiting', String(syncQ.length)) + row('Photos and files waiting', String(n - syncQ.length)) +
         row('Oldest waiting', syncQ.length ? (oldest ? oldest + ' min ago' : 'Just now') : '—') +
         row('Last successful sync', 'Today ' + lastSyncAt, true) + '</div>';
     }
@@ -16906,8 +17381,9 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       if (tmpD.email === 'sent') { toast('Already sent · 10512-I03', 'info'); return; }
       tmpD.email = 'sent'; paintTmp(); toast('Emailed to Randy Johnson · PDF 10512-I03', 'mail'); return;
     }
-    // call 11.11: nothing waits — it needs signal
-    confirmSheet({ title: 'Send by email needs a connection', text: 'Send it when you have signal. The invoice gets its number then, and the email goes with that PDF.', ok: 'OK', alt: null });
+    // proposal 12.11 (R-011): it waits — the server emails it after it gives the number
+    tmpD.mailQ = true;
+    toast('Waiting · emailed after sync with its final number', 'schedule_send');
   };
   ACT.tmpPrint = function () {
     if (tmpD.stage === 'offline') {
@@ -16921,13 +17397,14 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   ACT.tmpOnline = function () { window.dispatchEvent(new Event('online')); paintDemoNet(); };
   function tmpSynced() {
     tmpD.stage = 'synced';
-    lastSyncAt = '10:15 AM'; remember('lastSyncAt', lastSyncAt);
+    lastSyncAt = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); remember('lastSyncAt', lastSyncAt);
     if (tmpD.conflict) {
       notSent.push({ job: jobIdx, kind: 'refused', label: '10512-J02 · Randy Johnson', what: 'Invoice · Capacitor 45/5 MFD, Service call · $274.00',
         reason: 'The invoice was not created — the lines are already on 10512-I02.', handled: false });
       toast('Not created · see Sync', 'error');
     } else {
-      toast('10512-I03 replaced 10512-IXX everywhere', 'check_circle');
+      if (tmpD.mailQ) { tmpD.mailQ = false; tmpD.email = 'sent'; }
+      toast('10512-I03 replaced 10512-IXX everywhere' + (tmpD.email === 'sent' ? ' · emailed to Randy Johnson' : ''), 'check_circle');
     }
     setTimeout(paintTmp, 0);
   }
@@ -17292,9 +17769,9 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
               [11, 'Jun 18, 2026', 3, 'Seasonal tune-up', 'Maintenance', 'Marek Stroz', 0],
               [10, 'Mar 4, 2026', 1, 'Thermostat replacement', 'Demand Service', 'Peter Jones', 189.99],
               [9, 'Dec 2, 2025', 7, 'System replacement', 'Install', 'Dale Ortiz', 8230.01]],
-    '10377': [[6, 4, 2, 'AC not cooling', 'Maintenance', 'Marek Stroz', '$929.00 \u2013 $1,109.00'],
+    '10377': [[6, 4, 2, 'AC not cooling', 'Maintenance', 'Marek Stroz', 1109],
               [7, 'Oct 30, 2026', 6, 'AC install \u00b7 sold', 'Install', 'James Reynolds', 5665]],
-    '10458': [[2, 20, 3, 'AC not cooling', 'Demand Service', 'Marek Stroz', '$428.00 \u2013 $18,525.00'],
+    '10458': [[2, 20, 3, 'AC not cooling', 'Demand Service', 'Marek Stroz', 428],
               [1, 'Jan 15, 2026', 1, 'Thermostat replacement', 'Demand Service', 'Peter Jones', 220]],
     '10233': [[20, 'Aug 14, 2026', 2, 'Maintenance plan \u00b7 visit 2 of 10', 'Maintenance', 'Marek Stroz', 0],
               [19, 'Feb 11, 2026', 2, 'Maintenance plan \u00b7 visit 1 of 10', 'Maintenance', 'Peter Jones', 0]],
