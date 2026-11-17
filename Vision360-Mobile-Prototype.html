@@ -3820,6 +3820,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     if (pid === 'est-draft' && typeof orderOptionsByPrice === 'function') orderOptionsByPrice('est-draft');
     if (pid === 'est-draft' && typeof paintAllCards === 'function') paintAllCards();
     if (pid === 'est-draft' && typeof tidyEstFooter === 'function') tidyEstFooter();   // notes and warranties after a reload too
+    if (/^est-(draft|customer|approved|preview)$/.test(pid) && typeof paintEstPhotos === 'function') paintEstPhotos(pid);
     if (pid === 'est-customer' && typeof paintCustomerOptions === 'function') paintCustomerOptions();
     if (pid === 'est-customer' && typeof paintSigWhen === 'function') paintSigWhen();
     if (pid === 'home' && typeof paintUpcoming === 'function') paintUpcoming();
@@ -4855,11 +4856,19 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         'restart_alt');
     },
     pickGallery: function () {
+      // the estimate's own Add keeps its destination through the gallery
       galClear();
       closeOverlays(false);
       go('gallery', 'modal');
     },
     useCamera: function () {
+      if (estPhotoMode) {
+        closeOverlays(true);
+        estPhotoMode = false;
+        addEstPhotos([{ t: 'Other', k: newPhotoKey() }], true);
+        toast('Photo added to the estimate · also in the job’s Photos', 'add_a_photo');
+        return;
+      }
       mediaBatch = 1;
       mediaEditing = false;
       closeOverlays(true);
@@ -4875,6 +4884,18 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     },
     galDone: function () {
       if (!galPicked.length) return;
+      if (estPhotoMode) {
+        var gg = byId('galGrid');
+        var vids = galPicked.filter(function (k) { var t = gg && $('[data-gal="' + k + '"]', gg); return t && t.dataset.galvideo; }).length;
+        var np = galPicked.length - vids;
+        estPhotoMode = false;
+        galClear(); back();
+        if (!np) { toast('Videos stay in the job’s Photos — an estimate shows photos only', 'videocam_off'); return; }
+        var list = []; for (var gi = 0; gi < np; gi++) list.push({ t: 'Other', k: newPhotoKey() });
+        addEstPhotos(list, true);
+        toast(np + (np === 1 ? ' photo' : ' photos') + ' added to the estimate' + (vids ? ' · videos stay in the job’s Photos' : ''), 'add_a_photo');
+        return;
+      }
       mediaBatch = galPicked.length;
       mediaEditing = false;
       // M4-6 (#44): one type for the whole pick; Cancel adds none of it
@@ -7912,6 +7933,214 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     if (adds[0]) { adds[0].style.whiteSpace = 'nowrap'; adds[0].style.minWidth = '0'; adds[0].style.flex = '1'; }
     optSendBtn.style.flex = '1.6';
   }
+  /* 17.11: photos on the estimate. The technician shows the customer what he
+     saw — the rusted coil, the cracked pan — next to the price. One set for
+     the whole estimate, under the options: taken now, picked from the phone,
+     or chosen from the photos already on the job. A new one is filed in the
+     job's Photos too (as Other); taking one off the estimate leaves it there.
+     The customer sees them on the presentation, the preview and the signed
+     estimate; a changed set after Changes requested counts as an update. */
+  var estPhotos = estPhotos || recall('estPhotos', []);
+  var estPhotoMode = false;
+  var estPicks = [];
+  function newPhotoKey() { return 'n' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36); }
+  function jobPhotoKeys() {
+    var out = [];
+    ['Before', 'After', 'Other'].forEach(function (k) { for (var i = 0; i < (mediaBlk[k] || 0); i++) out.push({ t: k, k: k + ':' + i }); });
+    return out;
+  }
+  function estPhotoTile(ph, opts) {
+    var t = document.createElement('div');
+    t.dataset.estphoto = ph.k;
+    t.setAttribute('style', 'position:relative;aspect-ratio:1;border-radius:10px;background:' + (/[02468]$/.test(ph.k.length + '') ? '#E4E9F1' : '#D8DFEA') +
+      ';display:flex;align-items:center;justify-content:center;overflow:hidden');
+    t.innerHTML = '<span class="mi" style="font-size:' + (opts.small ? 24 : 28) + 'px;color:#A9B4C2">image</span>' +
+      (opts.badge ? '<span style="position:absolute;left:5px;bottom:5px;font:600 9.5px/1 Geist;letter-spacing:.04em;color:#fff;background:rgba(28,43,58,.72);border-radius:5px;padding:3px 5px">' + ph.t.toUpperCase() + '</span>' : '') +
+      (opts.remove ? '<span class="mi" data-tap="1" data-act="estPhotoRemove" data-key="' + ph.k + '" style="position:absolute;top:4px;right:4px;font-size:16px;color:#fff;background:rgba(28,43,58,.62);border-radius:10px;padding:2px">close</span>' : '');
+    return t;
+  }
+  function addEstPhotos(list, fileInJob) {
+    var have = estPhotos.map(function (p) { return p.k; });
+    list.forEach(function (p) { if (have.indexOf(p.k) < 0) estPhotos.push(p); });
+    remember('estPhotos', estPhotos);
+    if (fileInJob) {
+      var n = list.length;
+      mediaBlk.Other = (mediaBlk.Other || 0) + n; mineBlk.Other = (mineBlk.Other || 0) + n;
+      // the new ones point at the job's Other tiles they became
+      list.forEach(function (p, i) { p.k = 'Other:' + (mediaBlk.Other - n + i); });
+      remember('estPhotos', estPhotos); remember('mediaBlk', mediaBlk); remember('mineBlk', mineBlk);
+      if (typeof rebuildPhotoGrid === 'function') rebuildPhotoGrid();
+      if (typeof paintMediaBlocks === 'function') paintMediaBlocks();
+      queued('Photo', 'Estimate photos');
+    } else queued('Estimate', 'Estimate photos');
+    markEstUpdated();
+    paintEstPhotos('est-draft');
+  }
+  function estSection(root, id, after, title, hint) {
+    var sec = $('[data-estpics]', root);
+    if (!sec) {
+      sec = document.createElement('div'); sec.dataset.estpics = id;
+      sec.innerHTML = '<div style="font:600 16px/1 Geist;margin:20px 0 10px">' + title + '</div>' +
+        (hint ? '<div style="font:400 12.5px/1.45 Geist;color:#8A97A8;margin:-6px 0 10px">' + hint + '</div>' : '') +
+        '<div data-estgrid style="background:#fff;border:1px solid #DDE3EE;border-radius:12px;padding:12px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px"></div>';
+      if (after && after.parentElement) after.parentElement.insertBefore(sec, after.nextSibling);
+    }
+    return sec;
+  }
+  function paintEstPhotos(pid) {
+    var j = JOBS[jobIdx] || {};
+    // a photo taken off the job is off the estimate too
+    var live = jobPhotoKeys().map(function (p) { return p.k; });
+    var kept = estPhotos.filter(function (p) { return !/^(Before|After|Other):/.test(p.k) || live.indexOf(p.k) > -1; });
+    if (kept.length !== estPhotos.length) { estPhotos = kept; remember('estPhotos', estPhotos); }
+    var root;
+    if (pid === 'est-draft') {
+      root = byId('est-draft'); if (!root) return;
+      var dep = sel(root, 'Deposit').filter(function (e) { return e.closest('.sc'); })[0];
+      var depCard = dep && dep.nextElementSibling && dep.nextElementSibling.nextElementSibling;
+      var sec = estSection(root, 'draft', depCard, 'Photos', 'The customer sees them with the options. New ones are saved in the job’s Photos too.');
+      var g = $('[data-estgrid]', sec); g.innerHTML = '';
+      var add = document.createElement('div');
+      add.dataset.tap = '1'; add.dataset.act = 'estAddPhoto';
+      add.setAttribute('style', 'aspect-ratio:1;border:1.5px dashed #B9C6D8;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#4A6FA5;font:600 12px/1 Geist');
+      add.innerHTML = '<span class="mi" style="font-size:24px">add_a_photo</span>Add';
+      g.appendChild(add);
+      estPhotos.forEach(function (ph) { g.appendChild(estPhotoTile(ph, { badge: true, remove: true })); });
+      if (!estPhotos.length) {
+        var none = document.createElement('div');
+        none.setAttribute('style', 'grid-column:2 / -1;align-self:center;font:400 13.5px/1.4 Geist;color:#8A97A8;padding-left:4px');
+        none.textContent = 'No photos on the estimate yet';
+        g.appendChild(none);
+      }
+      return;
+    }
+    var at = null;
+    if (pid === 'est-customer') {
+      root = byId('est-customer'); if (!root) return;
+      var sn = sel(root, 'Special notes')[0]; at = sn && sn.previousElementSibling;
+    } else if (pid === 'est-approved') {
+      root = byId('est-approved'); if (!root) return;
+      var ao = sel(root, 'Approved option')[0]; at = ao && ao.nextElementSibling;
+    } else if (pid === 'est-preview') {
+      root = byId('est-preview'); if (!root) return;
+      var scs = $$('.sc', root), sc = scs[scs.length - 1]; at = sc && sc.lastElementChild;
+    }
+    if (!root || !at) return;
+    var sec2 = estSection(root, pid, at, 'Photos', '');
+    var g2 = $('[data-estgrid]', sec2); g2.innerHTML = '';
+    // thumbnails of one size, however wide the presentation is turned
+    g2.style.gridTemplateColumns = 'repeat(auto-fill,minmax(96px,1fr))';
+    estPhotos.forEach(function (ph) { g2.appendChild(estPhotoTile(ph, { small: true })); });
+    var cnt = $('div', sec2); if (cnt) cnt.textContent = 'Photos · ' + estPhotos.length;
+    toggleDisplay(sec2, estPhotos.length > 0);
+  }
+  ACT.estAddPhoto = function () {
+    if (state.est === 'approved' || state.est === 'declined') { toast('A signed or declined estimate keeps its photos', 'lock'); return; }
+    estPhotoMode = true;
+    paintEstSourceRow();
+    go('ov-media-source', 'overlay');
+  };
+  // any other way into the sheet files photos on the job, as before
+  document.addEventListener('click', function (ev) {
+    if (ev.target.closest('[data-go="ov-media-source"]')) { estPhotoMode = false; paintEstSourceRow(); }
+  }, true);
+  function paintEstSourceRow() {
+    var ov = byId('ov-media-source'); if (!ov) return;
+    var cam = $('[data-act="useCamera"]', ov); if (!cam) return;
+    var row = $('[data-act="estFromJob"]', ov);
+    if (!row) {
+      row = document.createElement('div');
+      row.dataset.tap = '1'; row.dataset.act = 'estFromJob';
+      row.setAttribute('style', 'display:flex;align-items:center;gap:14px;padding:19px 16px;font:500 16.5px/1 Geist;border-top:1px solid #EDF0F5');
+      cam.parentElement.insertBefore(row, cam.nextSibling);
+    }
+    var n = jobPhotoKeys().length;
+    row.innerHTML = '<span class="mi" style="font-size:24px;color:#4A6FA5">collections</span><span style="flex:1">From this job’s photos</span><span style="font:500 14px/1 Geist;color:#8A97A8">' + n + '</span>';
+    toggleDisplay(row, estPhotoMode);
+    var head = $('[style*="text-transform:uppercase"]', ov);
+    if (head && /^(Add media|Add to the estimate)$/.test(norm(head.textContent))) head.textContent = estPhotoMode ? 'Add to the estimate' : 'Add media';
+  }
+  // the job's photos, to tick the ones the customer should see
+  function estPickSheet() {
+    var ov = byId('ov-estpics');
+    if (!ov) {
+      var src = byId('ov-media-source'); if (!src) return null;
+      ov = document.createElement('div'); ov.className = 'overlay'; ov.id = 'ov-estpics';
+      ov.innerHTML = '<div style="position:absolute;inset:0;background:rgba(28,43,58,.42)" data-tap="1" data-go="BACK"></div>' +
+        '<div style="position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:18px 18px 0 0;padding:16px 16px 22px;max-height:78%;display:flex;flex-direction:column">' +
+        '<div style="display:flex;align-items:center;margin-bottom:4px"><span style="flex:1;font:600 17px/1.2 Geist">This job’s photos</span><span class="mi" data-tap="1" data-go="BACK" style="font-size:24px;color:#546478">close</span></div>' +
+        '<div style="font:400 13px/1.4 Geist;color:#8A97A8;margin-bottom:12px">Tick the ones the customer should see.</div>' +
+        '<div data-estpickgrid style="overflow:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding-bottom:4px"></div>' +
+        '<div data-tap="1" data-act="estPickDone" data-estpickdone style="margin-top:14px;height:50px;border-radius:10px;display:flex;align-items:center;justify-content:center;font:600 15px/1 Geist"></div>' +
+        '</div>';
+      src.parentElement.appendChild(ov);
+      $('[data-estpickgrid]', ov).addEventListener('click', function (ev) {
+        var t = ev.target.closest('[data-estphoto]'); if (!t) return;
+        ev.stopPropagation();
+        if (t.dataset.onest) { toast('Already on the estimate', 'check_circle'); return; }
+        var k = t.dataset.estphoto, i = estPicks.indexOf(k);
+        if (i > -1) estPicks.splice(i, 1); else estPicks.push(k);
+        paintEstPicks();
+      }, true);
+    }
+    return ov;
+  }
+  function paintEstPicks() {
+    var ov = byId('ov-estpics'); if (!ov) return;
+    var g = $('[data-estpickgrid]', ov); g.innerHTML = '';
+    var on = estPhotos.map(function (p) { return p.k; });
+    var all = jobPhotoKeys();
+    all.forEach(function (ph) {
+      var t = estPhotoTile(ph, { badge: true, small: true });
+      t.dataset.tap = '1';
+      var isOn = on.indexOf(ph.k) > -1, picked = estPicks.indexOf(ph.k) > -1;
+      if (isOn) {
+        t.dataset.onest = '1'; t.style.opacity = '.5';
+        var lab = $$('span', t).filter(function (e) { return /^(BEFORE|AFTER|OTHER)$/.test(e.textContent); })[0];
+        if (lab) lab.textContent = 'ON ESTIMATE';
+      }
+      var tick = document.createElement('span');
+      tick.className = picked || isOn ? 'mif' : 'mi';
+      tick.textContent = picked || isOn ? 'check_circle' : 'radio_button_unchecked';
+      tick.setAttribute('style', picked || isOn ? GAL_ON : GAL_OFF);
+      t.appendChild(tick);
+      if (picked) { t.style.outline = '2.5px solid #4A6FA5'; t.style.outlineOffset = '-2.5px'; }
+      g.appendChild(t);
+    });
+    if (!all.length) g.innerHTML = '<div style="grid-column:1 / -1;font:400 14px/1.4 Geist;color:#8A97A8;padding:18px 0;text-align:center">No photos on this job yet — take one or choose from the phone</div>';
+    var d = $('[data-estpickdone]', ov), n = estPicks.length;
+    d.setAttribute('style', d.getAttribute('style').replace(/;?background:[^;]*;color:[^;]*$/, '') + (n ? ';background:#4A6FA5;color:#fff' : ';background:#EDF0F5;color:#A9B4C2'));
+    d.textContent = n ? 'Add ' + n + ' to the estimate' : 'Add to the estimate';
+  }
+  ACT.estFromJob = function () {
+    closeOverlays(true);
+    estPhotoMode = false;
+    estPicks = [];
+    if (!estPickSheet()) return;
+    paintEstPicks();
+    go('ov-estpics', 'overlay');
+  };
+  ACT.estPickDone = function () {
+    if (!estPicks.length) return;
+    var by = {}; jobPhotoKeys().forEach(function (p) { by[p.k] = p; });
+    var list = estPicks.map(function (k) { return { t: by[k] ? by[k].t : 'Other', k: k }; });
+    var n = list.length;
+    estPicks = [];
+    closeOverlays(false);
+    addEstPhotos(list, false);
+    toast(n + (n === 1 ? ' photo' : ' photos') + ' added to the estimate', 'add_a_photo');
+  };
+  ACT.estPhotoRemove = function (el) {
+    var k = el && el.dataset ? el.dataset.key : null;
+    if (!k && el && el.target) k = el.target.closest('[data-key]') && el.target.closest('[data-key]').dataset.key;
+    estPhotos = estPhotos.filter(function (p) { return p.k !== k; });
+    remember('estPhotos', estPhotos);
+    queued('Estimate', 'Estimate photos');
+    markEstUpdated();
+    paintEstPhotos('est-draft');
+    toast('Taken off the estimate · it stays in the job’s Photos', 'hide_image');
+  };
+
   function paintPaperBtn() {
     var root = byId('est-draft'); if (!root || !optSendBtn) return;
     if (!paperBtn) {
@@ -13573,7 +13802,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     return { addedOptions: addedOptions, seedCleared: estSeedCleared, seedDeleted: estSeedDeleted, optionPlans: optionPlans,
       optionWarranties: optionWarranties, optionNotes: optionNotes, pickedOption: pickedOption, estSigned: estSigned,
       estSignedAt: estSignedAt, specialNote: specialNote, depositPct: depositPct, deposit: deposit, optionItems: optionItems,
-      mediaBlk: mediaBlk, mineBlk: mineBlk, photoCount: photoCount, photoTypeCount: photoTypeCount };
+      mediaBlk: mediaBlk, mineBlk: mineBlk, photoCount: photoCount, photoTypeCount: photoTypeCount,
+      estPhotos: estPhotos };
   }
   function estRestore(o, j) {
     var fresh = !o;
@@ -13593,6 +13823,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     depositPct = typeof o.depositPct === 'number' ? o.depositPct : 10;
     deposit = o.deposit || 0;
     optionItems = o.optionItems || [];
+    estPhotos = o.estPhotos || []; remember('estPhotos', estPhotos);
     var empty = j && (j.newCust || !(j.items || []).length && j.cust !== '10512' && j.cust !== '10458');
     mediaBlk = o.mediaBlk || (fresh && j && j.newCust ? { Before: 0, After: 0, Other: 0 } : { Before: 1, After: 1, Other: 0 });
     mineBlk = o.mineBlk || { Before: 0, After: 0, Other: 0 };
