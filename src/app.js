@@ -1463,8 +1463,8 @@
       if (estPhotoMode) {
         closeOverlays(true);
         estPhotoMode = false;
-        addEstPhotos([{ t: 'Other', k: newPhotoKey() }], true);
-        toast('Photo added to the estimate · also in the job’s Photos', 'add_a_photo');
+        addEstPhotos([{ t: 'Before', k: newPhotoKey() }], true);
+        toast('Photo added to the estimate · also in the job’s Before photos', 'add_a_photo');
         return;
       }
       mediaBatch = 1;
@@ -1489,7 +1489,7 @@
         estPhotoMode = false;
         galClear(); back();
         if (!np) { toast('Videos stay in the job’s Photos — an estimate shows photos only', 'videocam_off'); return; }
-        var list = []; for (var gi = 0; gi < np; gi++) list.push({ t: 'Other', k: newPhotoKey() });
+        var list = []; for (var gi = 0; gi < np; gi++) list.push({ t: 'Before', k: newPhotoKey() });
         addEstPhotos(list, true);
         toast(np + (np === 1 ? ' photo' : ' photos') + ' added to the estimate' + (vids ? ' · videos stay in the job’s Photos' : ''), 'add_a_photo');
         return;
@@ -2381,7 +2381,8 @@
       if (!tile || !tile.parentElement) return [];
       return $$(':scope > div', tile.parentElement).filter(function (t) {
         // the list sits under the viewer, so it is hidden: a tile counts unless the filter hid it
-        return t.style.display !== 'none' && !t.hidden && norm(t.textContent).toLowerCase() !== 'add add';
+        return t.style.display !== 'none' && !t.hidden && !t.dataset.act && norm(t.textContent).toLowerCase() !== 'add add' &&
+          !(t.parentElement.dataset.estgrid !== undefined && !t.dataset.estphoto);
       });
     }
     function photoFromTile(tile) {
@@ -2430,7 +2431,7 @@
     }
     var TYPE_OF = { B: 'Before', A: 'After', O: 'Other' };
     document.addEventListener('click', function (ev) {
-      var scr = ev.target.closest('#photos, #job-general'); if (!scr) return;
+      var scr = ev.target.closest('#photos, #job-general, #est-draft'); if (!scr) return;
       var bt = ev.target.closest('[data-ptype]');
       if (bt) { viewedPhoto = { tile: bt, type: bt.dataset.ptype, mine: bt.dataset.photomine === '1' }; paintViewed(viewedPhoto); return; }
       var tile = ev.target.closest('[data-photomine], #photos .sc > div[style*="grid-template-columns"] > div, #job-general [data-go="photo-detail"]');
@@ -4535,7 +4536,10 @@
      saw — the rusted coil, the cracked pan — next to the price. One set for
      the whole estimate, under the options: taken now, picked from the phone,
      or chosen from the photos already on the job. A new one is filed in the
-     job's Photos too (as Other); taking one off the estimate leaves it there.
+     job's Photos too — under Before (M6-18: the office sees them there);
+     taking one off the estimate leaves it there. No types and no "visible
+     to the customer" on the estimate (Marek 17.11). Taken off only before
+     the estimate goes out — or again once the customer asks for changes.
      The customer sees them on the presentation, the preview and the signed
      estimate; a changed set after Changes requested counts as an update. */
   var estPhotos = estPhotos || recall('estPhotos', []);
@@ -4563,9 +4567,9 @@
     remember('estPhotos', estPhotos);
     if (fileInJob) {
       var n = list.length;
-      mediaBlk.Other = (mediaBlk.Other || 0) + n; mineBlk.Other = (mineBlk.Other || 0) + n;
-      // the new ones point at the job's Other tiles they became
-      list.forEach(function (p, i) { p.k = 'Other:' + (mediaBlk.Other - n + i); });
+      mediaBlk.Before = (mediaBlk.Before || 0) + n; mineBlk.Before = (mineBlk.Before || 0) + n;
+      // the new ones point at the job's Before tiles they became
+      list.forEach(function (p, i) { p.t = 'Before'; p.k = 'Before:' + (mediaBlk.Before - n + i); });
       remember('estPhotos', estPhotos); remember('mediaBlk', mediaBlk); remember('mineBlk', mineBlk);
       if (typeof rebuildPhotoGrid === 'function') rebuildPhotoGrid();
       if (typeof paintMediaBlocks === 'function') paintMediaBlocks();
@@ -4596,14 +4600,19 @@
       root = byId('est-draft'); if (!root) return;
       var dep = sel(root, 'Deposit').filter(function (e) { return e.closest('.sc'); })[0];
       var depCard = dep && dep.nextElementSibling && dep.nextElementSibling.nextElementSibling;
-      var sec = estSection(root, 'draft', depCard, 'Photos', 'The customer sees them with the options. New ones are saved in the job’s Photos too.');
+      var sec = estSection(root, 'draft', depCard, 'Photos', 'The customer sees them after the options. New ones are saved in the job’s Before photos too.');
       var g = $('[data-estgrid]', sec); g.innerHTML = '';
       var add = document.createElement('div');
       add.dataset.tap = '1'; add.dataset.act = 'estAddPhoto';
       add.setAttribute('style', 'aspect-ratio:1;border:1.5px dashed #B9C6D8;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#4A6FA5;font:600 12px/1 Geist');
       add.innerHTML = '<span class="mi" style="font-size:24px">add_a_photo</span>Add';
       g.appendChild(add);
-      estPhotos.forEach(function (ph) { g.appendChild(estPhotoTile(ph, { badge: true, remove: true })); });
+      var canEdit = estPhotosEditable();
+      estPhotos.forEach(function (ph) {
+        var t = estPhotoTile(ph, { remove: canEdit });
+        t.dataset.ptype = ph.t || 'Before'; t.dataset.tap = '1'; t.dataset.go = 'photo-detail'; t.dataset.mode = 'modal';
+        g.appendChild(t);
+      });
       if (!estPhotos.length) {
         var none = document.createElement('div');
         none.setAttribute('style', 'grid-column:2 / -1;align-self:center;font:400 13.5px/1.4 Geist;color:#8A97A8;padding-left:4px');
@@ -4632,7 +4641,14 @@
     var cnt = $('div', sec2); if (cnt) cnt.textContent = 'Photos · ' + estPhotos.length;
     toggleDisplay(sec2, estPhotos.length > 0);
   }
-  ACT.estAddPhoto = function () {
+  // before it goes out, or once the customer asked for changes (M6-18)
+  function estPhotosEditable() {
+    var j = JOBS[jobIdx] || {};
+    if (state.est === 'approved' || state.est === 'declined') return false;
+    return !j.sentAt || state.est === 'changes';
+  }
+  ACT.estAddPhoto = function (el) {
+    if (state.est !== 'approved' && state.est !== 'declined' && !estPhotosEditable()) { toast('Sent to the customer — photos change once they ask for changes', 'lock'); return; }
     if (state.est === 'approved' || state.est === 'declined') { toast('A signed or declined estimate keeps its photos', 'lock'); return; }
     estPhotoMode = true;
     paintEstSourceRow();
