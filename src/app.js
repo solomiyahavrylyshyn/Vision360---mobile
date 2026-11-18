@@ -4629,8 +4629,13 @@
       root = byId('est-approved'); if (!root) return;
       var ao = sel(root, 'Approved option')[0]; at = ao && ao.nextElementSibling;
     } else if (pid === 'est-preview') {
+      /* M6-18b: the preview is the PDF (made on the phone with no signal) —
+         every photo on the estimate, once, right after the options and
+         before the terms */
       root = byId('est-preview'); if (!root) return;
-      var scs = $$('.sc', root), sc = scs[scs.length - 1]; at = sc && sc.lastElementChild;
+      var scs = $$('.sc', root), sc = scs[scs.length - 1];
+      var opts = sc ? $$(':scope > div', sc).filter(function (c) { return c.firstElementChild && /^Option [A-Z]$/.test(norm(c.firstElementChild.textContent)); }) : [];
+      at = opts[opts.length - 1] || (sc && sc.lastElementChild);
     }
     if (!root || !at) return;
     var sec2 = estSection(root, pid, at, 'Photos', '');
@@ -4640,6 +4645,7 @@
     estPhotos.forEach(function (ph) { g2.appendChild(estPhotoTile(ph, { small: true })); });
     var cnt = $('div', sec2); if (cnt) cnt.textContent = 'Photos · ' + estPhotos.length;
     toggleDisplay(sec2, estPhotos.length > 0);
+    if (pid === 'est-preview') sec2.style.marginBottom = '12px';   // air before the terms
   }
   // before it goes out, or once the customer asked for changes (M6-18)
   function estPhotosEditable() {
@@ -10716,13 +10722,17 @@
   };
   /* QA 16.11 (R-007.2, p.660–664): Send and Print are the estimate's — all
      its options in one PDF — with the address it goes to and the paper size */
+  function estPhotosInPdf() {
+    var n = typeof estPhotos !== 'undefined' ? estPhotos.length : 0;
+    return n ? ' and ' + n + (n === 1 ? ' photo after them' : ' photos after them') : '';
+  }
   function estLabel() { var j = JOBS[jobIdx] || {}; return 'Estimate ' + (estNoOf(j) || ''); }
   ACT.optMenuMail = function () {
     closeOverlays(true);
     // M6-13 (call 11.11): nothing is queued — it says it needs signal
     if (!net.online) { toast('Send by email needs a connection', 'cloud_off'); return; }
     var j = JOBS[jobIdx] || {};
-    confirmSheet({ title: 'Email ' + estLabel() + '?', text: 'Every option, as one PDF, to ' + custEmail(j) + ' (' + (j.name || 'the customer') + ').',
+    confirmSheet({ title: 'Email ' + estLabel() + '?', text: 'Every option' + estPhotosInPdf() + ', as one PDF, to ' + custEmail(j) + ' (' + (j.name || 'the customer') + ').',
       ok: 'Send', alt: null, onOk: function () { queued('Estimate'); toast(estLabel() + ' emailed to ' + custEmail(j), 'mail'); } });
   };
   ACT.optMenuSms = function () {
@@ -10741,7 +10751,7 @@
       if (!net.online) { toast('Printing the PDF made on this phone from the company template · ' + size, 'print'); return; }
       toast(estLabel() + ' sent to the printer · ' + size, 'print');
     }
-    confirmSheet({ title: 'Print ' + estLabel(), text: 'Every option, on the paper size you pick.', ok: 'Letter', alt: 'Legal', neutral: true,
+    confirmSheet({ title: 'Print ' + estLabel(), text: 'Every option' + estPhotosInPdf() + ', on the paper size you pick.', ok: 'Letter', alt: 'Legal', neutral: true,
       onOk: function () { print('Letter'); }, onAlt: function () { print('Legal'); } });
   };
   // the approved record can be sent and printed too
