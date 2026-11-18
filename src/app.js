@@ -415,6 +415,7 @@
   var tabOrigin = 'home', tabStacks = {};
   function chrome() {
     var pid = curPage(); if (!pid) return;
+    if (typeof paintForceUpdate === 'function') paintForceUpdate();
     if (pid === 'est-draft' && typeof paintDraftAction === 'function') paintDraftAction();
     if (pid === 'est-draft' && typeof orderOptionsByPrice === 'function') orderOptionsByPrice('est-draft');
     if (pid === 'est-draft' && typeof paintAllCards === 'function') paintAllCards();
@@ -6768,6 +6769,7 @@
   function plural(n) { return n === 1 ? 'photo' : 'photos'; }
 
   function paintNet() {
+    if (typeof paintForceUpdate === 'function' && typeof forceUpd !== 'undefined' && forceUpd) { try { paintForceUpdate(); } catch (e) { } }
     if (typeof paintKpiState === 'function' && typeof kpiRefsGet === 'function') { try { paintKpiState(kpiRefsGet()); } catch (e) { } }
     var cls = '', icon = '', text = '', show = true;
     if (!net.online) {
@@ -6853,6 +6855,72 @@
   function waitingFor(idx) {
     return syncQ.filter(function (q) { return q.job === idx; }).length + (upJob === idx ? upPending : 0);
   }
+  /* M11-5: below the minimum version the app updates — but only after what
+     it holds is sent. With a queue, new work is off (job buttons, camera,
+     new documents) and a strip counts it out; with no signal it says to
+     connect first. Queue empty → a full-screen "This version no longer
+     works", on Home only — never over an estimate the customer is reading,
+     a payment or a signature. Nothing is ever wiped. No "new version
+     available" banner: only the forced one. Demo row in More. */
+  var forceUpd = recall('forceUpd', false);
+  function updQueue() {
+    var photos = upPending || 0, acts = (syncQ || []).length;
+    return { acts: acts, photos: photos, total: acts + photos };
+  }
+  function updWords(q) {
+    return [q.acts ? q.acts + (q.acts === 1 ? ' action' : ' actions') : '', q.photos ? q.photos + (q.photos === 1 ? ' photo' : ' photos') : ''].filter(Boolean).join(' and ');
+  }
+  function paintForceUpdate() {
+    var home = byId('home'), strip = byId('updStrip');
+    var q = updQueue(), pid = curPage();
+    if (!strip && home) {
+      strip = document.createElement('div'); strip.id = 'updStrip';
+      strip.setAttribute('style', 'display:none;align-items:flex-start;gap:10px;padding:11px 16px;background:#FEF3E2;border-bottom:1px solid #F3D9AE;font:500 13px/1.4 Geist;color:#7A5B12;flex:none');
+      strip.dataset.disp = 'flex';
+      var sc = $('.sc', home); if (sc) home.insertBefore(strip, sc);
+    }
+    if (strip) {
+      var showStrip = forceUpd && q.total > 0;
+      toggleDisplay(strip, showStrip);
+      if (showStrip) strip.innerHTML = '<span class="mi" style="font-size:19px;color:#D97706">system_update</span><span>' +
+        (net.online ? 'Update required — sending ' + updWords(q) + ' first' : 'Connect to send ' + updWords(q) + ', then update') + '. New work is off until then.</span>';
+    }
+    var ov = byId('ov-update');
+    var full = forceUpd && q.total === 0 && (pid === 'home' || pid === 'home-active');
+    if (full && !ov) {
+      ov = document.createElement('div'); ov.id = 'ov-update';
+      ov.setAttribute('style', 'position:absolute;inset:0;z-index:80;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 26px;text-align:center');
+      ov.innerHTML = '<div style="width:68px;height:68px;border-radius:18px;background:#EBF0F8;display:flex;align-items:center;justify-content:center;margin-bottom:20px"><span class="mi" style="font-size:36px;color:#4A6FA5">system_update</span></div>' +
+        '<div style="font:600 21px/1.25 Geist;margin-bottom:10px">This version no longer works</div>' +
+        '<div style="font:400 14.5px/1.5 Geist;color:#546478;margin-bottom:26px">Update to keep working. Everything on this phone was sent — you stay signed in after the update.</div>' +
+        '<div data-tap="1" data-act="doUpdate" style="width:100%;height:52px;display:flex;align-items:center;justify-content:center;border-radius:11px;background:#4A6FA5;color:#fff;font:600 16px/1 Geist">Update</div>';
+      phone.appendChild(ov);
+    }
+    if (ov) ov.style.display = full ? 'flex' : 'none';
+  }
+  // new work waits while the old version still holds a queue
+  document.addEventListener('click', function (ev) {
+    if (!forceUpd || !updQueue().total) return;
+    var t = ev.target.closest('[data-act="enroute"],[data-act="start"],[data-act="useCamera"],[data-act="pickGallery"],[data-act="estAddPhoto"],[data-act="newOption"],[data-act="createInvoice"],[data-go="ov-media-source"]');
+    if (!t) return;
+    ev.stopPropagation(); ev.preventDefault();
+    toast(net.online ? 'Update required — sending what is waiting first' : 'Connect to send what is waiting, then update', 'system_update');
+  }, true);
+  ACT.demoForceUpdate = function () {
+    forceUpd = !forceUpd; remember('forceUpd', forceUpd);
+    var l = byId('updDemoLbl'); if (l) l.textContent = forceUpd ? 'Demo: version below the minimum · on' : 'Demo: version below the minimum';
+    paintForceUpdate();
+    toast(forceUpd ? (updQueue().total ? 'Below the minimum version — sending the queue first' : 'Below the minimum version — Home asks to update') : 'Version is fine again', 'system_update');
+  };
+  ACT.doUpdate = function () {
+    toast('Opening Google Play…', 'shop');
+    setTimeout(function () {
+      forceUpd = false; remember('forceUpd', false);
+      var l = byId('updDemoLbl'); if (l) l.textContent = 'Demo: version below the minimum';
+      paintForceUpdate();
+      toast('Updated to 2.5.0 · still signed in, nothing lost', 'check_circle');
+    }, 1200);
+  };
   function waitingTotal() { return syncQ.length + upPending + (typeof dpWaiting === 'function' ? dpWaiting() : 0); }
   /* When the phone last synced: the offline strip and More both say it.
      It moves when a sync finishes after the phone is back online. */
