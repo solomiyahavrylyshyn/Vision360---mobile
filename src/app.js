@@ -7881,20 +7881,21 @@
     w.style.color = on ? '#16A34A' : '#DC2626';
   }
   var CONV_TARGET = 25;                           // the company's conversion target for the role (W-20)
-  /* QA 16.11 (R-003.1, p.373): a role with no KPIs gets no tiles, and Home says so */
+  /* M10-1b: a role with no tiles has no Overview at all — no heading, no
+     filter, no period chips, no tiles: the announcement line, then the jobs
+     right under it. (It had a note saying the role has no targets.) */
   var kpiOff = recall('kpiOff', false);
   function paintKpiOff(r) {
     var tile = r && r.rev && r.rev.value.closest('div[style*="border-radius"]');
     var grid = tile && tile.parentElement; if (!grid) return;
     toggleDisplay(grid, !kpiOff);
-    var note = byId('kpiOffNote');
-    if (!note) {
-      note = document.createElement('div'); note.id = 'kpiOffNote';
-      note.setAttribute('style', 'background:#fff;border:1px dashed #C8D5E8;border-radius:12px;padding:16px;text-align:center;font:400 13.5px/1.45 Geist;color:#546478');
-      note.textContent = 'Your role has no targets on Home — the office sets them per role in the web app.';
-      grid.parentElement.insertBefore(note, grid);
+    var note = byId('kpiOffNote'); if (note) note.remove();
+    // the heading row with the filter, and the chips under it
+    for (var e = grid.previousElementSibling; e; e = e.previousElementSibling) {
+      var txt = norm(e.textContent);
+      if (/^Overview/.test(txt) || /^Week Month Quarter Year/.test(txt)) toggleDisplay(e, !kpiOff);
+      if (/^Overview/.test(txt)) break;
     }
-    toggleDisplay(note, kpiOff);
   }
   /* M10-1 / M10-4c / M10-4d: each role has its 4 tiles, set when the company
      is connected. Six kinds in all — the Technician's four, plus Jobs
@@ -7942,7 +7943,7 @@
   ACT.demoKpiOff = function () {
     kpiOff = !kpiOff; remember('kpiOff', kpiOff); paintKPI();
     var n = byId('kpiOffLbl'); if (n) n.textContent = kpiOff ? 'Demo: role without KPIs · tap to undo' : 'Demo: role without KPIs';
-    toast(kpiOff ? 'Home shows no KPI tiles for this role' : 'KPI tiles back', 'insights');
+    toast(kpiOff ? 'This role has no tiles — Home goes straight to the jobs' : 'KPI tiles back', 'insights');
   };
   function paintKPI() {
     var r = kpiRefsGet(); if (!r) return;
