@@ -15278,6 +15278,8 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       setTimeout(function () { paintJob(); }, 950);
       go(homeScreen(), 'root');
       toast('Welcome back, Marek', 'waving_hand');
+      // M11-2b: notifications are asked right after the first sign-in, not at the first launch
+      if (typeof askPerm === 'function') setTimeout(function () { askPerm('notif', function () { }); }, 1400);
     }, 620);
   }
   byId('li-go').addEventListener('click', signIn);
@@ -16573,6 +16575,62 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     go('ov-anns', 'overlay');
   };
   setTimeout(paintAnnouncements, 0);
+  /* M11-2b: each permission is asked when it is first needed, with our own
+     screen first saying why, then the phone's own prompt. Notifications
+     after the first sign-in; location at the first Start; the camera at
+     the first photo. Each refusal has its own way on: no location → Start
+     is blocked with Open settings; no camera → "Camera access is off" with
+     Open settings, and the gallery still works; no notifications → jobs
+     still arrive with every sync. */
+  var perms = recall('perms', {});
+  var PERM_ASK = {
+    notif: { icon: 'notifications', title: 'Turn on notifications', why: 'So you hear when a job is added, moved or reopened. Jobs still arrive with every sync if you say no.', sys: 'Allow Vision 360 to send you notifications?' },
+    loc: { icon: 'location_on', title: 'Location while you use the app', why: 'To show the distance to the job and check you are at the address when you press Start. Never in the background.', sys: 'Allow Vision 360 to access this device’s location?', allow: 'While using the app' },
+    cam: { icon: 'photo_camera', title: 'Camera', why: 'To take job photos and videos. They go on the job — not in your phone’s gallery.', sys: 'Allow Vision 360 to take pictures and record video?', allow: 'While using the app' }
+  };
+  function askPerm(key, then) {
+    if (perms[key]) { then(perms[key] === 'yes'); return; }
+    var a = PERM_ASK[key], el = sheetEl('ov-perm-ask'), b = $('[data-sheetbody]', el);
+    b.innerHTML = '<div style="display:flex;justify-content:center;padding:0 0 10px"><div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div></div>' +
+      '<div style="width:48px;height:48px;border-radius:14px;background:#EBF0F8;display:flex;align-items:center;justify-content:center;margin:4px 0 12px"><span class="mi" style="font-size:26px;color:#4A6FA5">' + a.icon + '</span></div>' +
+      '<div style="font:600 18px/1.25 Geist">' + a.title + '</div>' +
+      '<div style="font:400 14px/1.5 Geist;color:#546478;margin:6px 0 16px">' + a.why + '</div>' +
+      '<div data-tap="1" data-pgo style="height:52px;display:flex;align-items:center;justify-content:center;border-radius:11px;background:#4A6FA5;color:#fff;font:600 16px/1 Geist">Continue</div>';
+    b.onclick = function (ev) {
+      if (!ev.target.closest('[data-pgo]')) return;
+      closeOverlays(true);
+      // the phone's own prompt
+      confirmSheet({ title: a.sys, text: 'Android · Vision 360', ok: a.allow || 'Allow', alt: 'Don’t allow', neutral: true,
+        onOk: function () { perms[key] = 'yes'; remember('perms', perms); then(true); },
+        onAlt: function () { perms[key] = 'no'; remember('perms', perms); permRefused(key); then(false); } });
+    };
+    go('ov-perm-ask', 'overlay');
+  }
+  function permRefused(key) {
+    if (key === 'notif') toast('No notifications — your jobs still arrive with every sync', 'notifications_off');
+    if (key === 'loc') confirmSheet({ title: 'Location is off', text: 'Start checks you are at the address. Turn location on for Vision 360 in the phone’s settings — or call the office to start the job for you.', ok: 'Open settings', alt: 'Call office', neutral: true,
+      onOk: function () { perms.loc = 'yes'; remember('perms', perms); toast('Back from settings · location on', 'location_on'); },
+      onAlt: function () { toast('Calling (813) 555-0100', 'call'); } });
+    if (key === 'cam') toast('Camera access is off — Open settings to turn it on; the gallery still works', 'no_photography');
+  }
+  (function () {
+    var start0 = ACT.start, cam0 = ACT.useCamera;
+    ACT.start = function (el) {
+      // resuming a paused job is not checked against the address, so it asks nothing
+      var pj = JOBS[jobIdx] || {};
+      if (perms.loc === 'yes' || (pj.paused && pj.pausedFrom !== 'drive')) return start0.apply(this, arguments);
+      var args = arguments, self = this;
+      if (perms.loc === 'no') { permRefused('loc'); return; }
+      askPerm('loc', function (ok) { if (ok) start0.apply(self, args); });
+    };
+    ACT.useCamera = function (el) {
+      if (perms.cam === 'yes') return cam0.apply(this, arguments);
+      var args = arguments, self = this;
+      if (perms.cam === 'no') { closeOverlays(true); permRefused('cam'); return; }
+      closeOverlays(true);
+      askPerm('cam', function (ok) { if (ok) cam0.apply(self, args); });
+    };
+  })();
   function beforeComplete(hints, completeNow) {
     var el = sheetEl('ov-before'), b = $('[data-sheetbody]', el);
     b.innerHTML = '<div style="display:flex;justify-content:center;padding:0 0 10px"><div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div></div>' +
