@@ -7896,6 +7896,49 @@
     }
     toggleDisplay(note, kpiOff);
   }
+  /* M10-1 / M10-4c / M10-4d: each role has its 4 tiles, set when the company
+     is connected. Six kinds in all — the Technician's four, plus Jobs
+     completed and Callback ratio. The demo's Installer: Revenue, Jobs
+     completed, Avg price per ticket, Callback ratio. Neither new tile has a
+     target or a forecast. */
+  var kpiRole = recall('kpiRole', 'Technician');
+  function xTile(kind) {
+    var t = document.createElement('div'); t.dataset.xtile = kind;
+    t.setAttribute('style', 'background:#fff;border:1px solid #DDE3EE;border-radius:12px;padding:13px 14px');
+    t.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px"><span style="font:500 13px/1.3 Geist;color:#546478">' +
+      (kind === 'jobs' ? 'Jobs completed' : 'Callback ratio') + '</span></div>' +
+      '<div data-xval style="font:600 18px/1.1 Geist;letter-spacing:-.01em"></div>' +
+      '<div data-xsub style="font:400 12px/1.4 Geist;color:#546478;margin-top:8px"></div>';
+    return t;
+  }
+  function paintRoleTiles(r) {
+    var tile = r && r.rev && r.rev.value.closest('div[style*="border-radius"]');
+    var grid = tile && tile.parentElement; if (!grid) return;
+    var orig = $$(':scope > div', grid).filter(function (e) { return !e.dataset.xtile; });
+    if (orig.length < 4) return;
+    var inst = kpiRole === 'Installer';
+    var jt = $('[data-xtile="jobs"]', grid), ct = $('[data-xtile="callback"]', grid);
+    if (!jt) { jt = xTile('jobs'); grid.insertBefore(jt, orig[1]); }
+    if (!ct) { ct = xTile('callback'); grid.insertBefore(ct, orig[3]); }
+    toggleDisplay(orig[1], !inst); toggleDisplay(orig[3], !inst);
+    toggleDisplay(jt, inst); toggleDisplay(ct, inst);
+    if (!inst) return;
+    var f = (TYPE_SHARE[kpiType] || 1) * periodShare();
+    // a reopened job counts once, a cancelled one not, a reassigned one for whoever completed it
+    var jobs = Math.round(18 * f);
+    $('[data-xval]', jt).textContent = String(jobs);
+    $('[data-xsub]', jt).textContent = jobs === 1 ? 'job completed' : 'jobs completed';
+    // callbacks on addresses where his job was the last one completed, over the calls he completed
+    var calls = Math.round(40 * f), cb = Math.round(3 * f);
+    $('[data-xval]', ct).textContent = calls ? (Math.round(cb / calls * 1000) / 10) + '%' : '—';
+    $('[data-xsub]', ct).textContent = calls ? cb + ' of ' + calls + ' calls came back' : 'No completed calls yet';
+  }
+  ACT.demoRole = function () {
+    kpiRole = kpiRole === 'Installer' ? 'Technician' : 'Installer'; remember('kpiRole', kpiRole);
+    var l = byId('roleDemoLbl'); if (l) l.textContent = kpiRole === 'Installer' ? 'Demo: Installer’s tiles · tap for the Technician’s' : 'Demo: Installer’s tiles';
+    paintKPI();
+    toast(kpiRole === 'Installer' ? 'Installer: Revenue, Jobs completed, Avg price, Callback ratio' : 'Technician: Revenue, Estimates, Avg price, Closing', 'insights');
+  };
   ACT.demoKpiOff = function () {
     kpiOff = !kpiOff; remember('kpiOff', kpiOff); paintKPI();
     var n = byId('kpiOffLbl'); if (n) n.textContent = kpiOff ? 'Demo: role without KPIs · tap to undo' : 'Demo: role without KPIs';
@@ -7904,6 +7947,7 @@
   function paintKPI() {
     var r = kpiRefsGet(); if (!r) return;
     paintKpiOff(r);
+    paintRoleTiles(r);
     var kpi = kpiView();
     var pct = function (a, b) { return Math.max(0, Math.min(100, a / b * 100)); };
     if (r.rev) { setLead(r.rev.value, kfmt(kpi.revenue)); if (r.rev.bar) r.rev.bar.style.width = pct(kpi.revenue, kpi.target) + '%'; }
