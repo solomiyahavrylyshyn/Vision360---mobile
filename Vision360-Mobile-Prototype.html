@@ -651,6 +651,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
             <div class="rowi" data-act="demoCrew" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">groups</span><span id="crewDemoLbl">Demo: you are a helper on Brent Kenzie’s install</span></div>
             <div class="rowi" data-act="demoForceUpdate" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">system_update</span><span id="updDemoLbl">Demo: version below the minimum</span></div>
             <div class="rowi" data-act="demoLowStore" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">sd_card</span><span id="lowStoreLbl">Demo: phone storage almost full</span></div>
+            <div class="rowi" data-act="demoFieldCancel" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">event_busy</span><span>Demo: office cancelled a job you worked on offline</span></div>
             <!-- demo only: shows Home as a salaried technician sees it (OD-16) -->
           </div>
         </div>
@@ -16250,6 +16251,52 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       showPush(jobNo(j) + ' was cancelled by the office', function () { go(homeScreen(), 'root'); });
     }, 900);
   };
+  /* M2-7 (Marek 10.11) / M2-4: the office cancelled a job while the
+     technician, with no signal, kept working on it. When the queue goes up
+     nothing he did is lost: the photos, the note, the money and his times go
+     on the job with a mark for the office, and only "Completed" is not
+     applied. Home says so in "Changes from the office"; the job leaves Home
+     once he has read it (OK). The office decides: Mark as completed or Keep
+     cancelled. */
+  var officeChg = recall('officeChg', null);
+  function paintOfficeChg() {
+    var home = byId('home'); if (!home) return;
+    var sc = $('.sc', home); if (!sc) return;
+    var b = byId('officeChgBar');
+    if (!b) {
+      b = document.createElement('div'); b.id = 'officeChgBar';
+      b.setAttribute('style', 'background:#fff;border:1.5px solid #C8D5E8;border-radius:12px;padding:13px 14px;margin-bottom:16px');
+      sc.insertBefore(b, sc.firstElementChild);
+    }
+    toggleDisplay(b, !!officeChg);
+    if (!officeChg) return;
+    var j = JOBS[officeChg.idx] || {};
+    b.innerHTML = '<div style="display:flex;align-items:center;gap:8px;font:600 15px/1.2 Geist;margin-bottom:8px"><span class="mi" style="font-size:20px;color:#4A6FA5">sync_alt</span>Changes from the office</div>' +
+      '<div style="display:flex;gap:9px;font:400 13.5px/1.45 Geist;color:#1A2332"><span class="mi" style="font-size:18px;color:#DC2626;margin-top:1px">event_busy</span><div><b style="font-weight:600">' + jobNo(j) + ' · ' + (j.name || '') + '</b> was cancelled at ' + officeChg.at +
+      '. What you did there is saved on the job for the office: ' + officeChg.saved + '. Completing it was not applied — the office decides.</div></div>' +
+      '<div data-tap="1" data-act="officeChgOk" style="height:44px;display:flex;align-items:center;justify-content:center;margin-top:12px;border-radius:10px;background:#EBF0F8;color:#4A6FA5;font:600 15px/1 Geist">OK</div>';
+  }
+  ACT.officeChgOk = function () {
+    if (!officeChg) return;
+    var j = JOBS[officeChg.idx];
+    if (j) { j.cancelled = true; if (jobIdx === officeChg.idx) { var left = openJobs(); jobIdx = left.length ? left[0] : JOBS.length; loadJob(); } saveJobs(); }
+    officeChg = null; remember('officeChg', null);
+    paintOfficeChg(); paintJob(); paintEnroute();
+    toast('Read · the job is off your Home', 'check');
+  };
+  ACT.demoFieldCancel = function () {
+    if (officeChg) { toast('Read the changes on Home first', 'info'); go(homeScreen(), 'root'); return; }
+    var open = openJobs().filter(function (i) { return i !== runIdx; });
+    var at = open.indexOf(jobIdx) > -1 ? jobIdx : open[0];
+    if (at === undefined) { toast('No job to cancel', 'info'); return; }
+    officeChg = { idx: at, at: '8:20 AM', saved: '4 photos, a field note, $250.00 cash and your start and finish times' };
+    remember('officeChg', officeChg);
+    jobIdx = at; loadJob();
+    paintOfficeChg(); paintJob(); paintEnroute();
+    go('home', 'root');
+    toast('Back online · the queue went up — the office had cancelled this job', 'cloud_done');
+  };
+  setTimeout(paintOfficeChg, 0);
   ACT.demoNet = function () {
     if (net.online) { window.dispatchEvent(new Event('offline')); }
     else { window.dispatchEvent(new Event('online')); }
@@ -18365,6 +18412,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
         txt = 'Started by the office · ' + j.officeStartAt; tone = 'brand';
       } else if (j && j.paused && j.pausedFrom === 'drive') { txt = 'Paused · on the way'; tone = 'grey';
       } else if (j && j.paused) { txt = 'Paused' + (j.pauseReason ? ' · ' + j.pauseReason : ''); tone = 'grey'; }   // short: the timer did not fit the card
+      else if (j && typeof officeChg !== 'undefined' && officeChg && officeChg.idx === jobIdx) { txt = 'Cancelled by the office'; tone = 'grey'; }
       else if (j && j.reopened) { txt = reopenTag(j); tone = 'warn'; }
       if (whenEl && txt) {
         /* Nov 5: the chip sits on its own line under the name and time —
