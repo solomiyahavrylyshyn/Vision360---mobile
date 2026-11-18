@@ -10179,6 +10179,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
   function plural(n) { return n === 1 ? 'photo' : 'photos'; }
 
   function paintNet() {
+    if (typeof paintKpiState === 'function' && typeof kpiRefsGet === 'function') { try { paintKpiState(kpiRefsGet()); } catch (e) { } }
     var cls = '', icon = '', text = '', show = true;
     if (!net.online) {
       var pend = [];
@@ -11203,6 +11204,19 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
       el.textContent = up ? 'trending_up' : 'trending_down';
       el.style.color = up ? '#16A34A' : '#DC2626';
       el.title = (up ? 'Up' : 'Down') + ' on the previous period';
+      // M10-5: the same as before, or nothing to compare with — no arrow
+      el.style.visibility = Math.abs(now - was) < 1e-9 ? 'hidden' : '';
+      /* M10-5: in a period still running, Revenue compares its pace (so far ÷
+         days gone × days in the period) — and says so, so it is not read as the web's full sums */
+      if (k === 'rev') {
+        var pace = el.parentElement && $('[data-pace]', el.parentElement);
+        if (!pace && el.parentElement) {
+          pace = document.createElement('span'); pace.dataset.pace = '1';
+          pace.setAttribute('style', 'font:500 10.5px/1 Geist;margin-left:auto;margin-right:4px;align-self:center;white-space:nowrap');
+          el.parentElement.insertBefore(pace, el);
+        }
+        if (pace) { pace.textContent = /^This /.test(period) ? 'at this pace' : ''; pace.style.color = el.style.color; }
+      }
     });
   }
 
@@ -11356,10 +11370,54 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     var n = byId('kpiOffLbl'); if (n) n.textContent = kpiOff ? 'Demo: role without KPIs · tap to undo' : 'Demo: role without KPIs';
     toast(kpiOff ? 'This role has no tiles — Home goes straight to the jobs' : 'KPI tiles back', 'insights');
   };
+  /* M10-5b: the tiles' states. A new period dims the old numbers until the
+     new ones come; with no signal the last snapshot of each period shows
+     with "Updated 8:12 AM", and a period never opened on this phone says
+     "Not available offline". The job cards under them never wait. */
+  var kpiSnaps = recall('kpiSnaps', { 'This month|All work types': '8:12 AM' });
+  var kpiLastKey = '';
+  function paintKpiState(r) {
+    var tile = r && r.rev && r.rev.value.closest('div[style*="border-radius"]');
+    var grid = tile && tile.parentElement; if (!grid || kpiOff) return;
+    var key = period + '|' + kpiType;
+    var head = periodRefs && periodRefs.qualifier;
+    var upd = byId('kpiUpd');
+    if (!upd && head) {
+      upd = document.createElement('span'); upd.id = 'kpiUpd';
+      upd.setAttribute('style', 'font:500 12px/1 Geist;color:#8A6114;margin-left:8px;white-space:nowrap');
+      head.parentElement.insertBefore(upd, head.nextSibling);
+    }
+    var off = byId('kpiOffline');
+    if (!off) {
+      off = document.createElement('div'); off.id = 'kpiOffline';
+      off.setAttribute('style', 'background:#fff;border:1px dashed #C8D5E8;border-radius:12px;padding:18px 16px;margin-bottom:20px;text-align:center;font:400 13.5px/1.45 Geist;color:#546478');
+      off.dataset.disp = 'block'; off.style.display = 'none';
+      grid.parentElement.insertBefore(off, grid);
+    }
+    if (net.online) {
+      if (upd) upd.textContent = '';
+      toggleDisplay(off, false); toggleDisplay(grid, true);
+      if (kpiLastKey && kpiLastKey !== key) {
+        grid.style.transition = 'opacity .2s'; grid.style.opacity = '.4';
+        setTimeout(function () { grid.style.opacity = ''; }, 650);
+      }
+      kpiSnaps[key] = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      remember('kpiSnaps', kpiSnaps);
+    } else if (kpiSnaps[key]) {
+      if (upd) upd.textContent = 'Updated ' + kpiSnaps[key];
+      toggleDisplay(off, false); toggleDisplay(grid, true);
+    } else {
+      if (upd) upd.textContent = '';
+      off.innerHTML = '<span class="mi" style="font-size:22px;color:#A9B4C2;display:block;margin-bottom:6px">cloud_off</span><b style="font-weight:600;color:#1A2332">Not available offline</b><br>' + period + ' was never opened on this phone. It loads when you have signal.';
+      toggleDisplay(off, true); toggleDisplay(grid, false);
+    }
+    kpiLastKey = key;
+  }
   function paintKPI() {
     var r = kpiRefsGet(); if (!r) return;
     paintKpiOff(r);
     paintRoleTiles(r);
+    paintKpiState(r);
     var kpi = kpiView();
     var pct = function (a, b) { return Math.max(0, Math.min(100, a / b * 100)); };
     if (r.rev) { setLead(r.rev.value, kfmt(kpi.revenue)); if (r.rev.bar) r.rev.bar.style.width = pct(kpi.revenue, kpi.target) + '%'; }
