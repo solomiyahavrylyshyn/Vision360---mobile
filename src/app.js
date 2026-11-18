@@ -13219,6 +13219,41 @@
       askPerm('cam', function (ok) { if (ok) cam0.apply(self, args); });
     };
   })();
+  /* M2-4 / M11-9: free space on the phone. Under 500 MB a banner says so;
+     under 200 MB the camera stops (the gallery still works) — and nothing
+     waiting to be sent is ever touched. Demo row in More steps through. */
+  var lowStore = recall('lowStore', 0);
+  function paintLowStore() {
+    var home = byId('home'); if (!home) return;
+    var b = byId('lowStoreBar');
+    if (!b) {
+      b = document.createElement('div'); b.id = 'lowStoreBar'; b.dataset.disp = 'flex';
+      b.setAttribute('style', 'align-items:flex-start;gap:10px;padding:11px 16px;font:500 13px/1.4 Geist;flex:none');
+      var sc = $('.sc', home); if (sc) home.insertBefore(b, sc);
+    }
+    toggleDisplay(b, lowStore > 0);
+    if (!lowStore) return;
+    var full = lowStore === 2;
+    b.style.background = full ? '#FDECEC' : '#FEF3E2'; b.style.color = full ? '#991B1B' : '#7A5B12';
+    b.style.borderBottom = '1px solid ' + (full ? '#F5C2C2' : '#F3D9AE');
+    b.innerHTML = '<span class="mi" style="font-size:19px;color:' + (full ? '#DC2626' : '#D97706') + '">' + (full ? 'no_photography' : 'sd_card_alert') + '</span><span>' +
+      (full ? 'Phone storage full · 150 MB free. The camera is off until you free up space — the gallery still works, and nothing waiting to send is lost.'
+        : 'Storage almost full · 420 MB free on this phone. Free up space in the phone’s settings before the camera stops at 200 MB.') + '</span>';
+  }
+  ACT.demoLowStore = function () {
+    lowStore = (lowStore + 1) % 3; remember('lowStore', lowStore);
+    var l = byId('lowStoreLbl'); if (l) l.textContent = ['Demo: phone storage almost full', 'Demo: phone storage full', 'Demo: phone storage back to normal'][lowStore];
+    paintLowStore(); go('home', 'tab');
+    toast(['Storage back to normal', 'Under 500 MB free — banner on Home', 'Under 200 MB free — camera off, gallery works'][lowStore], 'sd_card');
+  };
+  (function () {
+    var cam1 = ACT.useCamera;
+    ACT.useCamera = function () {
+      if (lowStore === 2) { closeOverlays(true); toast('The camera is off — under 200 MB free. Choose from the gallery, or free up space', 'no_photography'); return; }
+      return cam1.apply(this, arguments);
+    };
+  })();
+  setTimeout(paintLowStore, 0);
   function beforeComplete(hints, completeNow) {
     var el = sheetEl('ov-before'), b = $('[data-sheetbody]', el);
     b.innerHTML = '<div style="display:flex;justify-content:center;padding:0 0 10px"><div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div></div>' +
