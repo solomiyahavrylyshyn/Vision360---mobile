@@ -13044,6 +13044,55 @@
     INFO[id] = { id: id, title: id, section: 'app', tabs: false, overlay: true };
     return el;
   }
+  /* M10-9: the company's announcements, from the settings sync. Shown within
+     their dates (the company's days, offline too); two lines, the newest
+     start on top, "+N" for the rest, and a tap opens them all. A link in
+     the text is plain text — it does not open. None active → no line. */
+  var ANNS = [
+    { text: 'Holiday party, Jan 3rd, 5:00 PM, Wesley Chapel', from: 'Nov 21', to: 'Jan 3', at: 21 },
+    { text: 'Office closed Friday Nov 27', from: 'Nov 20', to: 'Nov 27', at: 20 },
+    { text: 'Open enrolment for the health plan, Dec 1st — details at hr.andservices.com/benefits', from: 'Nov 18', to: 'Dec 1', at: 18 }
+  ];
+  function paintAnnouncements() {
+    var root = byId('home'); if (!root) return;
+    var bar = $$('div', root).filter(function (e) { return /background:#1C2B3A/.test(e.getAttribute('style') || '') && $('.mi', e) && norm($('.mi', e).textContent) === 'campaign'; })[0];
+    if (!bar) return;
+    var txt = bar.children[1]; if (!txt) return;
+    var list = ANNS.slice().sort(function (a, b) { return b.at - a.at; });
+    toggleDisplay(bar, list.length > 0);
+    txt.innerHTML = '';
+    list.slice(0, 2).forEach(function (a) {
+      var l = document.createElement('div');
+      l.setAttribute('style', 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap');
+      l.textContent = a.text;
+      txt.appendChild(l);
+    });
+    if (list.length > 2) {
+      var more = document.createElement('span');
+      more.setAttribute('style', 'display:inline-block;margin-top:4px;font:600 12px/1 Geist;color:#9DB4D6;background:rgba(255,255,255,.1);border-radius:5px;padding:3px 6px');
+      more.textContent = '+' + (list.length - 2);
+      txt.appendChild(more);
+    }
+    txt.style.minWidth = '0';
+    txt.dataset.tap = '1'; txt.dataset.act = 'openAnnouncements';
+  }
+  ACT.openAnnouncements = function () {
+    var el = sheetEl('ov-anns'), b = $('[data-sheetbody]', el);
+    var list = ANNS.slice().sort(function (a, c) { return c.at - a.at; });
+    b.innerHTML = '<div style="display:flex;justify-content:center;padding:0 0 10px"><div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div></div>' +
+      '<div style="font:600 18px/1.25 Geist;margin-bottom:4px">Announcements</div>' +
+      '<div style="font:400 12.5px/1.4 Geist;color:#8A97A8;margin-bottom:10px">From your company</div>' +
+      list.map(function (a, i) {
+        return '<div style="display:flex;gap:10px;padding:12px 0;' + (i ? 'border-top:1px solid #EDF0F5' : '') + '"><span class="mi" style="font-size:19px;color:#4A6FA5">campaign</span>' +
+          '<div style="flex:1;min-width:0"><div data-anntext style="font:400 14.5px/1.45 Geist;color:#1A2332;word-break:break-word"></div>' +
+          '<div style="font:400 12px/1.3 Geist;color:#8A97A8;margin-top:3px">' + a.from + ' – ' + a.to + '</div></div></div>';
+      }).join('') +
+      '<div data-back data-tap="1" style="height:48px;display:flex;align-items:center;justify-content:center;margin-top:6px;border-radius:11px;background:#EDF0F5;font:600 15px/1 Geist;color:#1A2332">Close</div>';
+    // as text — a link in it is not a link
+    $$('[data-anntext]', b).forEach(function (e, i) { e.textContent = list[i].text; });
+    go('ov-anns', 'overlay');
+  };
+  setTimeout(paintAnnouncements, 0);
   function beforeComplete(hints, completeNow) {
     var el = sheetEl('ov-before'), b = $('[data-sheetbody]', el);
     b.innerHTML = '<div style="display:flex;justify-content:center;padding:0 0 10px"><div style="width:38px;height:4px;border-radius:2px;background:#DDE3EE"></div></div>' +
