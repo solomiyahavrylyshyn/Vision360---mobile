@@ -1563,6 +1563,8 @@
        nothing owed (warranty, free maintenance) closes without payment. */
     complete: function () {
       closeOverlays(true);
+      var cj0 = JOBS[jobIdx];
+      if (isHelper(cj0)) { toast('Only ' + crewOf(cj0).lead + ', the lead technician, completes this job', 'groups'); return; }
       var st0 = curStatus();
       if (st0 !== 'inprogress' && st0 !== 'paused') { toast('Start the job first', 'play_circle'); return; }
       /* M8-1 (#52, #75): hints that never block — "Before you complete"
@@ -9009,6 +9011,8 @@
   var START_STYLE = '', COMPLETE_STYLE = '';
   function paintStartButtons() {
     paintStartButtonsInner();
+    // X-3: a helper has no Complete in the header either
+    jobHeaderBtns.forEach(function (b) { if (b.dataset.act === 'complete' && isHelper(JOBS[jobIdx])) b.style.display = 'none'; else if (b.dataset.act === 'complete') b.style.display = ''; });
     // a finished job being read has no Start and no Complete
     if (viewPast) jobHeaderBtns.forEach(function (b) { b.style.display = 'none'; });
   }
@@ -9133,6 +9137,28 @@
      all start treating it as the job in hand. Until then it is just the
      next one on the list. */
   function jobActive() { return !!(state.onsite || state.enroute); }
+  /* X-3 (call 17.11): several technicians on one job — a lead the office
+     picks, and helpers. Everyone sees the job on Home and History and adds
+     photos and notes; each presses En route and Start for himself (the job
+     takes the first press); only the lead completes it. The card says who
+     else is on it. Demo: Brent Kenzie's install is done by two; the More
+     demo row makes you the helper, with Tom Baker as the lead. */
+  var crewHelper = recall('crewHelper', false);
+  function crewOf(j) {
+    if (!j || j.cust !== '10377') return null;
+    return crewHelper ? { lead: 'Tom Baker', mates: ['Tom Baker', 'Mike Davis'] } : { lead: '', mates: ['Mike Davis'] };
+  }
+  function crewLabel(j) {
+    var c = crewOf(j); if (!c) return '';
+    return 'with ' + c.mates.map(function (m) { return m === c.lead ? m + ' (lead)' : m; }).join(', ');
+  }
+  function isHelper(j) { var c = crewOf(j); return !!(c && c.lead); }
+  ACT.demoCrew = function () {
+    crewHelper = !crewHelper; remember('crewHelper', crewHelper);
+    var l = byId('crewDemoLbl'); if (l) l.textContent = crewHelper ? 'Demo: you are the lead on Brent Kenzie’s install' : 'Demo: you are a helper on Brent Kenzie’s install';
+    paintJob(); paintStartButtons(); paintEnroute();
+    toast(crewHelper ? 'Brent Kenzie’s install: Tom Baker is the lead, you help — he completes it' : 'Brent Kenzie’s install: you are the lead, Mike Davis helps', 'groups');
+  };
   function openJobs() {
     var o = [];
     for (var i = 0; i < JOBS.length; i++) if (!JOBS[i].done && !JOBS[i].cancelled) o.push(i);
@@ -9560,7 +9586,8 @@
       start.innerHTML = '<span class="mi" style="font-size:18px">' +
         (done ? 'task_alt' : 'play_arrow') + '</span>' +
         (done ? 'Complete' : 'Start');
-      toggleDisplay(start, true);
+      // X-3: a helper has no Complete — the lead closes the job
+      toggleDisplay(start, !(done && isHelper(pj)));
 
       paintDriveTime();
       paintClock();
@@ -9568,6 +9595,27 @@
     paintEnroute();
   })();
 
+  (function () {
+    var orig = paintJob;
+    paintJob = function () {
+      orig.apply(this, arguments);
+      var j = JOBS[jobIdx], card = jobCard; if (!card) return;
+      var el = $('[data-crew]', card), txt = crewLabel(j);
+      if (!txt) { if (el) el.remove(); return; }
+      if (!el) {
+        el = document.createElement('div'); el.dataset.crew = '1';
+        el.setAttribute('style', 'display:flex;align-items:center;gap:6px;margin:6px 0 2px;font:500 13px/1.3 Geist;color:#4A6FA5');
+      }
+      el.innerHTML = '<span class="mi" style="font-size:17px">groups</span><span></span>';
+      el.children[1].textContent = txt;
+      // under the name and time, as the status chip — and under the chip when there is one
+      var whenEl = $$('span,div', card).filter(function (e) { return !e.children.length && norm(e.textContent) === j.when; })[0];
+      var headRow = whenEl && whenEl.parentNode && whenEl.parentNode.parentNode;
+      if (!headRow || !headRow.parentNode) return;
+      var after = headRow.nextElementSibling && headRow.nextElementSibling !== el && headRow.nextElementSibling.textContent.length < 60 && /^(Reopened|Paused|On the way|Started by)/.test(norm(headRow.nextElementSibling.textContent)) ? headRow.nextElementSibling : headRow;
+      if (after.nextSibling !== el) headRow.parentNode.insertBefore(el, after.nextSibling);
+    };
+  })();
   paintJob();
 
   /* =========================================================
@@ -14643,7 +14691,7 @@
           (tag ? '<span style="font:600 11.5px/1 Geist;color:#546478;background:#EDF0F5;border-radius:5px;padding:4px 7px;white-space:nowrap"></span>' : '') +
           '<span class="mi" style="font-size:20px;color:#A9B4C2">chevron_right</span>';
         r.children[0].children[0].textContent = j.name;
-        r.children[0].children[1].textContent = j.when + ' · ' + j.type + ' · ' + jobNo(j);
+        r.children[0].children[1].textContent = j.when + ' · ' + j.type + ' · ' + jobNo(j) + (crewLabel(j) ? ' · ' + crewLabel(j) : '');
         if (tag) r.children[1].textContent = tag;
         nextList.appendChild(r);
       });
