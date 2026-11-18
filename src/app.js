@@ -8015,10 +8015,11 @@
       var cp = kpi.conv / kpi.estimates * 100;
       if (r.convPct) r.convPct.textContent = cp.toFixed(1) + '%';
       if (r.est.bar) r.est.bar.style.width = pct(cp, 100) + '%';
-      // QA 16.11 (R-003.1, p.360): this tile too reads against its target
+      /* M10-6 / M10-6b (session 18.11): targets are set for Revenue, Avg ticket
+         and Closing only — this tile has none, so it stays neutral, with no
+         word (it read "Behind · target 25%") */
       var estTile = r.est.value.closest('div[style*="border-radius"]');
-      trackWord(estTile, cp >= CONV_TARGET);
-      var tw = estTile && $('[data-track]', estTile); if (tw) tw.textContent += ' · target ' + CONV_TARGET + '%';
+      var tw = estTile && $('[data-track]', estTile); if (tw) tw.remove();
     }
     if (r.avg) {
       setLead(r.avg.value, kfmt(kpi.avgTicket));
@@ -8046,8 +8047,10 @@
       var proj = kpi.revenue * 243000 / 65200;
       var rt = r.rev.value.lastElementChild; if (rt) rt.textContent = '/ ' + '$' + Math.round(kpi.target / 1000) + 'k';
       var tl = revTile && $$('*', revTile).filter(function (e) { return !e.children.length && /^Tracking:/.test(norm(e.textContent)); })[0];
-      if (tl) tl.textContent = 'Tracking: ' + kfmt(proj);
-      trackWord(revTile, proj >= kpi.target);
+      // M10-7: a forecast only while the period runs; a finished one is judged on its sum
+      var running = /^This /.test(period);
+      if (tl) { tl.textContent = 'Tracking: ' + kfmt(proj); tl.style.display = running ? '' : 'none'; }
+      trackWord(revTile, (running ? proj : kpi.revenue) >= kpi.target);
     }
     paintSparks();
     remember('kpi', kpi);
