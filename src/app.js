@@ -12138,7 +12138,15 @@
       onOk: function () { storageCleared = true; remember('storageCleared', true); paintSettingsNotes(); toast('Storage cleared · 231 MB freed', 'delete_sweep'); }
     });
   };
-  var theme = recall('theme', 'Light');
+  var theme = recall('theme', 'System');      // M12-4: as the phone, out of the box
+  var darkMq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  function applyTheme() {
+    var dark = theme === 'Dark' || (theme === 'System' && !!(darkMq && darkMq.matches));
+    phone.dataset.dark = dark ? '1' : '';
+  }
+  // "Same as the phone": the phone turns dark at 8 PM, the app follows when you come back to it
+  if (darkMq && darkMq.addEventListener) darkMq.addEventListener('change', function () { applyTheme(); });
+  applyTheme();
   function paintSettingsNotes() {
     var pn = byId('photoNote'); if (pn) pn.textContent = 'Balanced \u00b7 set by your company';
     var wn = byId('wifiNote'), ws = byId('wifiSw');
@@ -12162,7 +12170,8 @@
   ACT.pickTheme = function (el) {
     theme = el.dataset.theme; remember('theme', theme);
     paintSettingsNotes();
-    toast(theme === 'Dark' ? 'Dark theme picked — not in this demo yet' : theme === 'System' ? 'Follows the phone — light in this demo' : 'Light theme', 'dark_mode');
+    applyTheme();
+    toast(theme === 'Dark' ? 'Dark theme' : theme === 'System' ? 'Same as the phone · ' + (phone.dataset.dark ? 'dark now' : 'light now') : 'Light theme', theme === 'Light' ? 'light_mode' : 'dark_mode');
   };
   paintSettingsNotes();
   (function () {

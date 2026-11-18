@@ -38,6 +38,11 @@ body{
 }
 .statusbar .icons{display:flex;gap:6px;align-items:center}
 .phone[data-sb="dark"] .statusbar{background:#101820;color:#fff}
+/* M12-4 (Marek 17.11: first release, as the phone by default): the dark
+   theme is one switch of the colour set. The demo turns the light set
+   round; the customer's own screens stay light, as on paper. */
+.phone[data-dark="1"]{filter:invert(1) hue-rotate(180deg)}
+.phone[data-dark="1"] #est-customer,.phone[data-dark="1"] #est-preview{filter:invert(1) hue-rotate(180deg)}
 .viewport{flex:1;position:relative;overflow:hidden;background:var(--bg)}
 
 /* One line about the connection. Offline, uploading, sent — never two bars
