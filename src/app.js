@@ -446,7 +446,7 @@
       remember('jobIdx', viewPast ? viewPast.idx : jobIdx);   // a job being looked at is not the job
       remember('jobs', JOBS.map(function (j) {
         return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, estDeclined: j.estDeclined || null, invNeeded: typeof j.invNeeded === 'boolean' ? j.invNeeded : null, paperApproved: j.paperApproved || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', pauseReason: j.pauseReason || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '', invList: j.invList || null, estSig: j.estSig || '', estBelow: j.estBelow || null, estMismatch: j.estMismatch || null, installTpls: j.installTpls || null };
+          sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, reopenReason: j.reopenReason || '', paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, estDeclined: j.estDeclined || null, invNeeded: typeof j.invNeeded === 'boolean' ? j.invNeeded : null, paperApproved: j.paperApproved || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', pauseReason: j.pauseReason || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '', invList: j.invList || null, estSig: j.estSig || '', estBelow: j.estBelow || null, estMismatch: j.estMismatch || null, installTpls: j.installTpls || null };
       }));
     }
     paintDash();
@@ -872,7 +872,7 @@
     switchTo = -1;
     var bj = JOBS[jobIdx];
     var resumed = !!(bj && bj.paused);
-    if (bj) { bj.reopened = false; bj.paused = false; bj.startReq = null; }
+    if (bj) { bj.reopened = false; bj.reopenReason = ''; bj.paused = false; bj.startReq = null; }
     setRun(jobIdx);
     state.onsite = true;
     state.paused = false;
@@ -4301,12 +4301,34 @@
       var j = rj;
       if (!j || !j.done) return;
       j.done = false; j.reopened = true; j.reopenReq = null;
+      j.reopenReason = 'Callback';
       saveJobs();
       paintJob();
-      toast(jobNo(j) + ' was reopened by Helen Smith', 'lock_open');
+      toast(jobNo(j) + ' was reopened by Helen Smith · ' + j.reopenReason, 'lock_open');
     }, 4000);
   };
 
+  /* M8-8b (call 17.11): the manager reopens with a reason — Incorrect entry,
+     Scope changed, Callback, Payment issue, or Other with a note — and the
+     job's card says which, so the technician knows why it is back. */
+  var REOPEN_REASONS = ['Incorrect entry', 'Scope changed', 'Callback', 'Payment issue'];
+  function reopenTag(j) {
+    if (!j || !j.reopened) return '';
+    return 'Reopened' + (j.reopenReason ? ' · ' + j.reopenReason : '') + ' · Start';
+  }
+  // demo: the office reopens the last completed job with each reason in turn
+  var demoReopenAt = 0;
+  ACT.demoReopen = function () {
+    var j = null;
+    for (var i = JOBS.length - 1; i >= 0; i--) if (JOBS[i].done) { j = JOBS[i]; break; }
+    if (!j) { toast('No completed job to reopen — complete one first', 'info'); return; }
+    var list = REOPEN_REASONS.concat(['Other: price agreed by phone']);
+    j.done = false; j.reopened = true; j.reopenReq = null;
+    j.reopenReason = list[demoReopenAt++ % list.length];
+    saveJobs(); paintJob();
+    if (typeof paintCard === 'function') paintCard();
+    toast(jobNo(j) + ' was reopened by Helen Smith · ' + j.reopenReason, 'lock_open');
+  };
   var VIEW_ACTS = { jobGeneral: 1, jobNotes: 1, jobRC: 1, jobEst: 1, jobFin: 1, histReopen: 1, reopenRequest: 1, histDetails: 1, openApproved: 1 };
   var VIEW_GO = { BACK: 1, 'ov-note-detailed': 1, 'ov-note-tech': 1, 'ov-note-private': 1, photos: 1, 'photo-detail': 1,
     'est-preview': 1, 'est-approved': 1, 'job-general': 1, 'job-notes': 1, 'rc-overview': 1, 'cust-jobs': 1 };
@@ -8167,7 +8189,7 @@
   function saveJobs() {
     remember('jobs', JOBS.map(function (j) {
       return { est: j.est, inv: j.inv, items: j.items, sold: j.sold, done: !!j.done, expenses: j.expenses,
-        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, estDeclined: j.estDeclined || null, invNeeded: typeof j.invNeeded === 'boolean' ? j.invNeeded : null, paperApproved: j.paperApproved || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', pauseReason: j.pauseReason || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '', invList: j.invList || null, estSig: j.estSig || '', estBelow: j.estBelow || null, estMismatch: j.estMismatch || null, installTpls: j.installTpls || null };
+        sentAt: j.sentAt || '', estType: j.estType || '', signoff: j.signoff || null, estNo: j.estNo || '', estTmp: !!j.estTmp, reopened: !!j.reopened, reopenReason: j.reopenReason || '', paused: !!j.paused, cancelled: !!j.cancelled, completedAt: j.completedAt || '', rcFilled: !!j.rcFilled, reopenReq: j.reopenReq || null, estDeclined: j.estDeclined || null, invNeeded: typeof j.invNeeded === 'boolean' ? j.invNeeded : null, paperApproved: j.paperApproved || null, pausedAt: j.pausedAt || 0, pausedFrom: j.pausedFrom || '', pauseReason: j.pauseReason || '', startReq: j.startReq || null, officeStartAt: j.officeStartAt || '', invList: j.invList || null, estSig: j.estSig || '', estBelow: j.estBelow || null, estMismatch: j.estMismatch || null, installTpls: j.installTpls || null };
     }));
   }
 
@@ -9249,7 +9271,7 @@
     if (s.sold !== undefined) JOBS[i].sold = s.sold;
     if (s.expenses) JOBS[i].expenses = s.expenses;
     if (s.estNo) { JOBS[i].estNo = s.estNo; JOBS[i].estTmp = !!s.estTmp; }
-    JOBS[i].reopened = !!s.reopened; JOBS[i].paused = !!s.paused; JOBS[i].cancelled = !!s.cancelled; JOBS[i].completedAt = s.completedAt || ''; JOBS[i].rcFilled = !!s.rcFilled; JOBS[i].reopenReq = s.reopenReq || null; JOBS[i].estDeclined = s.estDeclined || null; JOBS[i].paperApproved = s.paperApproved || null; if (typeof s.invNeeded === 'boolean') JOBS[i].invNeeded = s.invNeeded; JOBS[i].pausedAt = s.pausedAt || 0; JOBS[i].pausedFrom = s.pausedFrom || ''; JOBS[i].pauseReason = s.pauseReason || '';
+    JOBS[i].reopened = !!s.reopened; JOBS[i].reopenReason = s.reopenReason || ''; JOBS[i].paused = !!s.paused; JOBS[i].cancelled = !!s.cancelled; JOBS[i].completedAt = s.completedAt || ''; JOBS[i].rcFilled = !!s.rcFilled; JOBS[i].reopenReq = s.reopenReq || null; JOBS[i].estDeclined = s.estDeclined || null; JOBS[i].paperApproved = s.paperApproved || null; if (typeof s.invNeeded === 'boolean') JOBS[i].invNeeded = s.invNeeded; JOBS[i].pausedAt = s.pausedAt || 0; JOBS[i].pausedFrom = s.pausedFrom || ''; JOBS[i].pauseReason = s.pauseReason || '';
     JOBS[i].startReq = s.startReq || null; JOBS[i].officeStartAt = s.officeStartAt || '';
     if (s.sentAt) JOBS[i].sentAt = s.sentAt;
     if (s.estType) JOBS[i].estType = s.estType;
@@ -14488,7 +14510,7 @@
         txt = 'Started by the office · ' + j.officeStartAt; tone = 'brand';
       } else if (j && j.paused && j.pausedFrom === 'drive') { txt = 'Paused · on the way'; tone = 'grey';
       } else if (j && j.paused) { txt = 'Paused' + (j.pauseReason ? ' · ' + j.pauseReason : ''); tone = 'grey'; }   // short: the timer did not fit the card
-      else if (j && j.reopened) { txt = 'Reopened · Start'; tone = 'warn'; }
+      else if (j && j.reopened) { txt = reopenTag(j); tone = 'warn'; }
       if (whenEl && txt) {
         /* Nov 5: the chip sits on its own line under the name and time —
            "Paused · Picking up material" did not fit next to the time */
@@ -14564,7 +14586,7 @@
         var r = document.createElement('div');
         r.dataset.tap = '1'; r.dataset.act = 'openNextJob'; r.dataset.idx = String(i);
         r.setAttribute('style', 'display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #DDE3EE;border-radius:12px;padding:12px 14px;margin-bottom:8px');
-        var tag = j.paused ? 'Paused' + (j.pauseReason ? ' · ' + j.pauseReason : '') : j.reopened ? 'Reopened · Start' : '';
+        var tag = j.paused ? 'Paused' + (j.pauseReason ? ' · ' + j.pauseReason : '') : j.reopened ? reopenTag(j) : '';
         r.innerHTML = '<div style="flex:1;min-width:0"><div style="font:600 15px/1.25 Geist"></div>' +
           '<div style="font:400 12.5px/1.35 Geist;color:#546478;margin-top:3px"></div></div>' +
           (tag ? '<span style="font:600 11.5px/1 Geist;color:#546478;background:#EDF0F5;border-radius:5px;padding:4px 7px;white-space:nowrap"></span>' : '') +
