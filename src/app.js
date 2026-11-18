@@ -131,7 +131,7 @@
   function invSnap() {
     return { invNum: invNum, invTemp: invTemp, invPaidSoFar: invPaidSoFar, invCreatedAt: invCreatedAt, invSentAt: invSentAt,
       invPaidAt: invPaidAt, invFrozen: invFrozen, invFinancing: invFinancing, payMethod: payMethod,
-      receipt: receipt, cardSig: cardSig, invMailQ: invMailQ };
+      receipt: receipt, cardSig: cardSig, invMailQ: invMailQ, invCheckPend: invCheckPend };
   }
   function invRestore(o) {
     o = o || {};
@@ -144,6 +144,7 @@
     // the payment card and the customer's signature on it are this job's too
     receipt = o.receipt || null; cardSig = o.cardSig || ''; invMailQ = !!o.invMailQ; remember('invMailQ', invMailQ);
     remember('receipt', receipt); remember('cardSig', cardSig);
+    invCheckPend = o.invCheckPend || 0; remember('invCheckPend', invCheckPend);
     setTimeout(function () { paintReceipt(); paintCardSig(); paintFinChip(); }, 0);
   }
   function syncInvOwner() {
@@ -1249,6 +1250,7 @@
       }
       invFrozen = null; remember('invFrozen', null);
       invFinancing = false; remember('invFinancing', false);
+      invCheckPend = 0; remember('invCheckPend', 0);
       invPaidSoFar = 0; remember('invPaidSoFar', 0);
       state.inv = 'none';                  // a second invoice on the same job
       invCreatedAt = invSentAt = invPaidAt = '';
@@ -1333,8 +1335,10 @@
       }
       state.inv = 'paid';
       payMethod = curPage() === 'pay-apps' ? (appsMethod || appsPick) : (PAY_LABEL[curPage()] || 'Card');
+      var wasCheck = curPage() === 'pay-check';
+      if (wasCheck) { invCheckPend += payAmount; remember('invCheckPend', invCheckPend); }
       paintReceipt(curPage());
-      kpiPaid(payAmount);                           // what was actually collected lands in Revenue
+      if (!wasCheck) kpiPaid(payAmount);            // what was actually collected lands in Revenue; a check once it clears
       resetPayForms();
       closeOverlays(true);
       go('inv-paid', 'root');
@@ -2897,12 +2901,28 @@
   /* Marek, Nov 2: financing — the lender pays weeks later; the invoice says
      "Financing pending", shows the customer no Pay button and never goes overdue */
   var invFinancing = recall('invFinancing', false);
+  /* M7-8c (call 17.11): cash is Completed at once; a check is Pending until
+     the office sees the money in the bank and marks it cleared — or failed,
+     and the invoice is open again. Revenue and KPIs count it only once it
+     has cleared. The amount still pending, on this job's invoice: */
+  var invCheckPend = invCheckPend || recall('invCheckPend', 0);
   function paintFinChip() {
     var root = byId('inv-paid'); if (!root) return;
-    var chip = $$('span', root).filter(function (e) { return !e.children.length && /^(PAID|FINANCING PENDING)$/.test(norm(e.textContent)); })[0];
+    var chip = $$('span', root).filter(function (e) { return !e.children.length && /^(PAID|FINANCING PENDING|CHECK PENDING)$/.test(norm(e.textContent)); })[0];
     if (!chip) return;
-    chip.textContent = invFinancing ? 'FINANCING PENDING' : 'PAID';
-    chip.style.background = invFinancing ? '#D97706' : '#16A34A';
+    var chk = !invFinancing && invCheckPend > 0;
+    chip.textContent = invFinancing ? 'FINANCING PENDING' : chk ? 'CHECK PENDING' : 'PAID';
+    chip.style.background = invFinancing || chk ? '#D97706' : '#16A34A';
+    var cn = byId('chkPendNote');
+    if (chk) {
+      if (!cn) {
+        cn = document.createElement('div'); cn.id = 'chkPendNote';
+        cn.setAttribute('style', 'display:flex;gap:9px;align-items:flex-start;background:#FEF3E2;border:1px solid #F3D9AE;border-radius:11px;padding:11px 13px;margin-bottom:12px;font:400 12.5px/1.45 Geist;color:#7A5B12');
+        var sc0 = $$('.sc', root).pop(); if (sc0) sc0.insertBefore(cn, sc0.firstElementChild);
+      }
+      cn.innerHTML = '<span class="mi" style="font-size:18px;color:#D97706">schedule</span><span>Check ' + fmt(invCheckPend) + ' · Pending until the office sees it in the bank. It counts in your revenue once it clears.</span>';
+      cn.style.display = 'flex';
+    } else if (cn) cn.style.display = 'none';
     // the rest of the card says the same thing: not paid yet, the lender pays later
     var FIN_AMT = 'Financed — the lender pays later';
     // text nodes: the timeline line is an icon plus a bare text node
@@ -2921,6 +2941,32 @@
     });
   }
   setTimeout(paintFinChip, 0);
+  ACT.demoCheck = function () {
+    if (!(invCheckPend > 0)) { toast('No check is waiting — take a payment by check first', 'receipt'); return; }
+    var amt = invCheckPend;
+    confirmSheet({ title: 'Office: check ' + fmt(amt), text: 'Helen sees the bank statement. Did the check clear?', ok: 'Mark cleared', alt: 'Mark failed', neutral: true,
+      onOk: function () {
+        invCheckPend = 0; remember('invCheckPend', 0);
+        kpiPaid(amt);
+        paintFinChip(); paintReceipt();
+        toast('Check ' + fmt(amt) + ' cleared · Completed · now in your revenue', 'check_circle');
+      },
+      onAlt: function () {
+        invCheckPend = 0; remember('invCheckPend', 0);
+        if (state.inv === 'paid') {
+          invPaidSoFar = Math.max(0, Math.round((invoiceTotal() - amt) * 100) / 100);
+          state.inv = invSentAt ? 'sent' : 'created'; invPaidAt = '';
+          remember('invPaidAt', ''); remember('state', state);
+        } else {
+          invPaidSoFar = Math.max(0, Math.round((invPaidSoFar - amt) * 100) / 100);
+        }
+        remember('invPaidSoFar', invPaidSoFar);
+        receipt = null; remember('receipt', null);
+        paintFinChip(); paintPayScreens();
+        go(finScreen(), 'root');
+        toast('Check ' + fmt(amt) + ' failed · the invoice is open again for it', 'error');
+      } });
+  };
   function paintReceipt(page) {
     if (page) {
       var r = page === 'inline' ? inlineReceipt() : { icon: 'credit_card', title: payMethod, sub: '' };
@@ -2954,7 +3000,8 @@
     }
     if (R.icon) R.icon.textContent = receipt.icon;
     R.title.textContent = receipt.title;
-    if (R.sub) R.sub.textContent = receipt.sub;
+    var chkSub = invCheckPend > 0 && /^(Check|Paper check)/.test(receipt.sub || '') ? ' · Pending until the bank clears it' : '';
+    if (R.sub) R.sub.textContent = receipt.sub + chkSub;
   }
   paintReceipt();
 
@@ -3653,21 +3700,24 @@
     if (taking < payAmount - 0.005) {
       invPaidSoFar += taking; remember('invPaidSoFar', invPaidSoFar);
       // QA 16.11 (R-008.1): a payment is not a send — the invoice says Sent only once it was
-      if (m.id !== 'financing') kpiPaid(taking);
+      if (m.id === 'check') { invCheckPend += taking; remember('invCheckPend', invCheckPend); }
+      else if (m.id !== 'financing') kpiPaid(taking);
       pay.values = {}; pay.dates = {}; pay.dl = {}; savePay();
       payPanels.forEach(function (P) { P.rendered = ''; });
       paintPayScreens();
       closeOverlays(true);
       go(finScreen(), 'root');
       queued('Payment', 'Payment ' + fmt(taking) + ' ' + m.name.toLowerCase());
-      toast(m.id === 'financing' ? 'Financing ' + fmt(taking) + ' recorded · pending with the lender · ' + fmt(payAmount) + ' balance' : 'Partial payment · ' + fmt(taking) + ' received · ' + fmt(payAmount) + ' still due', 'payments');
+      toast(m.id === 'financing' ? 'Financing ' + fmt(taking) + ' recorded · pending with the lender · ' + fmt(payAmount) + ' balance'
+        : m.id === 'check' ? 'Check ' + fmt(taking) + ' recorded · Pending until the bank clears it · ' + fmt(payAmount) + ' still due' : 'Partial payment · ' + fmt(taking) + ' received · ' + fmt(payAmount) + ' still due', 'payments');
       return;
     }
     invPaidAt = stamp(); remember('invPaidAt', invPaidAt);
     state.inv = 'paid';
     payMethod = m.name;
+    if (m.id === 'check') { invCheckPend += payAmount; remember('invCheckPend', invCheckPend); }
     paintReceipt('inline');
-    if (m.id !== 'financing') kpiPaid(payAmount);
+    if (m.id !== 'financing' && m.id !== 'check') kpiPaid(payAmount);
     var paidNow = payAmount;                       // the sum is recomputed to $0 below
     pay.values = {}; pay.dates = {}; pay.dl = {}; savePay();
     payPanels.forEach(function (P) { P.rendered = ''; });
@@ -3680,6 +3730,7 @@
     setTimeout(paintFinChip, 60);   // after the paid card has painted its own lines
     if (invFinancing) { toast('Financing pending · no Pay button for the customer, and the invoice won’t go overdue', 'account_balance'); return; }
     if (overpaid) { toast('Paid · Overpaid ' + fmt(overpaid) + ' — change due ' + fmt(overpaid), 'payments'); return; }
+    if (m.id === 'check') { toast('Check ' + fmt(paidNow) + ' recorded · Pending until the office sees it in the bank', 'receipt'); return; }
     toast(net.online ? 'Payment received · ' + fmt(paidNow)
       : 'Payment recorded offline · will post when you have signal');
   };
