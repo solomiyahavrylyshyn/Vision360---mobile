@@ -652,6 +652,7 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
             <div class="rowi" data-act="demoForceUpdate" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">system_update</span><span id="updDemoLbl">Demo: version below the minimum</span></div>
             <div class="rowi" data-act="demoLowStore" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">sd_card</span><span id="lowStoreLbl">Demo: phone storage almost full</span></div>
             <div class="rowi" data-act="demoFieldCancel" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">event_busy</span><span>Demo: office cancelled a job you worked on offline</span></div>
+            <div class="rowi" data-act="demoNoScreenLock" style="justify-content:center;gap:8px;margin-top:2px;border:none;background:none;color:#8A97A8;font:500 13px/1 Geist"><span class="mi" style="font-size:17px;color:#A9B4C2">screen_lock_portrait</span><span>Demo: phone without a screen lock</span></div>
             <!-- demo only: shows Home as a salaried technician sees it (OD-16) -->
           </div>
         </div>
@@ -17519,6 +17520,16 @@ body[data-pb="1"] #est-catalog > div:last-child { display: none !important; }
     paintPin();
   })();
   ACT.lockNow = function () { lockApp(); };
+  /* M1-9: the data on the phone is encrypted; the phone's own screen lock is
+     what keeps it from whoever picks the phone up. A phone without one is
+     told once — Open settings or Later — and work is never blocked. */
+  ACT.demoNoScreenLock = function () {
+    if (recall('lockNudged', false)) { toast('Already told once on this phone — it is not asked again', 'screen_lock_portrait'); return; }
+    remember('lockNudged', true);
+    confirmSheet({ title: 'Set a screen lock on this phone', text: 'It protects your customers’ data if the phone is lost. Vision 360 keeps working either way.', ok: 'Open settings', alt: 'Later', neutral: true,
+      onOk: function () { toast('Phone settings · Security · Screen lock', 'settings'); },
+      onAlt: function () { toast('OK — it won’t ask again', 'schedule'); } });
+  };
   ACT.unlockBio = function () { unlockApp('bio'); };
   /* Decision 29.10 (M1-9): the app has no PIN of its own — the phone's
      screen lock protects it — so it never locks itself after idle time and

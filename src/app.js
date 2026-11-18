@@ -14105,6 +14105,16 @@
     paintPin();
   })();
   ACT.lockNow = function () { lockApp(); };
+  /* M1-9: the data on the phone is encrypted; the phone's own screen lock is
+     what keeps it from whoever picks the phone up. A phone without one is
+     told once — Open settings or Later — and work is never blocked. */
+  ACT.demoNoScreenLock = function () {
+    if (recall('lockNudged', false)) { toast('Already told once on this phone — it is not asked again', 'screen_lock_portrait'); return; }
+    remember('lockNudged', true);
+    confirmSheet({ title: 'Set a screen lock on this phone', text: 'It protects your customers’ data if the phone is lost. Vision 360 keeps working either way.', ok: 'Open settings', alt: 'Later', neutral: true,
+      onOk: function () { toast('Phone settings · Security · Screen lock', 'settings'); },
+      onAlt: function () { toast('OK — it won’t ask again', 'schedule'); } });
+  };
   ACT.unlockBio = function () { unlockApp('bio'); };
   /* Decision 29.10 (M1-9): the app has no PIN of its own — the phone's
      screen lock protects it — so it never locks itself after idle time and
